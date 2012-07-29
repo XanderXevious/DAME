@@ -1,0 +1,421 @@
+﻿Button
+{
+	cornerRadius: 2;
+	textIndent: 0;
+	paddingLeft: 0;
+	paddingRight: 0;
+	highlightAlphas: 0.12, 0.1;
+	fillAlphas: 1, 1, 1, 1;
+	fillColors: #cccccc, #eeeeee,#9999aa, #9999aa;
+	borderColor: #777777;
+	/* setting this ruins the rollOverColor for LinkButtons
+	themeColor: #333333;*/
+	color: #000000;
+}
+
+ButtonExt
+{
+	selectedColors: #9999aa, #9999aa, #cccccc, #aaaaaa ;
+	unselectedColors: #cccccc, #eeeeee,#aaaabb, #aaaabb;
+	skin: ClassReference("com.UI.DAMEButtonSkin");
+	downSkin: ClassReference("com.UI.DAMEButtonSkin");
+	disabledSkin: ClassReference("com.UI.DAMEButtonSkin");
+	selectedUpSkin: ClassReference("com.UI.DAMEButtonSkin");
+	selectedOverSkin: ClassReference("com.UI.DAMEButtonSkin");
+	selectedDownSkin: ClassReference("com.UI.DAMEButtonSkin");
+	selectedDisabledSkin: ClassReference("com.UI.DAMEButtonSkin");
+}
+
+LinkButton
+{
+	cornerRadius: 6;
+	rollOverColor: #ffcc00;
+	selectionColor: #ff9900;
+	textRollOverColor: #000000;
+	textSelectedColor: #ffffff;
+	fontFamily: "Verdana";
+	fontSize:10;
+	fontWeight: bold;
+	textDecoration: underline;
+	paddingTop:0;
+	paddingBottom:0;
+}
+
+CheckBox
+{
+	color: black;
+	textRollOverColor: #0000ff; 
+}
+
+ComboBox
+{
+	color: #000000;
+}
+
+Canvas
+{
+	backgroundColor:#888888;
+}
+
+DockablePage
+{
+	backgroundAlpha: 1;
+	borderAlpha: 0;
+	borderStyle: none;
+	borderThicknessLeft: 0;
+    borderThicknessTop: 0;
+    borderThicknessBottom: 0;
+    borderThicknessRight: 0;
+	dropShadowEnabled: false;
+	paddingLeft: 0;
+	paddingRight: 0;
+	paddingTop: 0;
+	paddingBottom: 0;
+	verticalGap: 0;
+	backgroundColor: #ff99ff;
+}
+
+.SpecialLabelStyle
+{
+	color: #ff0000;
+}
+
+Label {
+	color: #000000;
+}
+
+Panel {
+    headerHeight:             20;
+    roundedBottomCorners:     true;
+    borderThicknessTop:     0;
+    borderThicknessBottom:     3;
+    borderThicknessLeft:     3;
+    borderThicknessRight:     3;
+    borderAlpha:             1.0;
+backgroundColor:		#dddddd;
+    color:                    #666666;
+    fontSize:                10;
+    titleStyleName:         "mypanelTitle";
+}
+
+TextInput {
+	color: #000000;
+}
+
+.mypanelTitle {
+    fontFamily: Arial;
+    fontSize:     11;
+    color:        #ffffff;
+    fontWeight: bold;
+}
+
+Tree {
+   backgroundColor: #ffff66;
+   rollOverColor: #0000cc;
+   textRollOverColor: #ffff00;
+   borderThickness: 1;
+   borderColor: #000000;
+   selectionColor: #000000;
+   color: #000000;
+   textSelectedColor: #ffffff;
+   indentation: 12;
+   openDuration: 200;
+   fontWeight: bold;
+   folderClosedIcon: ClassReference(null);
+	folderOpenIcon: ClassReference(null);
+	defaultLeafIcon: ClassReference(null);
+	borderStyle:solid;
+}
+
+DataGrid {
+ backgroundColor: #ffff66;
+   rollOverColor: #9999cc;
+   textRollOverColor: #ffff99;
+   borderThickness: 1;
+   borderColor: #000000;
+   selectionColor: #ff9999;
+   color: #000000;
+   textSelectedColor: #ffffff;
+   indentation: 12;
+   openDuration: 200;
+   fontWeight: bold;
+   folderClosedIcon: ClassReference(null);
+	folderOpenIcon: ClassReference(null);
+	defaultLeafIcon: ClassReference(null);
+	borderStyle:solid;
+	alternatingItemColors: #ffffff, #ffffcc;
+	headerColors: #bbbbbb, #999999;
+}
+
+TextInput {
+	color: #000000;
+}
+
+PropertyGridRenderer
+{
+	defaultColor: #aaaaaa;
+	changedColor: #000000;
+}
+		
+NumericStepper
+{
+	color: black;
+	fontSize: 10;
+	upArrowSkin:Embed("../assets/arrowUpIconUp.png");
+	upArrowOverSkin:Embed("../assets/arrowUpIconDown.png");
+	upArrowDownSkin:Embed("../assets/arrowUpIconDown.png");
+	downArrowSkin:Embed("../assets/arrowDownIconUp.png");
+	downArrowOverSkin:Embed("../assets/arrowDownIconDown.png");
+	downArrowDownSkin:Embed("../assets/arrowDownIconDown.png");
+}
+
+HScrollBar
+{
+	width: 50;
+}
+
+.toolBarPanel
+{
+	headerHeight: "0";
+	borderStyle: "none";
+	backgroundAlpha: "0";
+}
+
+.Toolbars
+{
+	verticalGap: 0;
+	backgroundImage: ClassReference("com.UI.GradientBackground");
+	backgroundSize: "100%";
+	fillColors: #00bb00, #00dd00, #008800;
+	fillAlphas: 1, 1, 1;
+	fillRatios: 0, 60, 255;
+	borderSides:bottom;
+	borderColor:black;
+}
+
+.RibbonHeader 
+{
+	borderSkin: ClassReference("com.UI.GradientBackground");
+	backgroundSize: "100%";
+	fillColors: #0088ff, #0088ff, #0000ff; 
+	fillAlphas: 1, 1, 1;
+	fillRatios: 0, 60, 255;
+	height: 25;
+	color:#ffffff;
+	fontFamily: Verdana;
+    fontSize: 11;
+    fontWeight: bold;
+	borderStyle:solid;
+	borderSides: top, bottom;
+	borderSize: 1;
+	borderColor: black;
+}
+
+.SelectedRibbonHeader 
+{
+	borderSkin: ClassReference("com.UI.GradientBackground");
+	backgroundSize: "100%";
+	fillColors: #0088ff, #0000ff, #0088ff;
+	fillAlphas: 1, 1, 1;
+	fillRatios: 0, 200, 255;
+	height: 25;
+	color:#ffffff;
+	fontFamily: Verdana;
+    fontSize: 11;
+    fontWeight: bold;
+	borderStyle:solid;
+	borderSides: top, bottom, left, right;
+	borderSize: 1;
+	borderColor: white;
+}
+
+SwatchPanelFixed {
+	backgroundColor:#E5E6E7;
+	columnCount:20;
+	horizontalGap:0;
+	previewHeight:22;
+	previewWidth:45;
+	swatchGridBackgroundColor:#000000;
+	swatchGridBorderSize:0;
+	swatchHeight:18;
+	swatchHighlightColor:#FFFFFF;
+	swatchHighlightSize:1;
+	swatchWidth:18;
+	textFieldWidth:72;
+	verticalGap:0;
+}
+
+TabNavigator 
+{
+	backgroundColor:#eeeeee;
+	color:#aaaaaa;
+	selectedTabTextStyleName: "MySelectedTab";
+	tabStyleName: "tabs";
+	borderStyle: inset;
+}
+
+.tabs
+{
+	backgroundColor: #eeeeee;
+	fillAlphas: 0.4, 0.3;
+	fillColors: #444444, #666666;
+	borderStyle: none;
+	borderColor: #dddddd;
+	textRollOverColor: #ffffff;
+}
+.MySelectedTab {
+	backgroundColor: haloBlue;
+	color: haloBlue;
+	textRollOverColor: haloBlue;
+}
+
+DameStatusBar
+{
+	backgroundColor: #bb0099;
+	fontFamily: "Helvetica","Arial";
+	fontSize: 13;
+	fontWeight: bold;
+	fontColor: #ffffff;
+}
+
+.popUpMenu {
+	color: #000000;
+}
+
+/* in colours popup the window is really small so make the colour swatch small too so it fits */
+.colorsPopupSwatchPanelStyle {
+      swatchHeight:10;
+      swatchWidth:10;
+	  horizontalGap:0;
+	  verticalGap:0;
+	  swatchBorderSize:0;
+  }
+
+WindowedApplication {
+	statusBarBackgroundColor:#ff4400;
+	statusBarColor:#ffffff;
+	color:#ffffff;
+}
+
+Window {
+   borderColor: #000000;
+   borderAlpha: 1;
+   borderThickness: 2;
+   roundedBottomCorners: true;
+   cornerRadius: 10;
+   headerHeight: 22;
+   backgroundAlpha: 1;
+   titleBarColors: #0088ff, #0000ff;
+   backgroundColor: #ffff77;
+   titleTextStyleName: "mywindowTitle";
+}
+
+.mywindowTitle {
+   letterSpacing: 0;
+   color: #ffffff;
+   fontWeight: bold;
+}
+
+.updateDialogWindow { 
+   backgroundColor: #292929;
+   cornerRadius: 0;
+   borderColor: #292929;
+   dropShadowEnabled: true;
+}
+
+.updateDialogTextArea {
+    fontFamily: Lucida Grande, Verdana, Arial, sans;
+	font-size: 10;
+	font-weight: normal;
+	leading: 0;
+	border-color: #222222;
+	background-color: #393939;
+	padding-left: 6;
+	padding-right: 6;
+	border-thickness: 1;
+	background-alpha: 1;
+	border-style: solid;
+	color: #ffffff;	
+}
+
+.updateDialogText {
+	font-weight: bold;
+	color: #ffffff;
+	font-family: Lucida Grande, Verdana, Arial, sans;
+	font-size: 10;
+}
+
+.updateDialogLabel {
+    paddingBottom: 0;
+	paddingLeft: 0;
+	paddingRight: 0;
+	paddingTop: 0;
+	color: #ffffff;
+	font-family: Lucida Grande, Verdana, Arial, sans;
+	font-size: 10;
+	font-weight: normal;
+}
+
+.updateDialogHRule{
+   strokeColor: #333333;
+   shadowColor: #333333;
+}
+
+.installDialogProgress {
+   borderColor: #444444;
+   barColor: #2ca42c;
+   trackColors: #242424, #242424;
+   trackHeight: 15;
+}
+
+.updateDialogProgress {
+   borderColor: #444444;
+   barColor: #3475a6;
+   trackColors: #242424, #242424;
+   trackHeight: 15;
+}
+
+.updateDialogButton {
+	color:#ffffff;
+	fontSize:14;
+	fontFamily:"Verdana";
+	backgroundColor: #202020;
+	borderColor: #484848;
+	fillColors: #FFFFFF, #CCCCCC, #FFFFFF, #EEEEEE;
+	textRollOverColor: #ffffff;
+   	textSelectedColor: #ffffff;
+}
+
+.updateDialogCheckbox {
+	color:#ffffff;
+	fontSize:14;
+	fontFamily:"Verdana";
+	backgroundColor: #202020;
+	borderColor: #484848;
+	fillColors: #FFFFFF, #CCCCCC, #FFFFFF, #EEEEEE;
+	textRollOverColor: #ffffff;
+   	textSelectedColor: #ffffff;
+}
+	
+.updateTitle {
+	color: #FFFFFF;
+	fontFamily: "Verdana";
+	fontSize: 19;
+}
+
+ExtendedDividedBox{
+    barBorderColor:            #BB0000;
+    barFillColors:             #FF7777,#FF3333;
+    dividerThickness:         10; 
+	dividerBackgroundColor:		#FF0000;
+	dividerBackgroundAlpha:		1;
+}
+
+.minComps{
+	buttonFace:		#eeeeee;
+}
+
+.customTextAlignLabel 
+{
+	textAlign: left;
+}

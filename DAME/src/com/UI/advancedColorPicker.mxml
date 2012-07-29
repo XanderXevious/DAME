@@ -1,0 +1,1271 @@
+<?xml version="1.0" encoding="utf-8"?>
+<comUI:PopupWindow xmlns:mx="http://www.adobe.com/2006/mxml" xmlns:comUI="com.UI.*"
+    width="436" height="382" title="Color Picker" 
+	resizable="true" showGripper="false" showStatusBar="false" maximizable="false" minimizable="false">
+<!--<mx:TitleWindow xmlns:mx="http://www.adobe.com/2006/mxml" styleName="colorPickerPanel" xmlns:comUI="com.UI.*"
+	layout="absolute" width="436" height="382" title="Color Picker" creationComplete="onCreationComplete()" showCloseButton="true" close="closeMe();">-->
+	<mx:Script>
+		<![CDATA[
+			import mx.core.Application;
+			import mx.managers.CursorManager;
+			import mx.events.MoveEvent;
+			import mx.events.ResizeEvent;
+			import mx.events.DragEvent;
+			import mx.events.FlexEvent;
+			import mx.core.UIComponent;
+			import mx.binding.utils.ChangeWatcher;
+			import mx.binding.utils.BindingUtils;
+			import mx.controls.Alert;
+			import flash.utils.getTimer;
+			import mx.graphics.GradientEntry;
+			import mx.graphics.RadialGradient;
+			import mx.controls.colorPickerClasses.WebSafePalette;
+			
+			private static const CS_HUE:String = "hue";
+			private static const CS_SATURATION:String = "saturation";
+			private static const CS_LIGHTNESS:String = "lightness";
+			private static const CS_RED:String = "red";
+			private static const CS_GREEN:String = "green";
+			private static const CS_BLUE:String = "blue";
+			
+			private static var whatColorSpace:String = CS_HUE;
+			
+			private static var initialisedColors:Boolean = false;
+			[Bindable]
+			public static var globalColors:Array = [0x000000];
+			public static var swatchColors:Array = [];
+			
+			private var hasAlpha:Boolean = false;
+			private var _alphaValue:Number = 1;
+			
+			private static function rgb2int(r:Number, g:Number, b:Number):uint
+			{
+				return 	uint((Math.round(r*255))<<16) | 
+						uint((Math.round(g*255))<<8) | 
+						uint(Math.round(b*255));
+			}
+			
+			private static function rgb2hsl(r:Number, g:Number, b:Number):Array
+			{
+				var H:Number;
+	            var S:Number;
+	            var B:Number;
+	            
+	            var cmax:Number = (r > g) ? r : g;
+	            if (b > cmax) {
+	                cmax = b;
+	            }
+	            var cmin:Number = (r < g) ? r : g;
+	            if (b < cmin) {
+	                cmin = b;
+	            }
+	            B = cmax;
+	            if (cmax != 0) {
+	                S = (cmax - cmin)/cmax;
+	            } else {
+	                S = 0;
+	            }
+	            if (S == 0) {
+	                H = 0;
+	            } else {
+	                var redc:Number   = (cmax - r)/(cmax - cmin);
+	                var greenc:Number = (cmax - g)/(cmax - cmin);
+	                var bluec:Number  = (cmax - b)/(cmax - cmin);
+	                if (r == cmax) {
+	                    H = bluec - greenc;
+	                } else if (g == cmax) {
+	                    H = 2.0 + redc - bluec;
+	                } else {
+	                    H = 4.0 + greenc - redc;
+	                }
+	                H = H / 6.0;
+	                if (H < 0) {
+	                    H = H + 1.0;
+	                }
+	            }
+	            return [ H, S, B ];
+			}
+			
+			private static function hsl2rgb(H:Number, S:Number, B:Number):Array
+			{   
+	            var r:Number = 0;
+	            var g:Number = 0;
+	            var b:Number = 0;
+	            
+	            if (S == 0) {
+	                r = B;
+	                g = r;
+	                b = r;
+	            } else {
+	                var h:Number = (H - Math.floor(H)) * 6.0;
+	                var f:Number =  h - Math.floor(h);
+	            
+	                var p:Number = B * (1.0 - S);
+	                var q:Number = B * (1.0 - S * f);
+	                var t:Number = B * (1.0 - (S * (1.0 - f)));
+	            
+	                switch(Math.floor(h)) {
+	                    case 0:
+	                        r = B; g = t; b = p;
+	                        break;
+	                    case 1:
+	                        r = q; g = B; b = p;
+	                        break;
+	                    case 2:
+	                        r = p; g = B; b = t;
+	                        break;
+	                    case 3:
+	                        r = p; g = q; b = B;
+	                        break;
+	                    case 4:
+	                        r = t; g = p; b = B;
+	                        break;
+	                    case 5:
+	                        r = B; g = p; b = q;
+	                        break;
+	                }
+	            }
+	            return [r,g,b];
+			}
+			
+			public function getColorRGB():uint
+			{
+				return rgb2int(red, green, blue);
+			}
+			
+			public function setColorRGB(color:uint):void 
+			{
+                ored = red = ((color>>16)&0xFF)/255;
+                ogreen = green = ((color>>8)&0xFF)/255;
+                oblue = blue = ((color)&0xFF)/255;
+                var hsl:Array = rgb2hsl(red, green, blue);
+                hue = hsl[0];
+                saturation = hsl[1];
+                lightness = hsl[2];
+          
+                dispatchEvent(new Event("colorChanged"));
+        	}
+			
+			private var updateColorSpace:Function = drawHueColorspace;
+			private var updateColorSpace2:Function = drawHueColorspace2;
+
+			private var colorArea:Sprite = new Sprite();
+			private var blackArea:Sprite = new Sprite();
+			private var whiteArea:Sprite = new Sprite();
+			
+			private var colorArea2:Sprite = new Sprite();
+			
+			private var pickerHandle:Sprite;
+			private var pickerHandleLeft:UIComponent;
+			private var pickerHandleRight:UIComponent;
+			
+			private var draggingPickerHandle:Boolean = false;
+			private var draggingPickers2:Boolean = false;
+			
+			private var hue:Number = 0;
+			private var saturation:Number = 1;
+			private var lightness:Number = 1;
+			
+			private var red:Number = 1;
+			private var green:Number = 0;
+			private var blue:Number = 0;
+			
+			private var ored:Number = 1;
+			private var ogreen:Number = 0;
+			private var oblue:Number = 0;
+			
+			private function initPickerHandle():void
+			{
+				pickerHandle = new Sprite();
+				pickerHandle.graphics.lineStyle(2,0x000000,1);
+				pickerHandle.graphics.drawCircle(0,0,4.5);
+				pickerHandle.graphics.endFill();
+				pickerHandle.graphics.lineStyle(1,0xFFFFFF,1);
+				pickerHandle.graphics.drawCircle(0,0,4);
+				
+				pickerHandle.graphics.lineStyle();
+				pickerHandle.graphics.beginFill(0xFFFFFF, 0);
+				pickerHandle.graphics.drawRect(-3, -3, 6, 6);
+				pickerHandle.graphics.endFill();
+				maincp.addChild(pickerHandle);
+			}
+			
+			private function initPickerHandles():void
+			{
+				pickerHandleLeft = new UIComponent();
+                
+                pickerHandleLeft.graphics.beginFill(0x000000, .2 );
+                pickerHandleLeft.graphics.moveTo(-1,-4);
+                pickerHandleLeft.graphics.lineTo( 7, 2);
+                pickerHandleLeft.graphics.lineTo(-1, 8);
+                pickerHandleLeft.graphics.endFill();
+                pickerHandleLeft.graphics.beginFill(0x000000, .2);
+                pickerHandleLeft.graphics.moveTo(-1,-5);
+                pickerHandleLeft.graphics.lineTo( 7, 1);
+                pickerHandleLeft.graphics.lineTo(-1, 7);
+                pickerHandleLeft.graphics.endFill();
+                pickerHandleLeft.graphics.beginFill(0x000000);
+                pickerHandleLeft.graphics.moveTo(-1,-6);
+                pickerHandleLeft.graphics.lineTo( 7, 0);
+                pickerHandleLeft.graphics.lineTo(-1, 6);
+                pickerHandleLeft.graphics.endFill();
+                pickerHandleLeft.graphics.beginFill(0xcccccc);
+                pickerHandleLeft.graphics.moveTo( 0,-4);
+                pickerHandleLeft.graphics.lineTo( 5, 0);
+                pickerHandleLeft.graphics.lineTo( 0, 4);
+                pickerHandleLeft.graphics.beginFill(0xffffff);
+                pickerHandleLeft.graphics.moveTo( 0,-4);
+                pickerHandleLeft.graphics.lineTo( 3, -2);
+                pickerHandleLeft.graphics.lineTo( 0, 0);
+                pickerHandleLeft.graphics.endFill();
+                pickerHandleLeft.x = subcp.parent.x+3;
+                pickerHandleLeft.y = subcp.parent.y + 2;
+                colorsPanel.addChild(pickerHandleLeft);
+
+                pickerHandleRight = new UIComponent();
+                pickerHandleRight.graphics.beginFill(0x000000, .2);
+                pickerHandleRight.graphics.moveTo( 4,-4);
+                pickerHandleRight.graphics.lineTo(-4, 2);
+                pickerHandleRight.graphics.lineTo( 4, 8);
+                pickerHandleRight.graphics.endFill();
+                pickerHandleRight.graphics.beginFill(0x000000, .2);
+                pickerHandleRight.graphics.moveTo( 4,-5);
+                pickerHandleRight.graphics.lineTo(-4, 1);
+                pickerHandleRight.graphics.lineTo( 4, 7);
+                pickerHandleRight.graphics.endFill();
+                pickerHandleRight.graphics.beginFill(0x000000);
+                pickerHandleRight.graphics.moveTo( 4,-6);
+                pickerHandleRight.graphics.lineTo(-4, 0);
+                pickerHandleRight.graphics.lineTo( 4, 6);
+                pickerHandleRight.graphics.endFill();
+                pickerHandleRight.graphics.beginFill(0xcccccc);
+                pickerHandleRight.graphics.moveTo( 3,-4);
+                pickerHandleRight.graphics.lineTo(-2, 0);
+                pickerHandleRight.graphics.lineTo( 3, 4);
+                pickerHandleRight.graphics.beginFill(0xffffff);
+                pickerHandleRight.graphics.moveTo( 3,-4);
+                pickerHandleRight.graphics.lineTo(0, -2);
+                pickerHandleRight.graphics.lineTo( 3, 0);
+                pickerHandleRight.graphics.endFill();
+                pickerHandleRight.x = subcp.parent.x+subcp.parent.width-6;
+                pickerHandleRight.y = subcp.parent.y + 2;
+                colorsPanel.addChild(pickerHandleRight);
+			}			
+			
+			private function bringToFront(child:Sprite):void
+			{
+				var parent:* = child.parent;
+				parent.removeChild(child);
+				parent.addChild(child);
+			}
+			
+			private function c(num:String, min:Number, max:Number):Number
+			{
+				var theNum:Number = Number(num);
+				
+				if ( isNaN(theNum) )
+					return NaN;
+				
+				return Math.min(Math.max(theNum, min), max);
+			}
+			
+			/*
+			Getter Functions
+			
+			You will notice in the getters I am checking if the textbox
+			is currently focused, I do this because if I return the actual
+			value it interferes with typing because I am clamping the value
+			between 0 and 255.
+			*/
+			
+			[Bindable("colorChanged")]
+			private function get displayHue():*
+			{
+				if ( focusManager.getFocus() == t_hue )
+				{
+					return t_hue.text;
+				}
+				
+				return Math.round( 360*hue );
+			}
+			
+			[Bindable("colorChanged")]
+			private function get displaySaturation():*
+			{
+				if ( focusManager.getFocus() == t_saturation )
+				{
+					return t_saturation.text;
+				}
+				
+				return Math.round( 100*saturation );
+			}
+			
+			[Bindable("colorChanged")]
+			private function get displayLightness():*
+			{
+				if ( focusManager.getFocus() == t_saturation )
+				{
+					return t_lightness.text;
+				}
+				
+				return Math.round( 100*lightness );
+			}
+			
+			[Bindable("colorChanged")]
+			private function get displayRed():*
+			{
+				if ( focusManager.getFocus() == t_red )
+				{
+					return t_red.text;
+				}
+				return Math.round( 255*red );
+			}
+			
+			[Bindable("colorChanged")]
+			private function get displayGreen():*
+			{
+				if ( focusManager.getFocus() == t_green )
+				{
+					return t_green.text;
+				}
+				return Math.round( 255*green );
+			}
+			
+			[Bindable("colorChanged")]
+			private function get displayBlue():*
+			{
+				if ( focusManager.getFocus() == t_blue )
+				{
+					return t_blue.text;
+				}
+				return Math.round( 255*blue );
+			}
+			
+			[Bindable("colorChanged")]
+			public function get hex():String
+			{
+				if ( focusManager.getFocus() == t_hex )
+				{
+					return t_hex.text;
+				}
+				else
+				{
+					var hex:String = toHex(displayRed) + toHex(displayGreen) + toHex(displayBlue);
+	            	return hex;
+   				}
+            }
+            
+            [Bindable("prevColorChanged")]
+			public function get prevhex():String
+			{
+				var hex:String = toHex(Math.round(255*ored)) + toHex(Math.round(255*ogreen)) + toHex(Math.round(255*oblue));
+            	return hex;
+            }
+            
+            [Bindable("colorChanged")]
+            private function get currentColor():uint
+            {
+            	return rgb2int(red, green, blue);
+            }
+            
+            [Bindable("colorChanged")]
+            private function get previousColor():uint
+            {
+            	return rgb2int(ored, ogreen, oblue);
+            }
+            
+            //just for reverse compatibility
+            public function get lastColor():Number
+            {
+            	return rgb2int(ored, ogreen, oblue);
+            }
+            
+            public function set lastColor(color:Number):void
+            {
+            	ored  = ((color>>16)&0xFF)/255;
+                ogreen  = ((color>>8)&0xFF)/255;
+                oblue  = ((color)&0xFF)/255;
+                var hsl:Array = rgb2hsl(ored, ogreen, oblue);
+                hue = hsl[0];
+                saturation = hsl[1];
+                lightness = hsl[2];
+          
+                dispatchEvent(new Event("colorChanged"));
+            }
+       		
+			
+			//Setter Functions
+			
+			private function set displayHue(value:Number):void
+			{
+				if ( isNaN(value) )
+					return;
+					
+				hue = value/360;
+				var rgb:Array = hsl2rgb(hue, saturation, lightness);
+				red = rgb[0];
+				green = rgb[1];
+				blue = rgb[2];
+				dispatchEvent(new Event("colorChanged"));
+			}
+			
+			private function set displaySaturation(value:Number):void
+			{
+				if ( isNaN(value) )
+					return;
+					
+				saturation = value/100;
+				var rgb:Array = hsl2rgb(hue, saturation, lightness);
+				red = rgb[0];
+				green = rgb[1];
+				blue = rgb[2];
+				dispatchEvent(new Event("colorChanged"));
+			}
+			
+			private function set displayLightness(value:Number):void
+			{
+				if ( isNaN(value) )
+					return;
+					
+				lightness = value/100;
+				var rgb:Array = hsl2rgb(hue, saturation, lightness);
+				red = rgb[0];
+				green = rgb[1];
+				blue = rgb[2];
+				dispatchEvent(new Event("colorChanged"));
+			}
+			
+			private function set displayRed(value:Number):void
+			{
+				if ( isNaN(value) )
+					return;
+					
+				red = value/255;
+				var hsl:Array = rgb2hsl(red, green, blue);
+				hue = hsl[0];
+				saturation = hsl[1];
+				lightness = hsl[2];
+				dispatchEvent(new Event("colorChanged"));
+			}
+			
+			private function set displayGreen(value:Number):void
+			{
+				if ( isNaN(value) )
+					return;
+					
+				green = value/255;
+				var hsl:Array = rgb2hsl(red, green, blue);
+				hue = hsl[0];
+				saturation = hsl[1];
+				lightness = hsl[2];
+				dispatchEvent(new Event("colorChanged"));
+			}
+			
+			private function set displayBlue(value:Number):void
+			{
+				if ( isNaN(value) )
+					return;
+					
+				blue = value/255;
+				var hsl:Array = rgb2hsl(red, green, blue);
+				hue = hsl[0];
+				saturation = hsl[1];
+				lightness = hsl[2];
+				dispatchEvent(new Event("colorChanged"));
+			}
+			
+			public function set hex(value:String):void
+			{
+				fromHex(value);
+				dispatchEvent(new Event("colorChanged"));
+			}
+			
+			private function fromHex(value:String):void
+       		{
+       			if ( value.indexOf("#") == 0 )
+       				value = value.substr(1);
+       				
+       			while ( value.length < 6 )
+       				value = "0"+value;
+       				
+       			if ( value.length > 6 )
+       				value = value.substr(0,6);
+       				
+       			red = parseInt( value.substr(0,2), 16 ) / 255;
+       			green = parseInt( value.substr(2,2), 16 ) / 255;
+       			blue = parseInt( value.substr(4,2), 16 ) / 255;
+       			
+                var hsb:Array = rgb2hsl(red, green, blue);
+                hue = hsb[0];
+                saturation = hsb[1];
+                lightness = hsb[2];
+       		}
+       		
+       		private function handleHexChange():void
+       		{
+       			hex = t_hex.text;
+       		}
+			
+			private function toHex(value:Number):String
+       		{
+       			if ( isNaN(value) )
+       				return "00";
+       				
+       			value = Math.round(Math.max(Math.min(value, 255), 0));
+       			
+       			var mask:String = "0123456789ABCDEF";
+       			
+       			var pos1:Number = (value-(value%16))/16;
+       			var pos2:Number = value%16;
+       			
+       			return mask.charAt(pos1) + mask.charAt(pos2);
+       		}
+       		
+       		private function updatePickerLocation():void
+			{
+				switch ( whatColorSpace )
+				{
+					case CS_HUE:
+						pickerHandleLeft.y = subcp.parent.y+(subcp.height*hue) + 2;
+						pickerHandleRight.y = subcp.parent.y+(subcp.height*hue) + 2;
+						pickerHandle.x = Math.round(maincp.width*saturation);
+						pickerHandle.y = Math.round(maincp.height - (maincp.height*lightness));
+						break;
+						
+					case CS_SATURATION:
+						pickerHandleLeft.y = subcp.parent.y+(subcp.height-(subcp.height*saturation)) + 2;
+						pickerHandleRight.y = subcp.parent.y+(subcp.height-(subcp.height*saturation)) + 2;
+						pickerHandle.x = Math.round(maincp.width*hue);
+						pickerHandle.y = Math.round(maincp.height - (maincp.height*lightness));
+						break;
+						
+					case CS_LIGHTNESS:
+						pickerHandleLeft.y = subcp.parent.y+(subcp.height-(subcp.height*lightness)) + 2;
+						pickerHandleRight.y = subcp.parent.y+(subcp.height-(subcp.height*lightness)) + 2;
+						pickerHandle.x = Math.round(maincp.width*hue);
+						pickerHandle.y = Math.round(maincp.height - (maincp.height*saturation));
+						break;
+						
+					case CS_RED:
+						pickerHandleLeft.y = subcp.parent.y+(subcp.height-(subcp.height*red)) + 2;
+						pickerHandleRight.y = subcp.parent.y+(subcp.height-(subcp.height*red)) + 2;
+						pickerHandle.x = Math.round(maincp.width*blue);
+						pickerHandle.y = Math.round(maincp.height - (maincp.height*green));
+						break;
+						
+					case CS_GREEN:
+						pickerHandleLeft.y = subcp.parent.y+(subcp.height-(subcp.height*green)) + 2;
+						pickerHandleRight.y = subcp.parent.y+(subcp.height-(subcp.height*green)) + 2;
+						pickerHandle.x = Math.round(maincp.width*blue);
+						pickerHandle.y = Math.round(maincp.height - (maincp.height*red));
+						break;
+						
+					case CS_BLUE:
+						pickerHandleLeft.y = subcp.parent.y+(subcp.height-(subcp.height*blue)) + 2;
+						pickerHandleRight.y = subcp.parent.y+(subcp.height-(subcp.height*blue)) + 2;
+						pickerHandle.x = Math.round(maincp.width*red);
+						pickerHandle.y = Math.round(maincp.height - (maincp.height*green));
+						break;
+				}
+			}       		
+			
+			private function changeColorSpace(what:String):void
+			{
+				whatColorSpace = what;
+				
+				switch ( what )
+				{
+					case CS_HUE:
+						updateColorSpace = drawHueColorspace;
+						updateColorSpace2 = drawHueColorspace2;
+						break;
+						
+					case CS_SATURATION:
+						updateColorSpace = drawSaturationColorspace;
+						updateColorSpace2 = drawSaturationColorspace2;
+						break;
+						
+					case CS_LIGHTNESS:
+						updateColorSpace = drawLightnessColorspace;
+						updateColorSpace2 = drawLightnessColorspace2;
+						break;
+						
+					case CS_RED:
+						updateColorSpace = drawRedColorspace;
+						updateColorSpace2 = drawRedColorspace2;
+						break;
+						
+					case CS_GREEN:
+						updateColorSpace = drawGreenColorspace;
+						updateColorSpace2 = drawGreenColorspace2;
+						break;
+						
+					case CS_BLUE:
+						updateColorSpace = drawBlueColorspace;
+						updateColorSpace2 = drawBlueColorspace2;
+						break;
+				}
+				
+				updatePickerLocation();
+				updateColorSpace();
+				updateColorSpace2();	
+				bringToFront(pickerHandle);
+			}
+			
+			private function drawHueColorspace():void
+			{		
+				if ( !maincp.contains(whiteArea) )
+				{
+					if ( maincp.contains(blackArea) )
+						maincp.removeChild(blackArea);
+						
+					maincp.addChild(whiteArea);
+				}
+					
+				if ( !maincp.contains(blackArea) )
+					maincp.addChild(blackArea);
+					
+				var w:Number = maincp.width;
+				var h:Number = maincp.height;
+				
+				var rgb:Array = hsl2rgb(hue, 1, 1);
+				colorArea.graphics.clear();
+				colorArea.graphics.beginFill(rgb2int(rgb[0], rgb[1], rgb[2]));
+				colorArea.graphics.drawRect(0, 0, w, h);
+				
+                var matrix:Matrix = new Matrix();
+                matrix.createGradientBox(w, h, 0, 0, 0);
+                whiteArea.graphics.clear();
+                whiteArea.graphics.beginGradientFill(GradientType.LINEAR, [0xFFFFFF, 0x000000], [1, 1], [0, 255], matrix);
+                whiteArea.graphics.drawRect(0, 0, w, h);
+                whiteArea.blendMode = "screen";
+
+                matrix.createGradientBox(w, h, Math.PI/2, 0, 0);
+                blackArea.graphics.clear();
+                blackArea.graphics.beginGradientFill(GradientType.LINEAR, [0xFFFFFF, 0x000000], [1, 1], [0, 255], matrix);
+                blackArea.graphics.drawRect(0, 0, w, h);
+                blackArea.blendMode = "multiply";
+			}
+			
+			private function drawHueColorspace2():void
+			{
+				var w:Number = subcp.width;
+				var h:Number = subcp.height;
+				
+				colorArea2.graphics.clear();
+				for ( var y:int=0; y<h; y++ )
+				{
+					var drawHue:Number = (y/h);
+					var rgb:Array = hsl2rgb(drawHue, 1, 1);
+					var color:uint = rgb2int(rgb[0], rgb[1], rgb[2]);
+					colorArea2.graphics.beginFill(color);
+					colorArea2.graphics.drawRect(0, y, w, 1);
+				}
+			}
+			
+			private function drawSaturationColorspace():void
+			{
+				if ( maincp.contains(whiteArea) )
+					maincp.removeChild(whiteArea);
+					
+				if ( !maincp.contains(blackArea) )
+					maincp.addChild(blackArea);
+					
+				var w:Number = maincp.width;
+				var h:Number = maincp.height;
+				
+				colorArea.graphics.clear();
+				for ( var i:int=0; i<w; i++ )
+				{
+					var drawHue:Number = (1/255)*i;
+					var rgb:Array = hsl2rgb(drawHue, saturation, 1);
+					colorArea.graphics.beginFill(rgb2int(rgb[0], rgb[1], rgb[2]));
+					colorArea.graphics.drawRect(i, 0, 1, h);
+				}
+
+				var matrix:Matrix = new Matrix();
+                matrix.createGradientBox(w, h, Math.PI/2, 0, 0);
+                blackArea.graphics.clear();
+                blackArea.graphics.beginGradientFill(GradientType.LINEAR, [0xFFFFFF, 0x000000], [1, 1], [0, 255], matrix);
+                blackArea.graphics.drawRect(0, 0, w, h);
+                blackArea.blendMode = "multiply";
+			}
+			
+			private function drawSaturationColorspace2():void
+			{
+				var w:Number = subcp.width;
+				var h:Number = subcp.height;
+				
+				var rgb:Array = hsl2rgb(hue, 1, lightness);
+				var color1:uint = rgb2int(rgb[0], rgb[1], rgb[2]);
+				
+				rgb = hsl2rgb(hue, 0, lightness);
+				var color2:uint = rgb2int(rgb[0], rgb[1], rgb[2]);
+				
+				var matrix:Matrix = new Matrix();
+				matrix.createGradientBox(w, h, Math.PI/2, 0, 0);
+				
+				colorArea2.graphics.clear();
+				colorArea2.graphics.beginGradientFill(GradientType.LINEAR, [color1, color2], [1, 1], [0, 255], matrix);
+				colorArea2.graphics.drawRect(0, 0, w, h);
+			}
+			
+			private function drawLightnessColorspace():void
+			{
+				if ( maincp.contains(blackArea) )
+					maincp.removeChild(blackArea);
+					
+				if ( maincp.contains(whiteArea) )
+					maincp.removeChild(whiteArea);
+				
+				var w:Number = maincp.width;
+				var h:Number = maincp.height;
+				
+				var matrix:Matrix = new Matrix();
+				matrix.createGradientBox(w, h, Math.PI/2, 0, 0);
+				
+				colorArea.graphics.clear();
+				for ( var i:int=0; i<w; i++ )
+				{
+					var drawHue:Number = (1/255)*i;
+					var rgb:Array = hsl2rgb(drawHue, 1, lightness);
+					var color1:uint = rgb2int(rgb[0], rgb[1], rgb[2]);
+					rgb = hsl2rgb(0, 0, lightness);
+					var color2:uint = rgb2int(rgb[0], rgb[1], rgb[2]);
+					
+					colorArea.graphics.beginGradientFill(GradientType.LINEAR, [color1, color2], [1, 1], [0, 255], matrix);
+					colorArea.graphics.drawRect(i, 0, 1, h);
+				}
+			}
+			
+			private function drawLightnessColorspace2():void
+			{
+				var w:Number = subcp.width;
+				var h:Number = subcp.height;
+				
+				var rgb:Array = hsl2rgb(hue, saturation, 1);
+				var color:uint = rgb2int(rgb[0], rgb[1], rgb[2]);
+				
+				var matrix:Matrix = new Matrix();
+				matrix.createGradientBox(w, h, Math.PI/2, 0, 0);
+				
+				colorArea2.graphics.clear();
+				colorArea2.graphics.beginGradientFill(GradientType.LINEAR, [color, 0x000000], [1, 1], [0, 255], matrix);
+				colorArea2.graphics.drawRect(0, 0, w, h);
+			}
+			
+			private function drawRedColorspace():void
+			{
+				if ( maincp.contains(whiteArea) )
+					maincp.removeChild(whiteArea);
+					
+				if ( maincp.contains(blackArea) )
+					maincp.removeChild(blackArea);
+				
+				var w:Number = maincp.width;
+				var h:Number = maincp.height;
+				
+				var matrix:Matrix = new Matrix();
+				matrix.createGradientBox(w, h, Math.PI/2, 0, 0);
+				
+				colorArea.graphics.clear();
+				for ( var x:int=0; x<w; x++ )
+				{
+					var endColor:uint = rgb2int(red, 0, x/w);
+					var startColor:uint = rgb2int(red, 1, x/w);
+					colorArea.graphics.beginGradientFill(GradientType.LINEAR, [startColor, endColor], [1, 1], [0, 255], matrix);
+					colorArea.graphics.drawRect(x, 0, 1, h);
+				}
+			}
+			
+			private function drawRedColorspace2():void
+			{
+				var w:Number = subcp.width;
+				var h:Number = subcp.height;
+				
+				var color1:uint = rgb2int(1, green, blue);
+				var color2:uint = rgb2int(0, green, blue);
+				
+				var matrix:Matrix = new Matrix();
+				matrix.createGradientBox(w, h, Math.PI/2, 0, 0);
+				
+				colorArea2.graphics.clear();
+				colorArea2.graphics.beginGradientFill(GradientType.LINEAR, [color1, color2], [1, 1], [0, 255], matrix);
+				colorArea2.graphics.drawRect(0, 0, w, h);
+			}
+			
+			private function drawGreenColorspace():void
+			{
+				if ( maincp.contains(whiteArea) )
+					maincp.removeChild(whiteArea);
+					
+				if ( maincp.contains(blackArea) )
+					maincp.removeChild(blackArea);
+				
+				var w:Number = maincp.width;
+				var h:Number = maincp.height;
+				
+				var matrix:Matrix = new Matrix();
+				matrix.createGradientBox(w, h, Math.PI/2, 0, 0);
+				
+				colorArea.graphics.clear();
+				for ( var x:int=0; x<w; x++ )
+				{
+					var endColor:uint = rgb2int(0, green, x/w);
+					var startColor:uint = rgb2int(1, green, x/w);
+					colorArea.graphics.beginGradientFill(GradientType.LINEAR, [startColor, endColor], [1, 1], [0, 255], matrix);
+					colorArea.graphics.drawRect(x, 0, 1, h);
+				}
+			}
+			
+			private function drawGreenColorspace2():void
+			{
+				var w:Number = subcp.width;
+				var h:Number = subcp.height;
+				
+				var color1:uint = rgb2int(red, 1, blue);
+				var color2:uint = rgb2int(red, 0, blue);
+				
+				var matrix:Matrix = new Matrix();
+				matrix.createGradientBox(w, h, Math.PI/2, 0, 0);
+				
+				colorArea2.graphics.clear();
+				colorArea2.graphics.beginGradientFill(GradientType.LINEAR, [color1, color2], [1, 1], [0, 255], matrix);
+				colorArea2.graphics.drawRect(0, 0, w, h);
+			}
+			
+			private function drawBlueColorspace():void
+			{
+				if ( maincp.contains(whiteArea) )
+					maincp.removeChild(whiteArea);
+					
+				if ( maincp.contains(blackArea) )
+					maincp.removeChild(blackArea);
+				
+				var w:Number = maincp.width;
+				var h:Number = maincp.height;
+				
+				var matrix:Matrix = new Matrix();
+				matrix.createGradientBox(w, h, Math.PI/2, 0, 0);
+				
+				colorArea.graphics.clear();
+				for ( var x:int=0; x<w; x++ )
+				{
+					var endColor:uint = rgb2int(x/w, 0, blue);
+					var startColor:uint = rgb2int(x/w, 1, blue);
+					colorArea.graphics.beginGradientFill(GradientType.LINEAR, [startColor, endColor], [1, 1], [0, 255], matrix);
+					colorArea.graphics.drawRect(x, 0, 1, h);
+				}
+			}
+			
+			private function drawBlueColorspace2():void
+			{
+				var w:Number = subcp.width;
+				var h:Number = subcp.height;
+				
+				var color1:uint = rgb2int(red, green, 1);
+				var color2:uint = rgb2int(red, green, 0);
+				
+				var matrix:Matrix = new Matrix();
+				matrix.createGradientBox(w, h, Math.PI/2, 0, 0);
+				
+				colorArea2.graphics.clear();
+				colorArea2.graphics.beginGradientFill(GradientType.LINEAR, [color1, color2], [1, 1], [0, 255], matrix);
+				colorArea2.graphics.drawRect(0, 0, w, h);
+			}
+			
+			private function onColorChange(e:Event):void
+			{
+				updatePickerLocation();
+				updateColorSpace();
+				updateColorSpace2();
+				bringToFront(pickerHandle);
+				if ( swatchColorPicker != null )
+				{
+					swatchColorPicker.selectedColor = getColorRGB();
+				}
+			}
+			
+			private function restorePreviousColor():void
+			{
+				red = ored;
+				green = ogreen;
+				blue = oblue;
+				
+				var hsl:Array = rgb2hsl(red, green, blue);
+				hue = hsl[0];
+				saturation = hsl[1];
+				lightness = hsl[2];
+				
+				dispatchEvent(new Event("colorChanged"));
+			}
+			
+			private function addPickerCursor(e:MouseEvent):void
+			{
+				CursorManager.setCursor(PickerCursor, 2);
+			}
+			
+			private function removePickerCursor(e:MouseEvent):void
+			{
+				if ( !draggingPickerHandle )
+					CursorManager.removeAllCursors();
+			}
+			
+			private function startPickerDrag(e:MouseEvent):void
+			{
+				//change the docus so all the values update correctly...
+				focusManager.setFocus(btnok);
+				draggingPickerHandle = true;
+			}
+			
+			private function startPickers2Drag(e:MouseEvent):void
+			{
+				//change the docus so all the values update correctly...
+				focusManager.setFocus(btnok);
+				draggingPickers2 = true;
+			}
+			
+			private function findColor(e:MouseEvent):void
+			{	
+				if ( draggingPickerHandle || e.type == MouseEvent.CLICK )
+				{
+					//find the color...
+					var x:Number = Math.min(Math.max(maincp.mouseX, 0), maincp.width);
+					var y:Number = Math.min(Math.max(maincp.mouseY, 0), maincp.height);
+					
+					var rgb:Array;
+					var hsl:Array;
+					
+					switch ( whatColorSpace )
+					{
+						case CS_HUE:
+						{
+							//lightness: vert
+							//saturation: horz
+							saturation = x/maincp.width;
+							lightness = (maincp.height-y)/maincp.height;
+							rgb = hsl2rgb(hue, saturation, lightness);
+							red = rgb[0];
+							green = rgb[1];
+							blue = rgb[2];
+							break;
+						}
+						
+						case CS_SATURATION:
+						{
+							//hue: horx
+							//lightness: vert
+							hue = x/maincp.width;
+							lightness = (maincp.height-y)/maincp.height;
+							rgb = hsl2rgb(hue, saturation, lightness);
+							red = rgb[0];
+							green = rgb[1];
+							blue = rgb[2];
+							break;
+						}
+						
+						case CS_LIGHTNESS:
+						{
+							hue = x/maincp.width;
+							saturation = (maincp.height-y)/maincp.height;
+							rgb = hsl2rgb(hue, saturation, lightness);
+							red = rgb[0];
+							green = rgb[1];
+							blue = rgb[2];
+							break;
+						}
+						
+						case CS_RED:
+						{
+							//blue: x, green: y
+							blue = x/maincp.width;
+							green = (maincp.height-y)/maincp.height;
+							hsl = rgb2hsl(red, green, blue);
+							hue = hsl[0];
+							saturation = hsl[1];
+							lightness = hsl[2];
+							break;
+						}
+						
+						case CS_GREEN:
+						{
+							//blue: x, red: y
+							blue = x/maincp.width;
+							red = (maincp.height-y)/maincp.height;
+							hsl = rgb2hsl(red, green, blue);
+							hue = hsl[0];
+							saturation = hsl[1];
+							lightness = hsl[2];
+							break;
+						}
+						
+						case CS_BLUE:
+						{
+							//blue: x, red: y
+							red = x/maincp.width;
+							green = (maincp.height-y)/maincp.height;
+							hsl = rgb2hsl(red, green, blue);
+							hue = hsl[0];
+							saturation = hsl[1];
+							lightness = hsl[2];
+							break;
+						}
+					}
+					
+					dispatchEvent(new Event("colorChanged"));
+					
+					pickerHandle.x = Math.min(Math.max(maincp.mouseX, 0), maincp.width);
+					pickerHandle.y = Math.min(Math.max(maincp.mouseY, 0), maincp.height);
+				}
+			}
+			
+			private function findColor2(e:MouseEvent):void
+			{	
+				if ( draggingPickers2 || e.type == MouseEvent.CLICK )
+				{
+					//find the color...
+					var y:Number = Math.min(Math.max(subcp.mouseY, 0), subcp.height);
+					
+					var rgb:Array;
+					var hsl:Array;
+					
+					switch ( whatColorSpace )
+					{
+						case CS_HUE:
+						{
+							hue = y/subcp.height;
+							rgb = hsl2rgb(hue, saturation, lightness);
+							red = rgb[0];
+							green = rgb[1];
+							blue = rgb[2];
+							break;
+						}
+						
+						case CS_SATURATION:
+						{
+							saturation = (subcp.height-y)/subcp.height;
+							rgb = hsl2rgb(hue, saturation, lightness);
+							red = rgb[0];
+							green = rgb[1];
+							blue = rgb[2];
+							break;
+						}
+						
+						case CS_LIGHTNESS:
+						{
+							lightness = (subcp.height-y)/subcp.height;
+							rgb = hsl2rgb(hue, saturation, lightness);
+							red = rgb[0];
+							green = rgb[1];
+							blue = rgb[2];
+							break;
+						}
+						
+						case CS_RED:
+						{
+							red = (subcp.height-y)/subcp.height;
+							hsl = rgb2hsl(red, green, blue);
+							hue = hsl[0];
+							saturation = hsl[1];
+							lightness = hsl[2];
+							break;
+						}
+						
+						case CS_GREEN:
+						{
+							green = (subcp.height-y)/subcp.height;
+							hsl = rgb2hsl(red, green, blue);
+							hue = hsl[0];
+							saturation = hsl[1];
+							lightness = hsl[2];
+							break;
+						}
+						
+						case CS_BLUE:
+						{
+							blue = (subcp.height-y)/subcp.height;
+							hsl = rgb2hsl(red, green, blue);
+							hue = hsl[0];
+							saturation = hsl[1];
+							lightness = hsl[2];
+							break;
+						}
+					}
+					
+					dispatchEvent(new Event("colorChanged"));
+				}
+			}
+			
+			private function stopPickerDrag(e:MouseEvent):void
+			{
+				draggingPickerHandle = false;
+				
+				if ( maincp.mouseX < 0 || maincp.mouseX > maincp.width )
+					removePickerCursor(null);
+					
+				if ( maincp.mouseY < 0 || maincp.mouseY > maincp.height )
+					removePickerCursor(null);
+			}
+			
+			private function stopPickers2Drag(e:MouseEvent):void
+			{
+				draggingPickers2 = false;
+			}
+			
+			
+        	
+        	private function cancelMe():void
+        	{
+        		setColorRGB(rgb2int(ored, ogreen, oblue));
+        		ForceClose();
+        	}
+			
+			private var isClosing:Boolean = false;
+        	
+        	private function closeMe():void
+        	{
+        		ForceClose();
+        	}
+        	
+        	private function addSwatch():void
+			{
+        		globalColors.push(getColorRGB());
+				swatchColors.push(getColorRGB());
+				
+				if ( swatchColorPicker != null )
+				{
+					swatchColorPicker.invalidateDisplayList();		
+					swatchColorPicker.invalidateSize();
+					swatchColorPicker.invalidateProperties();
+				}
+        	}
+
+			private function changeFromSwatch(evt:Event):void
+			{
+				var oldColor:uint = getColorRGB();
+                setColorRGB(swatchColorPicker.selectedColor);
+				lastColor = oldColor;
+            }
+			
+			private function initSwatchColor():void
+			{
+				swatchColorPicker.selectedColor = getColorRGB();
+			}
+			
+			public static function initColors():void
+			{
+				var wsp:WebSafePalette = new WebSafePalette();
+				globalColors = wsp.getList().toArray();
+				swatchColors = [];
+				initialisedColors = true;
+			}
+
+			override protected function init():void
+			{
+				initPickerHandle();
+				initPickerHandles();
+				
+				//maincp.addEventListener(MouseEvent.MOUSE_OVER, addPickerCursor);
+				//maincp.addEventListener(MouseEvent.MOUSE_OUT, removePickerCursor);
+				
+				maincp.addEventListener(MouseEvent.MOUSE_DOWN, startPickerDrag);
+				this.addEventListener(MouseEvent.MOUSE_UP, stopPickerDrag);
+				this.addEventListener(MouseEvent.MOUSE_MOVE, findColor);
+				maincp.addEventListener(MouseEvent.CLICK, findColor);
+				
+				subcp.addEventListener(MouseEvent.MOUSE_DOWN, startPickers2Drag);
+				this.addEventListener(MouseEvent.MOUSE_UP, stopPickers2Drag);
+				this.addEventListener(MouseEvent.MOUSE_MOVE, findColor2);
+				subcp.addEventListener(MouseEvent.CLICK, findColor2);
+				
+				maincp.addChild(colorArea);
+				subcp.addChild(colorArea2);
+				
+				changeColorSpace(whatColorSpace);
+				addEventListener("colorChanged", onColorChange);
+				
+				bringToFront(pickerHandle);
+				
+				dispatchEvent(new Event("colorChanged"));
+				
+				if ( !initialisedColors )
+				{
+					initColors();
+				}
+				initialisedColors = true;
+				
+				if ( hasAlpha )
+				{
+					Alpha.visible = AlphaLabel.visible = true;
+					Alpha.value = _alphaValue;
+				}
+
+				validateNow();
+				
+				//width = container.width + 20;
+				//height = container.height + titleBar.height + 20;
+				
+				super.init();
+			}
+			
+			public function EnableAlpha( alphaValue:Number ):void
+			{
+				hasAlpha = true;
+				_alphaValue = alphaValue;
+			}
+        	
+		]]>
+	</mx:Script>
+	
+	<mx:Box id="container" >
+	<mx:TabNavigator id="tn" width="100%" height="100%" selectedTabTextStyleName="MySelectedTab">
+		<mx:Panel id="colorsPanel" label="Picker" headerHeight="0" layout="absolute" borderStyle="none" >
+			<mx:Box width="100%" height="100%" backgroundAlpha="0.95"  color="#000000"/>
+			<mx:Canvas x="10" y="10" width="259" height="255" borderStyle="inset">
+				<mx:Image top="0" bottom="0" left="0" id="maincp" right="0"/>
+			</mx:Canvas>
+			<mx:Canvas x="277" y="10" width="29" height="255" borderStyle="inset">
+				<mx:Image left="0" top="0" bottom="0" right="0" id="subcp"/>
+			</mx:Canvas>
+			<mx:Canvas x="335" y="24" width="62" height="67" borderStyle="solid" cornerRadius="0" borderColor="#000000" borderThickness="1">
+				<mx:Canvas borderStyle="solid" cornerRadius="0" borderColor="#000000" borderThickness="1" left="1" right="1" top="1" backgroundColor="{currentColor}" height="32" id="cvsCurr">
+				</mx:Canvas>
+				<mx:Canvas borderStyle="solid" cornerRadius="0" borderColor="#000000" borderThickness="1" left="1" right="1" top="32" bottom="1" backgroundColor="{previousColor}" id="cvsPrev" click="restorePreviousColor();">
+				</mx:Canvas>
+			</mx:Canvas>
+			<mx:Label x="335" y="8" text="new" width="62" textAlign="center"/>
+			<mx:Label x="335" y="89" text="current" width="62" textAlign="center"/>
+			<mx:RadioButton x="325" y="117" width="36" selected="true" id="csHue" groupName="colorspace" click="changeColorSpace(CS_HUE);" tabIndex="1" label="H:" fontWeight="normal" horizontalGap="0"/>
+			<mx:Label x="399" y="117" text="°"/>
+			<mx:Label x="399" y="143" text="%"/>
+			<mx:Label x="399" y="169" text="%"/>
+			<mx:TextInput x="363" y="115" width="34" text="{displayHue}" id="t_hue" change="displayHue=c(t_hue.text, 0, 360);" maxChars="3" tabIndex="7"/>
+			<mx:RadioButton x="325" y="143" width="36" id="csSaturation" groupName="colorspace" click="changeColorSpace(CS_SATURATION);" tabIndex="2" label="S:" fontWeight="normal" horizontalGap="0"/>
+			<mx:TextInput x="363" y="141" width="34" text="{displaySaturation}" id="t_saturation" change="displaySaturation=c(t_saturation.text, 0, 100);" maxChars="3" tabIndex="8"/>
+			<mx:RadioButton x="325" y="169" width="36" id="csLightness" groupName="colorspace" tabIndex="3" label="B:" fontWeight="normal" horizontalGap="0">
+				<mx:click>changeColorSpace(CS_HUE);changeColorSpace(CS_LIGHTNESS);</mx:click>
+			</mx:RadioButton>
+			<mx:TextInput x="363" y="167" width="34" text="{displayLightness}" id="t_lightness" change="displayLightness=c(t_lightness.text, 0, 100);" maxChars="3" tabIndex="9"/>
+			<mx:Label x="10" y="288" text="#:"/>
+			<mx:TextInput x="29" y="286" width="54" tabIndex="13" id="t_hex" change="handleHexChange();" text="{hex}"/>
+
+				<mx:Label id="AlphaLabel" x="100" y="266" text="Alpha" visible="false" />
+				<mx:NumericStepper id="Alpha" x="100" y="286" minimum="0" maximum="1" stepSize="0.05" value="1" visible="false" />
+
+			<mx:RadioButton x="325" y="200" width="36" id="csRed" groupName="colorspace" click="changeColorSpace(CS_RED);" tabIndex="4" label="R" fontWeight="normal" horizontalGap="0"/>
+			<mx:TextInput x="363" y="198" width="34" text="{displayRed}" change="displayRed=c(t_red.text, 0, 255);" id="t_red" maxChars="3" tabIndex="10"/>
+			<mx:RadioButton x="325" y="226" width="36" id="csGreen" groupName="colorspace" click="changeColorSpace(CS_GREEN);" tabIndex="5" label="G:" fontWeight="normal" horizontalGap="0"/>
+			<mx:TextInput x="363" y="224" width="34" text="{displayGreen}" id="t_green" change="displayGreen=c(t_green.text, 0, 255);" maxChars="3" tabIndex="11"/>
+			<mx:RadioButton x="325" y="252" width="36" id="csBlue" groupName="colorspace" click="changeColorSpace(CS_BLUE);" tabIndex="6" label="B:" fontWeight="normal" horizontalGap="0"/>
+			<mx:TextInput x="363" y="250" width="34" text="{displayBlue}" change="displayBlue=c(t_blue.text, 0, 255);" id="t_blue" maxChars="3" tabIndex="12"/>
+			<mx:Button x="244" y="286" label="Add Swatch" width="90" tabIndex="22" id="btnswatch" click="addSwatch();" fontWeight="normal"/>
+			<mx:Button x="339" y="286" label="OK" width="80" click="closeMe()" tabIndex="21" id="btnok"/>
+			<mx:Button x="160" y="286" label="Cancel" width="80" tabIndex="22" id="btncancel" click="cancelMe();" fontWeight="normal"/>
+		</mx:Panel>
+		<mx:Box label="swatches">
+			<comUI:SwatchPanelFixed id="swatchColorPicker" dataProvider="{globalColors}" creationComplete="initSwatchColor()" change="changeFromSwatch(event)" />
+		</mx:Box>
+	</mx:TabNavigator>
+	</mx:Box>
+
+</comUI:PopupWindow>

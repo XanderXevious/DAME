@@ -1,0 +1,645 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+	<head>
+		<META http-equiv="Content-Type" content="text/html; charset=UTF-8">
+		<title>DAME Version History</title>
+		<style type="text/css">
+			h1 {color:#0000CC;}
+			h2 {color:#000099;}
+			h3 {color:#000066;}
+			pc {color:#AA0000;}
+			dpc {color:#0000AA;}
+		</style>
+	</head>
+	<body>
+		<p align=right><a href="index.html">Return to help contents...</a></p>
+		<h1>Version History</h1>
+		<ol>
+			<li>
+				Version 3.0.5
+				<ul>
+					<li>Updated License for open source.</li>
+				</ul>
+			</li>
+			<li>
+				Version 3.0.4
+				<ul>
+					<li>Fix crash when using image layers.</li>
+					<li>Added ability to automatically keep anchors centered for sprites.</li>
+				</ul>
+			</li>
+			<li>
+				Version 3.0.3
+				<ul>
+					<li>Fixed bug with shared tile properties going out of sync.</li>
+					<li>Added ability to create an enumerated custom filter type based on sprite names.</li>
+					<li>Can now hide sprite class properties from instances and not export them if desired.</li>
+					<li>Fixed problem with centered guide layer not being drawn correctly in some cases.</li>
+					<li>Optimized grid rendering.</li>
+					<li>Changing the current sprite entry while in selection mode now switches back to paint mode.</li>
+				</ul>
+			</li>
+			<li>
+				Version 3.0.2
+				<ul>
+					<li>Added menu option in view menu to restore lost popup and tool windows.</li>
+					<li>Improved freehand and line drawing to remove antialiasing.</li>
+					<li>Added ellipse shape tool when drawing on tiles.</li>
+					<li>Fixed inability to draw on sprites.</li>
+					<li>Fixed inability to change the sprite image index on each sprite.</li>
+				</ul>
+			</li>
+			<li>
+				Version 3.0.1
+				<ul>
+					<li>View Raw Image Data renamed to Edit Raw Image Data.</li>
+					<li>Fixed bug the corrupts the image when raw image is edited.</li>
+					<li>Added ability to crop or pad all the tiles in the raw image.</li>
+					<li>Fixed inconsistencies with gridlines drawn on tilemaps with height.</li>
+				</ul>
+			</li>
+			<li>
+				Version 3.0.0
+				<ul>
+					<li>Drawing:
+						<ol>
+							<li>Can now draw shapes (lines,polygons,circles and boxes).</li>
+							<li>New mode that will create new tiles as you draw.</li>
+							<li>Sprite drawing improved, also with full select,move,copy,paste functions.</li>
+							<li>Hold Spacebar to use eyedropper in draw mode.</li>
+							<li>Revamped drawing toolbar.</li>
+							<li>Can now flip selections in draw mode.</li>
+							<li>Flood Fill in drawing mode can now use a tolerance value.</li>
+							<li>Fixed Locked Tile Mode (when drawing on tiles).</li>
+							<li>Can now insert/remove tiles(frames) from sprites in Draw Mode.</li>
+							<li>Can insert new tiles under a selction.</li>
+							<li>Improved drawing on isometric tiles.</li>
+						</ol>
+					</li>
+					<li>Sprites:
+						<ol>
+							<li>Added anims for anim sprites, editable on sprite info.</li>
+							<li>Added shapes for anim sprites, allowing you to define custom named points, circles and boxes per frames.</li>
+							<li>Added anim editor for anim sprites, accessible from the film strip icon in Draw Mode.</li>
+							<li>Status bar now displays the name or class of the current selected sprte.</li>
+						</ol>
+					</li>
+					<li>Paths:
+						<ol>
+							<li>Added path events.</li>
+							<li>Improved visibility of nodes on paths.</li>
+							<li>Deleting the last node will now always delete that path.</li>
+						</ol>
+					</li>
+					<li>Exporters:
+						<ol>
+							<li>Updated flixel complex exporter to export SpriteInfo containing anim and shape data for all sprites.</li>
+							<li>New parameter added for tile anims, which exports as %looped%</li>
+							<li>Can add custom separators to various loops in exporters.</li>
+							<li>Flixel complex exporter can now export sprite anims and sprite anim shapes.</li>
+							<li>Added public (non static) boundsMin and boundsMax for each exported level in flixelComplex.</li>
+							<li>Flixel Complex now automatically includes list of classes in BaseLevel for ClassReference dynamic spawning trick.</li>
+							<li>Fixed bug with the %%if prop:%% not working.</li>
+							<li>Added new xml data exporter.</li>
+							<li>Can now use project specific exporters by placing lua files in your .dam project directory and using Menu:File->Export Using Project Exporter.</li>
+							<li>Can specify file paths relative to the current project.</li>
+						</ol>
+					</li>
+					<li>Tiles:
+						<ol>
+							<li>Option to add only visible tiles to a tile matrix, allowing easier re-adding of already placed tiles.</li>
+							<li>Improvements to the way tiles are rendered in lists.</li>
+							<li>Option to make tile palette automatically scale tiles to fit width/height of pane.</li>
+							<li>Ability to turn off the checkered pattern on the tile palette.</li>
+							<li>The chosen answer from the prompt when exiting an unsaved tile matrix can be remembered.</li>
+							<li>Indicators to help visualise the current stack height for tiles allowing z stacking.</li>
+						</ol>
+					</li>
+					<li>Misc:
+						<ol>
+							<li>New Icons!!! Thanks to <a href="mailto:b.m.rahimi@gmail.com">Behzad Mohammad Rahimi Asad</a></li>
+							<li>Can save the project to an image.</li>
+							<li>Can now zoom out to 12% normal magnification.</li>
+							<li>Added customisable property types.</li>
+							<li>Tile matrices are now bound more tightly to tilesets.</li>
+							<li>Fixed issues when removing tiles from a tilemap.</li>
+							<li>Fix bugs with onion skin not being enforced.</li>
+							<li>Right click menu option on layers or groups in the layers tree view to move them to the current location of the cursor.</li>
+							<li>Moving groups with snap to grid enabled will now move them in steps of the tilemap size.</li>
+							<li>Improved readability of tile lists in popup windows.</li>
+							<li>Improved visibility of tilemap and selection borders when zoomed out.</li>
+							<li>You can now specify properties on any layer type.</li>
+							<li>Tile properties are now highlighted in the tilelist for easy navigation.</li>
+							<li>Double click on entries in Layers and Sprites trees to edit their properties.</li>
+							<li>Right click menu option to edit sprite entries within sprite editor.</li>
+							<li>Added warning when starting a new file or loading a file from the desktop when there are unsaved changes in the current file.</li>
+							<li>Fixed for graphical corruption at edge of screen with very large windows.</li>
+							<li>Fixed incorrectly sized panels when starting DAME maximized.</li>
+							<li>Game region overlay can now be centered on the screen.</li>
+							<li>Extra gridlines sized based on the game region overlay size (overlay doesn't need to be active).</li>
+							<li>Object links now drawn as arrows.</li>
+							<li>Keyboard shortcuts for tile matrix and drawing modes.</li>
+							<li>Select None will now deselect on all editor modes.</li>
+							<li>Fix problems with images from imported DAME files in another location.</li>
+							<li>Fix bug when swapping tiles referenced in multiple maps.</li>
+							<li>Sprite entries will now display their classname in the tree view if no name is specified.</li>
+							<li>Can now edit properties as multiline text via a menu option.</li>
+						</ol>
+					</li>
+				</ul>
+			</li>
+			<li>
+				Version 2.1.4
+				<ul>
+					<li>Added the Object Finder, accessible from the Layers Tab. Allows you to jump to and delete objects.</li>
+				</ul>
+			</li>
+			<li>
+				Version 2.1.3
+				<ul>
+					<li>Minor fix to shared tile properties/anims.</li>
+				</ul>
+			</li>
+			<li>
+				Version 2.1.2
+				<ul>
+					<li>Data for per tile properties and tile anims can now be shared amongst all layers with the same tileset.</li>
+					<li>Flixel complex exporter now allows a class for the base class to derive from.</li>
+					<li>Flixel complex exporter now outputs tile properties.</li>
+					<li>Added %%ifproplength%% keyword for exporters.</li>
+					<li>Fix loading bug when tilemaps are only 1 tile wide.</li>
+				</ul>
+			</li>
+			<li>
+				Version 2.1.1
+				<ul>
+					<li>Icons in drop down boxes now show all the time.</li>
+					<li>Changed flixel and flashpunk exporters so custom import text shows up in the baselevel.</li>
+					<li>Prevented spacebar from changing selected button as that is used for the eyedropper.</li>
+				</ul>
+			</li>
+			<li>
+				Version 2.1.0
+				<ul>
+					<li>Can now draw on sprites using the drawing tool (minus copy/paste/select).</li>
+					<li>Fixed incorrect filepaths when saving sprite entries separately.</li>
+					<li>Fixed bug with offseting the drawable region on individual spritesheet objects.</li>
+				</ul>
+			</li>
+			<li>
+				Version 2.0.9
+				<ul>
+					<li>Fixed bug where changing sprite index in tile palette didn't update the animated sprites placed down.</li>
+					<li>Fixed crash when selecting sprites whose dimensions were smaller after changing externally.</li>
+					<li>Re-added DAME.GetProjectFile exporter function, which had mysteriously disappeared...</li>
+					<li>Warning message when you try to open a project if you have unsaved changes in your current one.</li>
+				</ul>
+			</li>
+			<li>
+				Version 2.0.8
+				<ul>
+					<li>Fix for %tileId% keyword in stack text for exporter.</li>
+				</ul>
+			</li>
+			<li>
+				Version 2.0.7
+				<ul>
+					<li>Minor fix to the focus detection code to prevent cases where DAME won't update while in focus.</li>
+				</ul>
+			</li>
+			<li>
+				Version 2.0.6
+				<ul>
+					<li>Make DAME go idle when it is not the application in focus.</li>
+				</ul>
+			</li>
+			<li>
+				Version 2.0.5
+				<ul>
+					<li>Fix compatibility issue in FlixelComplex exporter.</li>
+					<li>Fix issue where project at start may not be drawn until layers were selected.</li>
+				</ul>
+			</li>
+			<li>
+				Version 2.0.4
+				<ul>
+					<li>Fix bug where sprites on duplicated layers would be drawn as though still on the old layer in onion skin.</li>
+					<li>Selecting a Group with onion skin will now render all child layers as the top-most layers.</li>
+					<li>Can now specify a separate onion skin opacity for layers within the same group as the current layer.</li>
+					<li>Improved memory of selected tile in tile palette when switching between map layers and sprite layers.</li>
+				</ul>
+			</li>
+			<li>
+				Version 2.0.3
+				<ul>
+					<li>Fix to continuous sprite painting mode to ensure sprites are only placed on guaranteed empty areas.</li>
+					<li>Added documentation on Sprite Trails and Ripping Tilemaps.</li>
+					<li>Improvements to selected button colours in some themes.</li>
+					<li>Added a destroy function to Flixel Complex exported BaseLevel.</li>
+				</ul>
+			</li>
+			<li>
+				Version 2.0.2
+				<ul>
+					<li>Added documentation on isometric tilemaps to Help.</li>
+					<li>Removed built in help viewer due to page clipping - reverted back to opening in external browser.</li>
+					<li>Fixed bug with onion skin when bitmaps had no alpha.</li>
+					<li>Warning and backup files made when saving after tileset images have changed.</li>
+				</ul>
+			</li>
+			<li>
+				Version 2.0.1
+				<ul>
+					<li>Fix attaching sprites to paths.</li>
+					<li>Added documentation on stacked tilemaps to Help pages.</li>
+				</ul>
+			</li>
+			<li>
+				Version 2.0.0
+				<ul>
+					<li>Certain windows (tile palette, sprites, layers and properties windows) are now dockable.</li>
+					<li>Isometric tilemap support - support for diamond, staggered diamond and skewed. Tile matrix and brushes all still work as expected with these layer types.</li>
+					<li>Tilemaps can have height.</li>
+					<li>Tiles can be stacked on top of each other.</li>
+					<li>Improved visuals for selected tiles.</li>
+					<li>Improvements to drawing on tilemaps.</li>
+					<li>Can draw lines on tilemaps.</li>
+					<li>Flood fill for tilemaps.</li>
+					<li>Can select, move and scale regions in tile drawing mode.</li>
+					<li>Can copy and paste in tile drawing mode.</li>
+					<li>Eraser when drawing on tilemap images is now a separate mode.</li>
+					<li>Right click when drawing brings up context menu.</li>
+					<li>New configurable 16 colour palette for drawing.</li>
+					<li>Tiles can be animated.</li>
+					<li>Can have per tile properties.</li>
+					<li>Can repeat tilemaps on individual axes.</li>
+					<li>Can use any system font for text boxes.</li>
+					<li>Can use bitmap fonts for text boxes.</li>
+					<li>Increased undo history.</li>
+					<li>New Sprite Trails - automatically populate a path with a series of sprites.</li>
+					<li>Sprites can be automatically sorted for depth.</li>
+					<li>Sprites can use a Z value for height placement.</li>
+					<li>All object layers can be aligned with an isometric tilemap layer to allow exported positions to be relative to the tilemap's 'real' coordinate system.</li>
+					<li>Aligned shapes on shape layers will rotate/skew to fit the tilemap shapes.</li>
+					<li>Can change the frame for any sprite to be different from the sprite entry.</li>
+					<li>Tile sprites are now spritesheets - can scale and translate the image within.</li>
+					<li>Can rip an image to create a tilemap layer and tileset.</li>
+					<li>Choice of themes for DAME.</li>
+					<li>Importing dam projects with sprites improved to find pre-existing matches in current project.</li>
+					<li>Can save sprite entry lists separate to a .dam project as a .dsf (DAME Sprite File), allowing you to have multiple sharing one list of sprites.</li>
+					<li>Can move an entire group in real-time.</li>
+					<li>More of the session is saved in a .dam file allowing you to resume editing where you left off much easier.</li>
+					<li>Tiles now preview in tilemap layer properties window.</li>
+					<li>Can gives shapes different colours.</li>
+				</ul>
+			</li>
+			<li>
+				Version 1.3.0
+				<ul>
+					<li>Flixel exporters updated to work with both Flixel 2.43 and Flixel 2.5.</li>
+					<li>Added DAME.AddDropDown for exporters.</li>
+				</ul>
+			</li>
+			<li>
+				Version 1.2.9
+				<ul>
+					<li>Can now zoom the view up to 4000% normal scale.</li>
+					<li>Fix for layers dragged into a different group not correctly updating their hierarchy and preventing deletion.</li>
+				</ul>
+			</li>
+			<li>
+				Version 1.2.7
+				<ul>
+					<li>Fixed bug where opening a dam file from the OS once DAME was already open caused file corruption.</li>
+					<li>Fixed an issue where DAME could sometimes fail to save certain projects.</li>
+					<li>Fixed saving bug caused by referencing images in different drives to the .dam file.</li>
+				</ul>
+			</li>
+			<li>
+				Version 1.2.6
+				<ul>
+					<li>Flood Fill and Magic Wand selection is now optimised.</li>
+					<li>Grid settings now saved with project.</li>
+					<li>Default map size for new tilemaps is now 10 * 10 instead of 1 * 1.</li>
+				</ul>
+			</li>
+			<li>
+				Version 1.2.5
+				<ul>
+					<li>Added %spritename% keyword. Outputs sprite name without quotes around it.</li>
+					<li>Added DAME.GetProjectFile() and DAME.GetProjectFileLocation() functions for exporters.</li>
+					<li>Circle %radius% and %diameter% now output values using the correct float precision.</li>
+					<li>Added option in Exporter to save exporter settings with project file (default true)</li>
+				</ul>
+			</li>
+			<li>
+				Version 1.2.4
+				<ul>
+					<li>Fix for %pxpos% keyword not exporting correct value.</li>
+				</ul>
+			</li>
+			<li>
+				Version 1.2.3
+				<ul>
+					<li>Fix for .dam and settings files exploding in size.</li>
+				</ul>
+			</li>
+			<li>
+				Version 1.2.2
+				<ul>
+					<li>Added csvTilemap exporter just for exporting tilemaps without any bloat.</li>
+					<li>Exporter settings will now save with the .dam project files.</li>
+					<li>Removal of separators on the sprites tab context menu.</li>
+				</ul>
+			</li>
+			<li>
+				Version 1.2.1
+				<ul>
+					<li>Added DAME wiki! (link from Help menu)</li>
+					<li>Fixed bug where popup windows wouldn't show immediately if the vertical scroll bar wasn't displaying when it should.</li>
+					<li>Fix Mac incompatibility issue where settings were not being saved between sessions correctly.</li>
+					<li>Minor fix to sample exporters so that map properties get exported correctly.</li>
+					<li>Fix for %xpos% keyword within tilemap exporters.</li>
+					<li>Fix bug where - and + keys were causing glitches when editing properties of sprites.</li>
+				</ul>
+			</li>
+			<li>
+				Version 1.2.0
+				<ul>
+					<li>Added keyboard shortcuts. B to use the paint brush, V to go to selection mode.</li>
+					<li>Added creationText to sprite entries. This can override the entire block of text used in the defaultCreationText.</li>
+					<li>Resolved ambiguity in help files regarding intent of defaultConstructor, by renaming it to defaultCreationText. </li>
+					<li>Added %constructor%DEFAULT%constructorend% to allow keywords in the DEFAULT part.</li>
+				</ul>
+			</li>
+			<li>
+				Version 1.1.9
+				<ul>
+					<li>Fixed bug where extra row at bottom of tilemaps was exported in the sample exporters.</li>
+					<li>Fixed bug performing Undo after adding a brush caused glitches.</li>
+					<li>Added %imagefilename% keyword for both sprite entries and image layers.</li>
+					<li>Enabled %imagefilerelative% keyword for sprite entries by adding a baseDirectory parameter to DAME.CreateTextForSprites</li>
+					<li>Fixed issues with CreateTextForSpriteClasses failed to work correctly</li>
+				</ul>
+			</li>
+			<li>
+				Version 1.1.8
+				<ul>
+					<li>File new now correctly clears the current project.</li>
+					<li>Fixed bug where Saving files would occasionally fail to work.</li>
+					<li>Draw idx did not get applied when loaded or when duplicating tilemap layers.</li>
+					<li>Underscore name replacer for layers now replaces all spaces and not just the first one found.</li>
+					<li>Tooltips for all the tilemap layer parameters.</li>
+				</ul>
+			</li>
+			
+			<li>
+				Version 1.1.7
+				<ul>
+					<li>Fix a critical bug with Undo when painting tiles.</li>
+					<li>Fix first tile not being saved in 1 column high tilemaps.</li>
+				</ul>
+			</li>
+			
+			<li>
+				Version 1.1.6
+				<ul>
+					<li>Added bookmarks in View menu, to allow you to quickly move to specific locations.</li>
+					<li>Limited size of Error windows.</li>
+					<li>Fixed bug where it was impossible to change tile height and tile width in maps.</li>
+				</ul>
+			</li>
+			
+			<li>
+				Version 1.1.5
+				<ul>
+					<li>Re-added keyboard navigation of map, this time using Ctrl+Arrow keys.</li>
+					<li>Hiding a layer now deselects anything on that layer.</li>
+					<li>Updated documentation.</li>
+				</ul>
+			</li>
+			
+			<li>
+				Version 1.1.4
+				<ul>
+					<li>Changed some keyboard shortcuts: Center Layer is now Ctrl+L, view grid and snap to grid are Ctrl+G and Ctrl+Shift+G respectively. Check the menu for others!</li>
+					<li>Grid lines now draw correctly in all cases.</li>
+					<li>Fixed issues with scaled tile sprites clipping or having partially white backgrounds when rotated.</li>
+					<li>Could sometimes get stuck in resize mode when holding down Alt or Ctrl key and changing window focus.</li>
+					<li>Removed arrow key movement shortcuts.(Redundant due to scrollbars).</li>
+					<li>Modified code samples.</li>
+					<li>FlashPunk exporter is now FlashPunk 1.5 compatible.</li>
+					<li>Moved "selected object properties" label below the layer tickboxes to avoid confusion.</li>
+					<li>Rearranged menus to make everything a bit cleaner and easier to find.</li>
+					<li>Highlight Collidable Tiles tool now only highlights the current layer and only if HasHits is selected.</li>
+					<li>Added an Exports option to Sprite entries. If unchecked then a sprite will be ignored during the export.</li>
+					<li>Added Can Scale and Can Rotate options to sprites.</li>
+					<li>Allowed min map width and height to be 1 in layer properties.</li>
+					<li>When grid snapping is enabled scaling sprites using the handles will snap the edge to the grid line.</li>
+					<li>Completed Undo support for all AvatarLink operations.</li>
+					<li>Exporter now resets paths counter to 0 for each group.</li>
+					<li>Exporter hooks for image layer.</li>
+					<li>GetTextForLinks needs to allow passing in a group (default null).</li>
+					<li>Delete option added to object context menu.</li>
+				</ul>
+			</li>
+			
+			<li>
+				Version 1.1.3
+				<ul>
+					<li>Can now move maps around in real-time ( in tile editor click on the new Move/resize Maps icon when in select/move mode). Can use snap to grid to limit movement.</li>
+					<li>Resize maps around in real-time using same system. Click and drag the edges/corners to perform resize.</li>
+					<li>Duplicate layers and groups via right-click menu in LayersTab. Choose between full duplication or duplicating the layers empty.</li>
+					<li>Change selected sprites to the current selected sprite entry. (Sprites Tab menu option)</li>
+					<li>Scaling using marquees now keeps opposite side locked in place instead of scaling from the centre.</li>
+					<li>Zoom in from 50% view now properly maintains view relative to cursor position.</li>
+					<li>Fixed inabilty to reassign tilesets when tileset image was no longer found.</li>
+				</ul>
+			</li>
+			
+			<li>
+				Version 1.1.2:
+				<ul>
+					<li>Added a log window in Exporter.</li>
+					<li>Ability to selectively import parts of DAME files into other projects.</li>
+					<li>Right click menu on tile list not needed to be on an actual tile.</li>
+					<li>export settings sometimes failed to load.</li>
+					<li>visibility checkbox didn't work on image layer</li>
+					<li>Tile sprites didn't go transparent when onion skin is enabled.</li>
+					<li>Failed to load sprites can now be properly edited.</li>
+					<li>DAME.getRelativePath now copes gracefully when invalid paths are specified instead of throwing errors.</li>
+					<li>Group properties weren't saved.</li>
+					<li>Hiding a group was not preventing sprites from a sub-layer being selectable.</li>
+				</ul>
+			</li>
+			
+			<li>
+				Version 1.1.1:
+				<ul>
+					<li>Can now change shared properties of multiple sprites at once.</li>
+					<li>Highlight the tile in tile list used for right click tile erasing.</li>
+					<li>Highlight tile in tile list when clicking on a menu.</li>
+					<li>Added different cursors for eyedropper, paintbucket and paint on tiles modes.</li>
+					<li>Sliders to move view around.</li>
+					<li>View menu option to highlight tiles that will be collided.</li>
+					<li>Optimise tile palette for scaling.</li>
+					<li>Option to swap tiles in the tile palette.</li>
+					<li>Can now set the minimum amount of space for the grid visuals (separate from snap to grid) - ideal for those with small tiles.</li>
+					<li>Image layer with opacity control.</li>
+				</ul>
+			</li>
+			
+			<li>
+				Version 1.1.0:
+				<ul>
+					<li>Added Links feature - can define one-way relationships between 2 objects by right-clicking.<a href="EditingObjects.html#links">Click for more info...</a></li>
+					<li>Can now paint sprites continuously when snap to grid is enabled. Do this through menu:Edit->Guides->Modify.</li>
+					<li>Added game region overlay. Turn this on and customize it through the Guide settings. This allows you to display a mask over the editor screen to show what your game will look like.</li>
+					<li>Can now zoom out to 50%. But be warned. It is off by default as it can slow down the editor a lot for complex maps. Turn it on by clicking on "Allow Zoom Out" in the View Menu.</li>
+					<li>Updated help documents.</li>
+					<li>DAME is now Linux friendly!</li>
+					<li>Bug fix: deleting layers/groups with attachments or links does not remove them. so avatars referencing objects in those layers keep their refs.</li>
+					<li>Bug fix: deleting a sprite entry folder does not delete the sprites that reference sprite entries within it from the map.</li>
+					<li>Bug fix: When status bar is hidden the minimized buttons should still be visible.</li>
+				</ul>
+			</li>
+			
+			<li>
+				Version 1.0.9:
+				<ul>
+					<li>Hotfix for error in tilemap export.</li>
+				</ul>
+			</li>
+			
+			<li>
+				Version 1.0.8:
+				<ul>
+					<li>Copy properties when copying a sprite.</li>
+					<li>Ctrl + and - can be used to zoom the view in and out.</li>
+					<li>Can create multiple anim sprites entries in one go.</li>
+					<li>Fixed discrepancy between preview and image for anim sprites whose dimensions don't divide up perfectly between all the anim frames.</li>
+					<li>Saves bg colour in project file as well as settings. Exports colour.</li>
+					<li>Ctrl+D = Select None. Changed "Restore sprites to default" shortcut to Ctrl+R.</li>
+					<li>FlashPunk exporter and sample.</li>
+					<li>Ctrl+T (Edit->Set Sprite Coords And Orientation) to set 1 or more sprites to have a certain pos/angle/scale.</li>
+					<li>Flipping sprites now auto update the display when they're rotated.</li>
+					<li>Changed Flip sprite shortcut to Ctrl+F</li>
+					<li>Added minimize buttons for palettes to dock them in the status bar.</li>
+					<li>Modulate angle when exporting avatar angles.</li>
+					<li>Layer locking option.</li>
+					<li>'Exports' toggle option for layers and groups.</li>
+					<li>Exporter keyword options for tilemaps for DAME.ConvertMapToText function.</li>
+				</ul>
+			</li>
+			
+			<li>
+				Version 1.0.7:
+				<ul>
+					<li>This page!!</li>
+					<li>Tile matrix now autosaves.</li>
+					<li>No longer have tile matrix that isn't bound directly to the stored matrix list.</li>
+					<li>Added rename tile matrix button, empty matrix button and removed unneeded buttons.</li>
+					<li>Added undo support for tile matrix changes.</li>
+					<li>Fixed glitches when adding/removing tiles.</li>
+					<li>Display ID of tile on title when mouse over any tile in a grid belonging to that window (ie tile palette/tile matrix).</li>
+					<li>Option (View Menu->Rotation/Scaling Marquees Ctrl+M) to disable the handles for rotating/scaling objects ( can still use 'R' and 'Alt' methods if you do this).</li>
+					<li>Link to exporters help page on sprite data popup.</li>
+					<li>Section in exporter allowing you to add your own imports.</li>
+					<li>Matrix magnet - Drag already painted tiles into the matrix calculation without them ever being modified.</li>
+					<li>Properties for groups. Export as public vars in .as class files.</li>
+					<li>propvaluestring and propname were not listed on Exporters HELP page.</li>
+					<li>Ability to reload the tileset from within tile palette.</li>
+					<li>Right-Click on a Map in the tree and select "Clear map".</li>
+					<li>Also, Right-Click on a group to select "Clear all Maps"</li>
+					<li>Minimizing DAME now reduces CPU load</li>
+				</ul>
+			</li>
+			
+			<li>
+				Version 1.0.6:
+				<ul>
+					<li>Added brushes (Edit menu)</li>
+					<li>Right-Click on a Group in the tree and select "Resize all maps" to edit W/H of each map in that group.</li>
+					<li>Map resizing allows you to keep the tile locations if you choose anything other than LEFT and TOP.</li>
+					<li>Prev/Next tile shortcut (, and .)</li>
+					<li>Eyedropper auto-selects the tile underneath the mouse cursor in paint mode. Press SPACE too.</li>
+					<li>Prev/Next item select the objects they move to.</li>
+					<li>Tile palette positions and zoom state saved in settings.</li>
+					<li>Tile matrix connections now saved with lists.</li>
+					<li>Tile matrices now associate themselves with a layer to update properly when inserting/removing tiles and prevent unwanted scrambling.</li>
+					<li>Grid colour added in the color options.</li>
+					<li>Can set the tile index used for erasing/right clicks from the tile list menu.</li>
+					<li>Allow deletion of sprites in paint mode.</li>
+					<li>Bug Fixes:
+					<ul>
+						<li>sometimes sprites get totally swapped out for something else when loading.</li>
+						<li>collideIdx and drawIdx weren't saved.</li>
+						<li>TextData dependancy fixed in flixel complex exporter.</li>
+						<li>Inserting tiles doesn't shift the tile matrix connections properly.</li>
+						<li>Minimize DAME doesn't minimize tile pallette/matrix.</li>
+					</ul>
+				</ul>
+			</li>
+			
+			<li>
+				Version 1.0.5:	
+				<ul>
+					<li>Critical Fix!! - Stop File->Open commands following a File->Save As from saving over the file being opened.</li>
+					<li>Tile Matrix now allows special connections.</li>
+					<li>Can overwrite existing tile Matrices without needing to add and remove.</li>
+					<li>Can zoom tile palette to 25% and 400% now.</li>
+				</ul>
+			</li>
+			
+			<li>
+				Version 1.0.4
+				<ul>
+					<li>Lost in a black hole.</li>
+				</ul>
+			</li>
+			
+			<li>
+				Version 1.0.3:	
+				<ul>
+					<li>Add .dam to a filename if not present when saving a new file.</li>
+					<li>Added a new Text control to use for exporter settings.</li>
+					<li>Add help text to flixel exporters so that it's clear to use the complex or simple projects.</li>
+					<li>Flixel exporter copes with scaling.</li>
+					<li>Extra documentation.</li>
+					<li>Bug fixes.</li>
+				</ul>
+			</li>
+			
+			
+			<li>
+				Version 1.0.2:	
+				<ul>
+					<li>Backup '.dam.bak' files created with each save.</li>
+					<li>New improved interface for scaling/rotating objects.</li>
+					<li>Use Arrow keys to move around map for those without middle mouse buttons.</li>
+					<li>Snap to grid is now more intuitive.</li>
+				</ul>
+			</li>
+
+			<li>
+				Version 1.0.1:	
+				<ul>
+					<li>Fix so new maps won't get spaces in their names.</li>
+					<li>Fix the flixel exporters so any spaces get replaced by '_'</li>
+				</ul>
+			</li>
+
+			<li>
+				Version 1.0.0:	
+				<ul>
+					<li>The First public release of DAME!</li>
+				</ul>
+			</li>
+		</ol>
+		
+		<p></p>
+		<center class="copyright"> 
+		</center>
+	</body>
+</html>
+<!-- -->

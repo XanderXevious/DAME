@@ -1,0 +1,657 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<comUI:PopupWindow xmlns:mx="http://www.adobe.com/2006/mxml" xmlns:comUI="com.UI.*"
+    width="100%" height="100%" close="closeExporter()"
+	resizable="true" showGripper="true" showStatusBar="false" maximizable="true" minimizable="false"
+    defaultButton="{btnOK}" title="Export Project" >
+
+    <mx:Script>
+        <![CDATA[
+			import com.FileHandling.ExporterSetting;
+			import com.Utils.ExporterData;
+			import com.Utils.Global;
+			import com.Utils.LuaInterface;
+			import flash.display.DisplayObject;
+			import flash.events.Event;
+			import flash.events.IOErrorEvent;
+			import flash.events.SecurityErrorEvent;
+			import flash.filesystem.File;
+			import flash.filesystem.FileStream;
+			import flash.filesystem.FileMode;
+			import flash.utils.setTimeout;
+			import luaAlchemy.LuaAlchemy;
+			import mx.containers.HBox;
+			import com.UI.AlertBox;
+			import mx.controls.Button;
+			import mx.controls.Label;
+			import mx.controls.TextArea;
+			import mx.controls.TextInput;
+			import mx.core.UIComponent;
+			import mx.events.CloseEvent;
+			import com.UI.MyComboBox;
+			
+			import mx.collections.ArrayCollection;
+
+			public var opener:Object;
+			
+			private var _useProjectExporters:Boolean = false;
+			public function set UseProjectExporters( useIt:Boolean):void
+			{
+				_useProjectExporters = useIt;
+				currentSettings = _useProjectExporters ? Global.ProjectExporterSettings : Global.ExporterSettings;
+				if ( _useProjectExporters )
+				{
+					SaveWithProject.visible = false;
+					OnlyProjectExportersGroup.visible = true;
+					OnlyProjectExportersGroup.percentHeight = 100;
+				}
+				else
+				{
+					OnlyProjectExportersGroup.visible = false;
+				}
+				UsingRelativePaths = UseRelativePaths.selected = currentSettings.useRelativePaths;
+			}
+			private var currentSettings:ExporterData;
+			
+			[Bindable]
+            public var exporters:ArrayCollection = new ArrayCollection();
+			
+			private var lua:LuaAlchemy = new LuaAlchemy();
+			
+			public static var customControls:Array = new Array();
+			public static var browsers:Vector.<TextInput> = new Vector.<TextInput>();
+			
+			public static var ExporterWindow:ExporterPopup = null;
+			
+			public var fileErrors:Vector.<String> = new Vector.<String>;
+			
+			public static var DisplaySuccessPrompt:Boolean = true;
+			public static var UsingRelativePaths:Boolean = false;
+			
+			public function LogWriteLine( str:String):void
+			{
+				LogBox.htmlText = LogBox.htmlText + "<p>" + str + "</p>";
+			}
+			
+			public function ScrollLog():void
+			{
+				LogBox.validateNow();
+                LogBox.verticalScrollPosition = LogBox.maxVerticalScrollPosition;
+			}
+			
+			private var successColourStrings:Array = [ "<font color=\"#00BB00\">" , "<font color=\"#008800\">" ];
+			private var errorColourStrings:Array  = [ "<font color=\"#FF0000\">" , "<font color=\"#BB0000\">" ];
+			private var currentColourIndex:uint = 0;
+			
+			[Bindable]
+            public var spritepos:ArrayCollection = new ArrayCollection(
+				[ {label:LuaInterface.ExportSpritePosType_TopLeft}, 
+                  {label:LuaInterface.ExportSpritePosType_Center}, 
+                  {label:LuaInterface.ExportSpritePosType_Anchor},
+				  {label:LuaInterface.ExportSpritePosType_BoundsTopLeft } ]);
+				  
+			private function ChangeRelativePaths():void
+			{
+				var i:uint = browsers.length;
+				while (i--)
+				{
+					var input:TextInput = browsers[i];
+					if ( input )
+					{
+						var file:File;
+						try
+						{
+							var projectDir:File = App.getApp().GetCurrentFile().parent;
+							if ( UsingRelativePaths )
+							{
+								file = projectDir.resolvePath( input.text );
+								input.text = file.nativePath;
+							}
+							else
+							{
+								file = new File(input.text);
+								input.text = projectDir.getRelativePath( file, true );
+							}
+						}
+						catch ( error:Error)
+						{
+						}
+					}
+				}
+				UsingRelativePaths = UseRelativePaths.selected;
+			}
+			
+			private function changeSettings( isInit:Boolean ):void
+			{
+				if ( !Exporter.selectedItem )
+				{
+					return;
+				}
+				var settingsFileName:String = Exporter.selectedItem.data.url.replace(".lua", "_settings.lua");
+				LogWriteLine("Load settings: " + settingsFileName);
+				currentColourIndex = 1 - currentColourIndex;
+				var settings:File = new File( settingsFileName );
+				ExporterSettings.removeAllChildren();
+				customControls.length = 0;
+				browsers.length = 0;
+				
+				if ( settings.exists )
+				{
+					try
+					{
+						var stream:FileStream = new FileStream();
+						stream.addEventListener( Event.COMPLETE, loadLuaSettings, false, 0, true );
+						stream.addEventListener(IOErrorEvent.IO_ERROR, readIOErrorHandler); 
+						var intervalId:uint = setInterval(continueLoading, 200);
+			
+						stream.openAsync(settings, FileMode.READ);
+						var counter:int = 0;
+						
+						// Hack to prevent the loader doing nothing occasionally. Might not fix this bug as could never repro.
+						function continueLoading( ):void
+						{
+							counter++;
+							//trace(urlLoader.bytesLoaded);
+						}
+					}
+					catch(error:Error)
+					{
+						LogWriteLine(errorColourStrings[currentColourIndex] + "Error loading settings:" + error.message + "</font>");
+						ScrollLog();
+						AlertBox.Show("Error loading settings:" + settings.url, "File error");
+					}
+							
+					function loadLuaSettings(event:Event):void
+					{
+						try
+						{
+							LogWriteLine("Settings file loaded. Running Lua script.");
+							clearInterval(intervalId);
+							lua.setGlobal("VALUES", customControls);
+							lua.setGlobal("PANEL", ExporterSettings );
+							lua.setGlobal("DAME", LuaInterface);
+							
+							var str:String = stream.readUTFBytes(stream.bytesAvailable);
+							stream.close();
+							
+							LuaInterface.InitInterface();
+
+							var stack:Array = lua.doString(str);
+							var success:Boolean = stack.shift();	// Returns the error code.
+							
+							if ( !success )
+							{
+								var outputText:String = stack.join();
+								outputText = outputText.replace("luaDoString:", "Line ");
+								LogWriteLine( errorColourStrings[currentColourIndex] + "Lua error in settings:" + outputText + "</font>");
+								AlertBox.Show(outputText, "Lua Error");
+							}
+							else
+							{
+								LogWriteLine("Settings created with " + ExporterSettings.getChildren().length + " controls");
+							}
+							ScrollLog();
+							
+							container.validateNow();
+							height = Math.max(height, ( ExporterSettings.y + ExporterSettings.height ) + 170);// 70);
+							width = Math.max(width, ( ExporterSettings.x + ExporterSettings.width ) + 50);
+							populateSettingsValues();
+							if ( isInit )
+							{
+								height += 30;
+								width += 30;
+								CenterWindow();
+							}
+						}
+						catch(error:Error)
+						{
+							LogWriteLine(errorColourStrings[currentColourIndex] + "Error generating settings:" + error.message + "</font>");
+							ScrollLog();
+							AlertBox.Show("Error (" + error.message + ") generating settings", "File error");
+						}
+						
+					}
+						
+					function readIOErrorHandler(event:IOErrorEvent):void
+					{
+						LogWriteLine(errorColourStrings[currentColourIndex] + "Failed to load settings file:" + event.text + "</font>");
+						ScrollLog();
+						AlertBox.Show("Failed to load settings file: " + event.text, "IO Error" );
+					}
+				}
+				else
+				{
+					LogWriteLine("Settings not found. Creating defaults.");
+					ScrollLog();
+					// Populate the panel with the default controls.
+					LuaInterface.AddBrowsePath("Location", "Location", true, "");
+					
+					container.validateNow();
+					height = Math.max(height, ( ExporterSettings.y + ExporterSettings.height ) + 170);// 70);
+					width = Math.max(width, ( ExporterSettings.x + ExporterSettings.width ) + 50);
+
+					if ( isInit )
+					{
+						populateSettingsValues();
+						// Can only do the resize on a timeout...
+						setTimeout(resizeMe, 500);
+						function resizeMe( ):void
+						{
+							height += 50;
+							width += 30;
+							CenterWindow();
+						}
+						CenterWindow();
+					}
+				}
+			}
+			
+			private function populateSettingsValues():void
+			{
+				// Populate the settings with whatever was last used... only on the init.
+				var i:uint = customControls.length;
+				while (i--)
+				{
+					var obj:Object = customControls[i];
+					var exporterSetting:ExporterSetting = null;
+					for each( var testSetting:ExporterSetting in currentSettings.settings )
+					{
+						if ( testSetting.name == obj.id )
+						{
+							exporterSetting = testSetting;
+							break;
+						}
+					}
+					if ( exporterSetting )
+					{
+						if ( obj is com.UI.MyComboBox )
+						{
+							obj.selectedValue = exporterSetting.value;
+						}
+						else
+						{
+							try
+							{
+								obj.value = exporterSetting.value;
+							}
+							catch(error:Error)
+							{
+								try
+								{
+									obj.text = exporterSetting.value;
+								}
+								catch (error:Error)
+								{
+									try
+									{
+										obj.selected = (exporterSetting.value == "true");
+									}
+									catch(error:Error){}
+								}
+							}
+						}
+					}
+				}
+			}
+			
+			// Accessed from the
+			public function browserOpen(event:Event):void
+			{
+				if ( !tempDisableModalCounter)
+				{
+					// 1 more than the PopupWindow version... location browser is different timings I guess.
+					tempDisableModalCounter = 2;
+				}
+			}
+			
+			public function fileChooserClosed(event:Event):void
+			{
+				tempDisableModalCounter = 0;
+				restoreModalFocus(event);
+			}
+           
+            private function export():void
+			{
+				if ( !Exporter.selectedItem )
+				{
+					return;
+				}
+				var myDate1:Date = new Date();
+				LogWriteLine("");
+				LogWriteLine( "Export pressed at " + myDate1);
+				currentColourIndex = 1 - currentColourIndex;
+				
+				currentSettings.lastExporterName = Exporter.selectedItem.data.nativePath;
+				currentSettings.useRelativePaths = UseRelativePaths.selected;
+				ExporterData.useProjectExporterOnly = OnlyProjectExporters.selected;
+				ExporterData.exportSpritePos = SpritePos.selectedLabel;
+				ExporterData.exportRotatedSpritePos = RotateSpritePos.selected;
+				if ( !_useProjectExporters )
+				{
+					Global.SaveExporterWithProject = SaveWithProject.selected;
+				}
+				
+				currentSettings.settings.length = 0;
+				var exporter:File = new File(currentSettings.lastExporterName);
+				var stream:FileStream = new FileStream();
+				
+				var i:uint = customControls.length;
+				while (i--)
+				{
+					var obj:Object = customControls[i];
+					var text:String = "";
+					var textForExporter:String = text;
+					
+					if ( obj is com.UI.MyComboBox )
+					{
+						text = textForExporter = obj.selectedLabel;
+					}
+					else
+					{
+						try
+						{
+							text = obj.value;
+						}
+						catch(error:Error)
+						{
+							try
+							{
+								text = obj.text;
+							}
+							catch (error:Error)
+							{
+								text = obj.selected;
+							}
+						}
+						textForExporter = text;
+						if ( UseRelativePaths && obj is TextInput )
+						{
+							try
+							{
+								if ( browsers.indexOf(obj as TextInput) != -1 )
+								{
+									// Even though it's stored and seen as a relative path it must be sent to the exporter
+									// with the full file path.
+									var projectDir:File = App.getApp().GetCurrentFile().parent;
+									var file:File = projectDir.resolvePath( text );
+									textForExporter = file.nativePath;
+								}
+							}
+							catch ( error:Error)
+							{}
+						}
+					}
+					currentSettings.settings.push( new ExporterSetting(obj.id, text));
+					lua.setGlobal("VALUE_" + obj.id, textForExporter );
+				}
+				LogWriteLine("Load lua.");
+				stream.addEventListener( Event.COMPLETE, loadLua, false, 0, true );
+				stream.addEventListener(IOErrorEvent.IO_ERROR, luaLoadIOError,false,0,true);
+				stream.addEventListener(SecurityErrorEvent.SECURITY_ERROR, luaLoadSecurityError, false, 0, true);
+				stream.openAsync(exporter, FileMode.READ);
+				
+				function luaLoadIOError(event:IOErrorEvent):void
+				{
+					LogWriteLine( "Failed to load Lua (IO error): " + event.text );
+				}
+				
+				function luaLoadSecurityError(event:SecurityErrorEvent):void
+				{
+					LogWriteLine( "Failed to load Lua (security error): " + event.text );
+				}
+					
+				function loadLua(event:Event):void
+				{
+					LogWriteLine( "Lua file loaded.");
+					lua.setGlobal("DAME", LuaInterface);
+					lua.setGlobal("output", text);
+					var str:String = stream.readUTFBytes(stream.bytesAvailable);
+					stream.close();
+					
+					LuaInterface.InitInterface();
+					LuaInterface.SetExportSpritesPos(SpritePos.selectedLabel);
+					
+					fileErrors.length = 0;
+					
+					LogWriteLine("Execute Lua script.");
+
+					var stack:Array = lua.doString(str);
+					
+					var success:Boolean = stack.shift();	// Returns the error code.
+					
+					if ( !success )
+					{
+						var outputText:String = stack.join();
+						outputText = outputText.replace("luaDoString:", "Line ");
+						LogWriteLine( errorColourStrings[currentColourIndex] + "Export failed." + outputText + "</font>");
+						AlertBox.Show(outputText, "Lua Error");
+					}
+					else if ( fileErrors.length > 0 )
+					{
+						var outputStr:String = "";
+						for each( var strItem:String in fileErrors )
+						{
+							outputStr += strItem + "\n";
+						}
+						LogWriteLine( errorColourStrings[currentColourIndex] + "Export finished with " + fileErrors.length + " file errors:" + new Date() + "</font>");
+						AlertBox.Show("Failed to export to files:\n" + outputStr, "File Errors");
+					}
+					else
+					{
+						LogWriteLine( successColourStrings[currentColourIndex] + "Export successful!" + new Date() + "</font>" );
+						if ( DisplaySuccessPrompt )
+						{
+							AlertBox.Show("Your export was a success!\n Display this message next time?", "Export successful!", AlertBox.YES | AlertBox.NO, null, CheckWantSuccessPrompt, AlertBox.YES);
+						}
+					}
+					ScrollLog();
+				}
+            }
+			
+			private function CheckWantSuccessPrompt(event:CloseEvent):void
+			{
+				if(event.detail == AlertBox.NO)
+				{
+					DisplaySuccessPrompt = false;
+				}
+			}
+			
+			private function ok():void
+			{
+				//LogWindow.LogWriteLine("Save exporter:" + Exporter.selectedItem.data.nativePath );
+				if ( Exporter.selectedItem )
+				{
+					currentSettings.lastExporterName = Exporter.selectedItem.data.nativePath;
+				}
+				currentSettings.useRelativePaths = UseRelativePaths.selected;
+				ExporterData.useProjectExporterOnly = OnlyProjectExporters.selected;
+				ExporterData.exportSpritePos = SpritePos.selectedLabel;
+				ExporterData.exportRotatedSpritePos = RotateSpritePos.selected;
+				if ( !_useProjectExporters )
+				{
+					Global.SaveExporterWithProject = SaveWithProject.selected;
+				}
+				
+				currentSettings.settings.length = 0;
+				var i:uint = customControls.length;
+				while (i--)
+				{
+					var obj:Object = customControls[i];
+					var text:String = "";
+					
+					try
+					{
+						text = obj.value;
+					}
+					catch(error:Error)
+					{
+						try
+						{
+							text = obj.text;
+						}
+						catch (error:Error)
+						{
+							text = obj.selected;
+						}
+					}
+					currentSettings.settings.push( new ExporterSetting(obj.id, text));
+				}
+				closeExporter();
+			}
+			
+			private function closeExporter():void
+			{
+				ExporterWindow = null;
+				lua.close();
+				ForceClose();
+			}
+           
+            override protected function init():void
+			{
+				currentSettings = _useProjectExporters ? Global.ProjectExporterSettings : Global.ExporterSettings;
+				
+				var currentFolder:File = new File(App.currentDir + "/lua/Exporters/");
+				LogWriteLine("Looking for exporters: " + currentFolder.url);
+				
+				ExporterWindow = this;
+				
+				var files:Array = currentFolder.getDirectoryListing();
+				
+				if ( _useProjectExporters )
+				{
+					Exporter.toolTip = "The .lua file in the current project's directory.";
+					if ( App.getApp().GetCurrentFile() && App.getApp().GetCurrentFile().parent )
+					{
+						files = App.getApp().GetCurrentFile().parent.getDirectoryListing();
+					}
+				}
+				if ( !_useProjectExporters && Global.CustomExporterPath != null )
+				{
+					var customFiles:Array = Global.CustomExporterPath.getDirectoryListing();
+					files = files.concat( customFiles );
+				}
+
+				
+				var index:uint = 0;
+				var selection:Object = null;
+				
+				try
+				{
+					var lastExporter:File = new File(currentSettings.lastExporterName);
+					var lastExporterName:String = lastExporter.name.toLowerCase();
+				}
+				catch( error:Error)
+				{
+					lastExporter = null;
+				}
+				
+				if ( lastExporter )
+				{
+					LogWriteLine("Last exporter was: " + lastExporter.url );
+				}
+				LogWriteLine("examine: " + files.length + " files.");
+				
+				for each( var file:File in files )
+				{
+					try
+					{
+						if ( !file.isDirectory && !file.isHidden )
+						{
+							var ext:String = file.extension.toLowerCase();
+
+							if ( ext == "lua" && file.url.search("_settings.lua") == -1 )
+							{
+								if ( exporters.getItemIndex( file.name ) == -1 )
+								{
+									var exporterInfo:Object = new Object();
+									exporterInfo.label = file.name;
+									exporterInfo.data = file;
+									exporters.addItem( exporterInfo );
+									//LogWriteLine("add exporter: " + file.nativePath );
+									//LogBox.text = LogBox.text + "test: " + file.url + " OR " + file.nativePath + "\n";
+									if ( lastExporter!=null && file.nativePath.toLowerCase() == lastExporter.nativePath.toLowerCase() )
+									{
+										selection = exporterInfo;
+									}
+									else if ( selection == null && lastExporterName == file.name.toLowerCase() )
+									{
+										selection = exporterInfo;
+									}
+								}
+							}
+						}
+					}
+					catch(e:Error)
+					{
+						LogWriteLine("error: " + e.message );
+					}
+				}
+//LogWriteLine("Finished exporter scan.");				
+				if ( selection != null )
+				{
+					LogWriteLine("Found last exporter!");
+					Exporter.selectedItem = selection;
+				}
+				else
+				{
+					LogWriteLine("Exporter not found.");
+				}
+				
+				changeSettings(true);
+				
+				SaveWithProject.selected = Global.SaveExporterWithProject;
+				UsingRelativePaths = UseRelativePaths.selected = currentSettings.useRelativePaths;
+				OnlyProjectExporters.selected = ExporterData.useProjectExporterOnly;
+				
+				RotateSpritePos.selected = ExporterData.exportRotatedSpritePos;
+				
+				for each( var spriteposItem:Object in spritepos )
+				{
+					if ( spriteposItem.label == ExporterData.exportSpritePos )
+					{
+						SpritePos.selectedItem = spriteposItem;
+						break;
+					}
+				}
+				
+				width = container.width + 20;
+				height = container.height + titleBar.height + 20;
+				super.init();
+				
+				
+            }
+           
+        ]]>
+    </mx:Script>
+
+	<mx:VBox id="container" width="100%" height="100%" maxWidth="700" maxHeight="650">
+		<mx:Form width="100%">
+			<mx:FormItem label="LUA exporter:">
+				<mx:HBox>
+					<mx:ComboBox id="Exporter" dataProvider="{exporters}" change="changeSettings(false)"
+						toolTip="The .lua file in the DAME/lua/Exporters directory. If there is a EXPORTER_settings.lua file for the chosen EXPORTER.lua then the settings will be populated based on that. Otherwise only the VALUE_Location field will be present." />
+					<mx:CheckBox id="UseRelativePaths" label="Use Relative File Paths" change="ChangeRelativePaths()" selected="false" toolTip="Any file paths will be saved relative to the current project file if ticked. They will still be passed to the exporter with their full file path."/>
+				</mx:HBox>
+			</mx:FormItem>
+			<mx:FormItem id="OnlyProjectExportersGroup" visible="false" height="0"><mx:CheckBox id="OnlyProjectExporters" label="Only allow project exporters" toolTip="If ticked then the standard File->Export option will be unavailable. All exports will have to go through the project exporters." selected="false" /> </mx:FormItem>
+			<mx:FormItem label="Sprite pos calculation:">
+				<mx:HBox>
+					<mx:ComboBox id="SpritePos" dataProvider="{spritepos}" 
+						toolTip="Specifies how the xpos and ypos values are calculated with sprites." />
+					<mx:CheckBox id="RotateSpritePos" label="Rotate sprite positions." toolTip="If selected then xpos and ypos values will get exported accounting for the rotation and scale of the sprite. If unchecked then the pos will not be rotated." />
+				</mx:HBox>
+			</mx:FormItem>
+			
+			<mx:FormItem label = "Exporter settings:" />
+			<mx:VBox id="ExporterSettings" width="100%" maxWidth="500" maxHeight="600" borderThickness="1" borderStyle="solid"
+				paddingTop="5" paddingBottom="5" paddingLeft="5" paddingRight="5"/>
+		</mx:Form>
+		<mx:Label text="Output Log:"/>
+		<mx:TextArea id="LogBox" width="100%" height="80" editable="false"/>
+		<mx:HBox horizontalAlign="center" width="100%">
+			<mx:Button id="btnExport" label="Export" click="export()" />
+			<mx:Button id="btnOK" label="Ok" click="ok()" />
+			<mx:Button id="btnCancel" label="Cancel" click="closeExporter()" />
+			<mx:CheckBox id="SaveWithProject" label="Save these setting in project file." toolTip="They will be saved in the settings file anyway." />
+		</mx:HBox>
+	</mx:VBox>
+</comUI:PopupWindow>

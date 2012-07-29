@@ -1,0 +1,634 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<comUI:PopupWindow xmlns:mx="http://www.adobe.com/2006/mxml" xmlns:comUI="com.UI.*"
+    width="100%" height="100%" 
+    defaultButton="{btnOK}" title="Rip Tilemap" horizontalScrollPolicy="off" verticalScrollPolicy="off" >
+
+    <mx:Script>
+        <![CDATA[
+			import com.EditorState;
+			import com.Layers.LayerEntry;
+			import com.Layers.LayerGroup;
+			import com.Layers.LayerImage;
+			import com.Layers.LayerMap;
+			import com.Operations.HistoryStack;
+			import com.Operations.OperationMoveMap;
+			import com.Operations.OperationResizeMap;
+			import com.Tiles.FlxTilemapExt;
+			import com.Properties.PropertyType;
+			import com.Tiles.TileAnim;
+			import com.UI.Tiles.TileList;
+			import com.Utils.Global;
+			import com.Utils.Misc;
+			import flash.display.Bitmap;
+			import flash.display.BitmapData;
+			import flash.display.NativeMenu;
+			import flash.display.NativeMenuItem;
+			import flash.events.Event;
+			import flash.events.NativeWindowBoundsEvent;
+			import flash.filesystem.File;
+			import flash.geom.Point;
+			import flash.geom.Rectangle;
+			import flash.utils.setInterval;
+			import mx.formatters.NumberFormatter;
+			import flash.ui.ContextMenu;
+			import flash.ui.ContextMenuItem;
+			import mx.collections.ArrayCollection;
+			import mx.core.ClassFactory;
+			import mx.events.CloseEvent;
+			import com.Editor.GuideLayer;
+			import com.UI.AlertBox; 
+			import com.Tiles.ImageBank;
+			import org.flixel.FlxG;
+			import com.UI.Tiles.TileGrid;
+            
+			public var opener:Object;
+			
+			public var okPressedCallback:Function = null;
+			
+			public var oldLayer:LayerMap = null;
+			public var Layer:LayerEntry = null;
+			
+			private var currentFile:File = null;
+			private static var tileSetBitmap:Bitmap = null;
+			private var imageBitmap:Bitmap = null;
+			
+			public var Group:LayerGroup = null;
+			
+			public var isImage:Boolean = false;
+			
+			private var tiles:TileList = null;
+			
+			// Dummy tilemap. Not the one we're editing. Just for tile previews.
+			//private var tilemap:FlxTilemapExt = null;
+			private var tileMapString:String = "0";
+			
+			private var tileWidth:int = 50;
+			private var tileHeight:int = 50;
+			
+			private var doAbort:Boolean = false;
+			
+			private var tilesMenu:NativeMenu;
+			private var eraseMenuItem:NativeMenuItem;
+			
+			private var existingTiles:Vector.<BitmapData> = new Vector.<BitmapData>;
+			private var tileBmps:Vector.<BitmapData> = null;
+			private var erasedTiles:Vector.<int> = new Vector.<int>;
+				  
+			override protected function init():void
+			{
+				tiles = new TileGrid(320, TilePreview.height-15, 10, 1);
+				var uiref:DraggableTileWrapper = new DraggableTileWrapper;
+				TilePreview.addChild(uiref);
+				uiref.width = TilePreview.width;
+				uiref.height = TilePreview.height;
+				uiref.setTileObject(tiles);
+				tiles.autoResizeParents = true;
+				tiles.canAcceptDrop = false;
+				tiles.canBeginDrag = false;
+				tiles.smoothDraw = true;
+				tiles.Selectable = true;
+				tiles.maintainTotalHeight = true;
+				tiles.selectedIndex = 0;
+				tiles.showInvalidTiles = true;
+				tiles.AddHBar(hbar, TilePreviewWrapper);
+				tiles.ContainerObject = TilePreview;
+				
+				tiles.contextMenu = tilesMenu = new NativeMenu();
+				tilesMenu.addEventListener(Event.DISPLAYING, menuActivated, false, 0 , true);	
+				eraseMenuItem = new NativeMenuItem("Mark For Erase");
+				eraseMenuItem.addEventListener(Event.SELECT, eraseMenuItemHandler,false,0,true);
+				tilesMenu.addItem(eraseMenuItem);
+				
+				nativeWindow.addEventListener(NativeWindowBoundsEvent.RESIZE, onResize);
+				
+				if ( oldLayer )
+				{
+					tiles.Selectable = false;
+					for ( var i:int = 0; i < oldLayer.map.tileCount; i++ )
+					{
+						existingTiles.push( oldLayer.map.GetTileBitmap(i) );
+					}
+					currentFile = oldLayer.imageFileObj.clone();
+				}
+
+				validateNow();
+				
+				width = container.width + 20;
+				height = container.height + titleBar.height + 20;
+				
+				ShowTitleBarIcons = false;
+				super.init();
+            }
+			
+			protected function onResize(event:NativeWindowBoundsEvent=null):void
+			{
+				if ( tiles )
+				{
+					TilePreviewWrapper.width = hbar.width = event.afterBounds.width - 30;
+				}
+			}
+			
+			private function menuActivated(event:Event):void
+			{
+				tiles.menuActivated(event);
+				if ( tiles.clickIndex >= 0 )
+				{
+					var active:Boolean = tiles.GetTileValid( tiles.clickIndex );
+					eraseMenuItem.checked = !active;
+				}
+			}
+			
+			private function eraseMenuItemHandler(event:Event):void
+			{
+				if ( tiles.clickIndex )
+				{
+					if (!eraseMenuItem.checked )
+						erasedTiles.push( tiles.clickIndex );
+					else
+					{
+						var idx:int = erasedTiles.indexOf( tiles.clickIndex );
+						if ( idx != -1 )
+							erasedTiles.splice( idx, 1 );
+					}
+					tiles.SetTileValid( tiles.clickIndex, eraseMenuItem.checked );
+				}
+			}
+           
+			private function applyLayerChanges():void
+			{
+				if ( (currentFile == null && !oldLayer ) || Group == null )
+				{
+					return;
+				}
+				if ( oldLayer )
+				{
+					createTilemap(null);
+				}
+				var wid:int = 10;
+				var ht:int = 10;
+				if ( tiles.selectedIndex && !oldLayer )
+				{
+					// Swap the selected index with tile 0.
+					tileMapString = Misc.ReplaceAllStrings( tileMapString, "_" + tiles.selectedIndex.toString() + "_", "*" );
+					tileMapString = Misc.ReplaceAllStrings( tileMapString, "_0_", tiles.selectedIndex.toString() );
+					
+					// The image is swapped in the createTilemap function
+				}
+				
+				if ( erasedTiles.length )
+				{
+					var numTiles:uint = tiles.GetDataLength();
+					var numShifted:uint = 0;
+					for (var i:uint = 0; i < numTiles; i++ )
+					{
+						if ( i )
+						{
+							var tileId:int = existingTiles.length + i;
+							var active:Boolean = tiles.GetTileValid( i );
+							if ( !active )
+							{
+								tileMapString = Misc.ReplaceAllStrings( tileMapString, "_" + tileId + "_", existingTiles.length.toString() );
+								numShifted++;
+							}
+							else if ( numShifted )
+							{
+								tileMapString = Misc.ReplaceAllStrings( tileMapString, "_" + tileId + "_", (tileId-numShifted).toString() );
+							}
+						}
+					}
+				}
+				
+				tileMapString = Misc.ReplaceAllStrings( tileMapString, "_", "" );
+				var layerMap:LayerMap = new LayerMap( Group, "Map" + (Group.children.length + 1) ).CreateMapFromString( currentFile, tileMapString, tileWidth, tileHeight, tileWidth, tileHeight, 0, 0, 0 );
+				
+				setCommonMapValues(layerMap, false);
+				layerMap.hasHeight = false;
+				Layer = layerMap;
+				Layer.map.stackHeight = 0;
+			}
+
+			private function setCommonMapValues( layerMap:LayerMap, isModify:Boolean ):void
+			{
+				if ( isModify )
+				{
+					if ( layerMap.map.x != LayerXPos.value || layerMap.map.y != LayerYPos.value )
+					{
+						HistoryStack.BeginOperation( new OperationMoveMap( layerMap ) );
+					}
+				}
+				var repeatingChanged:Boolean = ( layerMap.map.repeatingX != RepeatingX.selected ) || (layerMap.map.repeatingY != RepeatingY.selected);
+				layerMap.map.repeatingX = RepeatingX.selected;
+				layerMap.map.repeatingY = RepeatingY.selected;
+				layerMap.map.x = LayerXPos.value;
+				layerMap.map.y = LayerYPos.value;
+				layerMap.tilemapType = LayerMap.TileType2d;
+				layerMap.SetScrollFactors( LayerXScroll.value, LayerYScroll.value );
+				layerMap.map.collideIndex = CollideIdx.value;
+				layerMap.map.UpdateDrawIndex( DrawIdx.value );
+				
+			}
+			
+			private function browseImage():void
+			{
+				var fileChooser:File = new File(Global.CurrentImageFile.url);
+				
+				var imageFilter:FileFilter = new FileFilter("Images", "*.bmp;*.jpg;*.jpeg;*.png");
+
+				fileChooser.browseForOpen("Load Image", [imageFilter] );
+				solveFileChooserModality(fileChooser);
+				fileChooser.addEventListener(Event.SELECT, loadImageFileSelected,false,0,true);
+				
+			}
+			
+			private function loadImageFileSelected(event:Event):void
+			{
+				var newFile:File = event.target as File;
+				
+				newFile.removeEventListener(Event.SELECT, loadImageFileSelected);
+				ImageBank.LoadImage( newFile, imageLoaded );
+			}
+			
+			private function imageLoaded( data:Bitmap, file:File ):void
+			{
+				// No need to keep it in memory.
+				ImageBank.RemoveImageRef( file );
+				
+				imageBitmap = data;
+				
+				UpdateTilePreview();
+			}
+			
+			private function AbortRip():void
+			{
+				doAbort = true;
+				BtnAbortRip.visible = false;
+			}
+			
+			private function UpdateTilePreview():void
+			{
+				// This can happen if the flex minimizer for the numeric stepper hasn't updated yet.
+				if ( !TileWidth.value || !TileHeight.value )
+					return;
+					
+				if ( !imageBitmap )
+					return;
+					
+				tileWidth = TileWidth.value = Math.min( TileWidth.value, imageBitmap.width );
+				tileHeight = TileHeight.value = Math.min( TileHeight.value, imageBitmap.height );
+				
+				tileMapString = "";
+				
+				var tile:BitmapData = new BitmapData(tileWidth, tileHeight );
+				var sourceRect:Rectangle = tile.rect.clone();
+				var pt:Point = new Point;
+				tileBmps = new Vector.<BitmapData>;
+				btnOK.enabled = false;
+				
+				var y:int = 0;
+				var x:int = 0;
+				
+				var ratio:Number = (TilePreview.height -15) / tileHeight;
+				if ( tileWidth < 30 && tileHeight < 30)
+				{
+					ratio = 30 / Math.max( tileHeight, tileWidth );
+				}
+				tiles.TileWidth = tileWidth * ratio;
+				tiles.TileHeight = tileHeight * ratio;
+				
+				BtnAbortRip.visible = true;
+				
+				var maxTiles:int = (imageBitmap.width / tileWidth) * ( imageBitmap.height / tileHeight );
+				
+				ProgressText.visible = true;
+				
+				doAbort = false;
+				
+				var tileNum:int = 0;
+				
+				erasedTiles.length = 0;
+				
+				var intervalId:uint = setInterval(parseImage, 50);
+				
+				
+				
+				function parseImage( ):void
+				{
+					var loopCount:int = Math.max( 5, 50 - (tileBmps.length * 0.1 ) );
+					if ( doAbort )
+					{
+						doAbort = false;
+						clearInterval(intervalId);
+						BtnAbortRip.visible = false;
+						return;
+					}
+					var numExistingTiles:int = existingTiles.length;
+					while ( loopCount-- )
+					{
+						if ( y + tileHeight > imageBitmap.height )
+						{
+							clearInterval(intervalId);
+							finishImageConvert();
+							BtnAbortRip.visible = false;
+
+							ProgressText.text = "Progress: " + tileBmps.length + " unique tiles = 100% = " + tileNum + " tiles parsed";
+							return;
+						}
+						else
+						{
+							var percent:int = (tileNum / maxTiles) * 100;
+							ProgressText.text = "Progress: " + tileBmps.length + " unique tiles. " + percent + "% = " + tileNum + "/" + maxTiles + " tiles parsed";
+						}
+						tile.fillRect(tile.rect, 0x00000000 );
+						sourceRect.x = x;
+						sourceRect.y = y;
+						tile.copyPixels(imageBitmap.bitmapData, sourceRect, pt );
+						
+						if ( x > 0 )
+						{
+							tileMapString += ",";
+						}
+						var found:Boolean = false;
+						var i:int = numExistingTiles;
+						while ( i-- )
+						{
+							if ( tile.compare(existingTiles[i]) == 0 )
+							{
+								// Wrap up in brackets so we can swap out selected tile easily later on.
+								tileMapString += ("_" + i.toString() + "_");
+								found = true;
+								break;
+							}
+						}
+						if( !found )
+						{
+							i = tileBmps.length;
+							while ( i-- )
+							{
+								if ( tile.compare(tileBmps[i]) == 0 )
+								{
+									// Wrap up in brackets so we can swap out selected tile easily later on.
+									tileMapString += ("_" + (i+numExistingTiles).toString() + "_");
+									found = true;
+									break;
+								}
+							}
+						}
+						
+						if ( !found )
+						{
+							tileMapString += ("_" + (numExistingTiles+tileBmps.length).toString() + "_");
+							var bmp:BitmapData = tile.clone();
+							if ( tileBmps.length == 0 )
+							{
+								tiles.clearTiles();
+							}
+							tileBmps.push(bmp);
+							tiles.ColumnCount = tileBmps.length;
+							tiles.pushTile(bmp, true );
+						}
+						x += tileWidth;
+						tileNum++;
+						if ( x + tileWidth >= imageBitmap.width )
+						{
+							y += tileHeight;
+							x = 0;
+							if ( y >= imageBitmap.height )
+							{
+								return;
+							}
+							tileMapString += "\n";
+						}
+					}
+				}
+				
+				function finishImageConvert():void
+				{
+					var numRows:int = 1;
+					var startNumRows:int = numRows;
+					var columnCount:int = tileBmps.length;
+					var startColumnCount:int = columnCount;
+					while ( columnCount * tileWidth > Global.MaxImageSize )
+					{
+						numRows++;
+						var div:int = (numRows - startNumRows) + 1;
+						columnCount = Math.ceil( startColumnCount / div );
+					}
+					var tileSetHeight:int = tileHeight * numRows;
+					var tileSetWidth:int = tileWidth * columnCount;
+					
+					tileSetBitmap = new Bitmap( new BitmapData( tileSetWidth, tileSetHeight, true, 0x00000000 ) );
+
+					if ( tiles.selectedIndex >= tileBmps.length )
+					{
+						tiles.selectedIndex = tileBmps.length - 1;
+					}
+					
+					btnOK.enabled = true;
+				}
+			}
+			
+			
+			private function ChangeXPos():void
+			{
+				LayerXUnitPos.value = LayerXPos.value / TileWidth.value;
+			}
+			
+			private function ChangeYPos():void
+			{
+				LayerYUnitPos.value = LayerYPos.value / TileHeight.value;
+			}
+			
+			private function ChangeUnitXPos():void
+			{
+				LayerXPos.value = LayerXUnitPos.value * TileWidth.value;
+			}
+			
+			private function ChangeUnitYPos():void
+			{
+				LayerYPos.value = LayerYUnitPos.value * TileHeight.value;
+			}
+			
+			private function createTilemap(event:Event):void
+			{
+				if ( event )
+				{
+					currentFile = event.target as File;
+				}
+				
+				var pt:Point = new Point;
+				var pt2:Point = new Point;
+				var tile0:int = Math.max( Math.min( tiles.selectedIndex, tileBmps.length - 1 ), 0 );
+				if ( oldLayer )
+				{
+					var state:EditorState = FlxG.state as EditorState;
+					var count:int = existingTiles.length;
+					for ( i = 0; i < tileBmps.length; i++ )
+					{
+						if ( erasedTiles.indexOf( i ) == -1 )
+						{
+							state.ModifyTiles(true, false, false, false, false, false, -1, oldLayer.map.tileCount - 1);
+							oldLayer.map.SetTileBitmap( count, tileBmps[i] );
+							count++;
+							//oldLayer.map.insertNewTile( -1, ( existingTiles.length + i ) - 1,
+						}
+					}
+					return;
+				}
+				else
+				{
+					for ( var i:int = 0; i < tileBmps.length; i++ )
+					{
+						if ( i > 0 && i != tiles.selectedIndex && erasedTiles.indexOf( i ) != -1 )
+						{
+							continue;
+						}
+						var bmp:BitmapData = tileBmps[i];
+						if ( tiles.selectedIndex && tiles.selectedIndex == i )
+						{
+							// Copy tile 0 to this index.
+							var bmp0:BitmapData = tileBmps[0];
+							pt2.x = 0;
+							pt2.y = 0;
+							tileSetBitmap.bitmapData.copyPixels( bmp0, bmp0.rect, pt);
+							// Copy this tile to the first tile index.
+							tileSetBitmap.bitmapData.copyPixels( bmp, bmp.rect, pt2);
+						}
+						else
+						{
+							tileSetBitmap.bitmapData.copyPixels( bmp, bmp.rect, pt);
+						}
+						pt.x += tileWidth;
+						if ( pt.x >= tileSetBitmap.width )
+						{
+							pt.x = 0;
+							pt.y += tileHeight;
+						}
+					}
+						
+					ImageBank.CreateNewImage(currentFile, tileSetBitmap);
+				}
+				ok();
+			}
+			
+			private function selectTilemapImage(eventObj:CloseEvent):void
+			{
+				if ( eventObj == null || eventObj.detail == AlertBox.OK)
+				{
+					var fileChooser:File = new File(Global.CurrentImageFile.url);
+					fileChooser.browseForSave("Specify New Tilemap File.");
+					solveFileChooserModality(fileChooser);
+					fileChooser.addEventListener(Event.SELECT, createTilemap,false,0,true);
+				}
+			}
+           
+            private function ok():void
+			{
+				if ( Layer == null && (currentFile == null || Group == null ) && oldLayer == null )
+				{
+					if ( !tileSetBitmap )
+					{
+						AlertBox.Show("You must load an image to rip first.", "No tileset loaded.", AlertBox.OK, null);
+						return;
+					}
+					AlertBox.Show("Select location of new tilemap image file.", "New tilemap image", AlertBox.OK | AlertBox.CANCEL, null, selectTilemapImage, AlertBox.CANCEL);
+					return;
+				}
+				applyLayerChanges();
+				
+				ImageBank.RemoveImageRef( currentFile );
+				
+				if ( okPressedCallback!=null )
+				{
+					okPressedCallback(this);
+				}
+				ForceClose();
+            }
+			
+			private function cancel():void
+			{
+				if ( BtnAbortRip.visible )
+				{
+					AbortRip();
+				}
+				ImageBank.RemoveImageRef( currentFile );
+				ForceClose();
+			}
+		
+           
+        ]]>
+    </mx:Script>
+	
+	
+
+	<mx:Box id="container" width="100%" height="100%" paddingLeft="10" >
+		<comUI:MultiRowTabs id="multi" rowHeight="18" tabsPerRow="3" horizontalScrollPolicy="off"/>
+			<mx:VBox id="MainSettings">
+				<mx:Box id="LayerTilesGroup" width="100%">
+					<mx:Label text="Rip a tilemap image and generate a map from an image of the tilemap level." />
+					<mx:Label text="The Ripping process may take several seconds/minutes for complex tilemaps." />
+					
+					<mx:Label text="If the image is complex try to set the width/height before loading."/>
+					<mx:HBox width="100%">
+						<mx:Label text="Tile Width" textAlign="right" width="100" />
+						<mx:NumericStepper id="TileWidth" stepSize="1" value="50" minimum="1" maximum="99999" width="100" toolTip="Width of each tile in pixels." />
+						<mx:Label text="Tile Height" textAlign="right" width="100"/>
+						<mx:NumericStepper id="TileHeight" stepSize="1" value="50" minimum="1" maximum="99999" width="100" toolTip="Height of each tile in pixels." />
+					</mx:HBox>
+					
+					<mx:HBox>
+						<mx:Button id="TilesetButton" label="Load Image" click="browseImage()" />
+						<mx:Button label="Regenerate Tileset" click="UpdateTilePreview()"/>
+						<mx:Button id="BtnAbortRip" label="Abort Rip" click="AbortRip()" visible="false" />
+					</mx:HBox>
+					
+					<mx:Label id="ProgressText" text="" visible="false" />
+					
+					<mx:Label text="Select the tile to use as the first tile. (Important if tile 0 is empty). Right click to erase tiles." />
+					<mx:Box id="TilePreviewWrapper" width="420" borderStyle="solid" horizontalScrollPolicy="off" verticalScrollPolicy="off" >
+						<mx:Box id="TilePreview" width="100%" height="60" horizontalScrollPolicy="off" verticalScrollPolicy="off" />
+						<mx:HScrollBar visible="true" id="hbar" bottom="0" width="420" repeatDelay="1000" repeatInterval="500"
+							minScrollPosition="0" maxScrollPosition="1000" lineScrollSize="50" pageScrollSize="100"/>
+					</mx:Box>
+				
+					<mx:HBox width="100%">
+						<mx:Label text="X" textAlign="right" width="100" />
+						<mx:NumericStepper id="LayerXPos" stepSize="1" value="0" minimum="-99999" maximum="99999" width="100" change="ChangeXPos()" toolTip="x coordinate of the start(left) of the tilemap."/>
+						<mx:Label text="Y" textAlign="right" width="100" />
+						<mx:NumericStepper id="LayerYPos" stepSize="1" value="0" minimum="-99999" maximum="99999" width="100" change="ChangeYPos()" toolTip="y coordinate of the start(top) of the tilemap."/>
+					</mx:HBox>
+					
+					<mx:HBox width="100%">
+						<mx:Label text="X In Tiles" textAlign="right" width="100" />
+						<mx:NumericStepper id="LayerXUnitPos" stepSize="1" value="0" minimum="-99999" maximum="99999" width="100" change="ChangeUnitXPos()" toolTip="x coordinate in tile units of the start(left) of the tilemap." />
+						<mx:Label text="Y In Tiles" textAlign="right" width="100" />
+						<mx:NumericStepper id="LayerYUnitPos" stepSize="1" value="0" minimum="-99999" maximum="99999" width="100" change="ChangeUnitYPos()" toolTip="y coordinate in tile units of the start(top) of the tilemap."/>
+					</mx:HBox>
+				
+					<mx:HBox width="100%">
+						<mx:Label text="Draw Index" textAlign="right" width="100" />
+						<mx:NumericStepper id="DrawIdx" stepSize="1" value="0" minimum="0" maximum="9999" width="100" toolTip="Index of first tile that will be drawn." />
+						<mx:Label text="Collide Index" textAlign="right" width="100"/>
+						<mx:NumericStepper id="CollideIdx" stepSize="1" value="1" minimum="0" maximum="9999" width="100" toolTip="Index of first collidable tile." />
+					</mx:HBox>
+					
+					<mx:HBox width="100%">
+						<mx:Spacer width="20"/>
+						<mx:CheckBox id="RepeatingX" label="Repeat X" selected="false" />
+						<mx:CheckBox id="RepeatingY" label="Repeat Y" selected="false" />
+					</mx:HBox>
+				</mx:Box>
+					
+				<mx:HBox width="100%">
+					<mx:Label text="Scroll Factor X" textAlign="right" width="100"/>
+					<mx:NumericStepper id="LayerXScroll" stepSize="0.01" value="1.00" minimum="-20" maximum="20.00" width="100"/>
+					<mx:Label text="Scroll Factor Y" textAlign="right" width="100"/>
+					<mx:NumericStepper id="LayerYScroll" stepSize="0.01" value="1.00" minimum="-20" maximum="20.00" width="100"/>
+				</mx:HBox>
+			</mx:VBox>
+		
+		<mx:HBox horizontalAlign="center" width="100%">
+			<mx:Button id="btnOK" label="OK" click="ok()" enabled="false" />
+			<mx:Button id="btnCancel" label="Cancel" click="cancel()" />
+		</mx:HBox>
+	</mx:Box>
+</comUI:PopupWindow>

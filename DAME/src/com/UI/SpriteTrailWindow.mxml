@@ -1,0 +1,445 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<comUI:PopupWindow xmlns:mx="http://www.adobe.com/2006/mxml" xmlns:comUI="com.UI.*"
+	width="100%" height="100%" currentState = "default"
+	resizable="false" showGripper="false" showStatusBar="false" maximizable="false" minimizable="false"
+    title="Sprite Trails">
+	<mx:Script>
+		<![CDATA[
+		
+		import com.Editor.EditorTypeSprites;
+		import com.EditorState;
+		import com.Game.EditorAvatar;
+		import com.Game.SpriteTrailEntry;
+		import com.Game.SpriteTrailObject;
+		import com.Tiles.SpriteEntry;
+		import com.UI.Docking.DockablePage;
+		import com.UI.Tiles.TileList;
+		import flash.display.Bitmap;
+		import flash.display.BitmapData;
+		import flash.display.NativeMenu;
+		import flash.display.NativeMenuItem;
+		import flash.geom.Matrix;
+		import mx.core.UIComponent;
+		import com.Editor.EditorTypeTileMatrix;
+		import com.Utils.Global;
+		import flash.events.Event;
+		import flash.geom.Point;
+		import flash.geom.Rectangle;
+		import org.flixel.FlxG;
+		import mx.events.ItemClickEvent;
+		import com.UI.DraggableTileWrapper;
+		import org.flixel.FlxPoint;
+		
+		public var tiles:TileList = null;
+		
+		private var cachedVerticalScrollBarWidth:int = 0;
+		private var cachedHorizontalScrollBarHeight:int = 0;
+		
+			
+		override protected function init():void
+		{
+			tiles = new TileList();
+			tiles.autoRearrange = false;
+			tiles.autoResizeParents = false;
+			tiles.TileHeight = 50;
+			tiles.TileWidth = 50;
+			var uiref:DraggableTileWrapper = new DraggableTileWrapper;
+			SpritePreview.addChild(uiref);
+			uiref.width = 500;
+			uiref.height = 50;
+			uiref.addChild(tiles);
+			
+			tiles.contextMenu = contextMenu = null;
+			tiles.SelectionChanged = TileSelectionChanged;
+			
+			GetFromGlobals();
+			titleName = "Sprite Trails";
+			AllowMinimizeToStatusBar();
+			doubleClickTitleBarShrinks = true;
+			
+			validateNow();
+				
+			width = container.width + 20;
+			height = container.height + titleBar.height + 20;
+			
+			super.init();
+		}
+		
+		private function TileSelectionChanged():void
+		{
+			var data:SpriteTrailEntry = tiles.GetMetaDataAtIndex( tiles.selectedIndex ) as SpriteTrailEntry;
+			if ( !data )
+			{
+				currentState = "default";
+			}
+			else
+			{
+				if ( data.sprite.IsTileSprite )
+				{
+					currentState = "spritesheets";
+					XOff.value = data.offset ? data.offset.x : data.sprite.TileOrigin.x;
+					YOff.value = data.offset ? data.offset.y : data.sprite.TileOrigin.y;
+					Wid.value = data.dims ? data.dims.x : data.sprite.previewBitmap.width;
+					Ht.value = data.dims ? data.dims.y : data.sprite.previewBitmap.height;
+					AnchorX.value = data.anchor ? data.anchor.x : data.sprite.Anchor.x;
+					AnchorY.value = data.anchor ? data.anchor.y : data.sprite.Anchor.y;
+				}
+				else
+				{
+					FrameNum.value = data.frame;
+					
+					currentState = "anims";
+				}
+			}
+		}
+		
+		private function GetBitmapForData(data:SpriteTrailEntry):BitmapData
+		{
+			var bmp:BitmapData = data.sprite.previewBitmap.bitmapData; // default.
+			if ( data.sprite.IsTileSprite )
+			{
+				if ( data.dims || data.offset)
+				{
+					var x:int = 0;
+					var y:int = 0;
+					var w:int = bmp.width;
+					var h:int = bmp.height;
+					if ( data.dims )
+					{
+						w = data.dims.x;
+						h = data.dims.y;
+					}
+					if ( data.offset )
+					{
+						x = data.offset.x;
+						y = data.offset.y;
+					}
+					else
+					{
+						x = data.sprite.TileOrigin.x;
+						y = data.sprite.TileOrigin.y;
+					}
+					var mat:Matrix = new Matrix;
+					mat.translate( -x, -y);
+					bmp = new BitmapData(w, h, true, 0x00000000);
+					var tempRect:Rectangle = new Rectangle( -x, -y, data.sprite.bitmap.width, data.sprite.bitmap.height );
+					bmp.draw(data.sprite.bitmap, mat, null, null, tempRect, false );
+				}
+				
+			}
+			else if( data.sprite.previewIndex != data.frame )
+			{
+				var bitmap:Bitmap = data.sprite.bitmap;
+				var wid:int = data.sprite.previewBitmap.width;
+				var ht:int = data.sprite.previewBitmap.height;
+				var numRows:uint = Math.floor( bitmap.height / ht );
+				var numColumns:uint = Math.floor( bitmap.width / wid );
+				var maxIndex:uint = ( numColumns * numRows ) - 1;
+				data.frame = Math.min( data.frame, maxIndex );
+				
+				var currentRow:uint = data.frame / numColumns;
+				var currentColumn:uint = data.frame % numColumns;
+				
+				var sourceRect:Rectangle = new Rectangle( currentColumn * wid, currentRow * ht, 1, 1);
+				var flashPoint:Point = new Point(0, 0);
+				
+				sourceRect.width = wid;
+				sourceRect.height = ht;
+				
+				bmp = new BitmapData(wid, ht, true, 0xffffff);
+				bmp.copyPixels( bitmap.bitmapData, sourceRect, flashPoint );
+			}
+			return bmp;
+		}
+		
+		private function GetFromGlobals():void
+		{
+			RotateFollows.selected = Global.spriteTrailData.RotateFollows;
+			RotationOffset.value = Global.spriteTrailData.RotationOffset;
+			SpriteDist.value = Global.spriteTrailData.SpriteSeparation;
+			CleverSpread.selected = Global.spriteTrailData.CleverSpread;
+			RandomSprites.selected = Global.spriteTrailData.RandomSprites;
+			EdgeSprites.selected = Global.spriteTrailData.EdgeSprites;
+			RandomSeed.value = Global.spriteTrailData.RandomSeed;
+			
+			tiles.clearTiles();
+			var i:int = 0;
+			for each( var data:SpriteTrailEntry in Global.spriteTrailData.sprites )
+			{
+				if ( data.sprite.previewBitmap )
+				{
+					tiles.autoResizeParents = true;
+					var bmp:BitmapData = GetBitmapForData(data);
+					tiles.insertTile(bmp, data, i);
+					i++;
+				}
+			}
+			tiles.selectedIndex = 0;
+			TileSelectionChanged();
+		}
+		
+		private function anchorChanged():void
+		{
+			if ( tiles.selectedIndex >= 0 && tiles.selectedIndex < Global.spriteTrailData.sprites.length )
+			{
+				var data:SpriteTrailEntry = tiles.GetMetaDataAtIndex( tiles.selectedIndex ) as SpriteTrailEntry;
+				if ( data && data.sprite && data.sprite.bitmap )
+				{
+					data.anchor = new FlxPoint(AnchorX.value, AnchorY.value);
+					UpdateValues();
+				}
+			}
+		}
+		
+		private function offsetChanged():void
+		{
+			if ( tiles.selectedIndex >= 0 && tiles.selectedIndex < Global.spriteTrailData.sprites.length )
+			{
+				var data:SpriteTrailEntry = tiles.GetMetaDataAtIndex( tiles.selectedIndex ) as SpriteTrailEntry;
+				if ( data && data.sprite && data.sprite.bitmap )
+				{
+					data.offset = new FlxPoint(XOff.value, YOff.value);
+					var bmp:BitmapData = GetBitmapForData(data);
+					tiles.SetTileAtIndex(bmp, data, tiles.selectedIndex );
+					UpdateValues();
+				}
+			}
+		}
+		
+		private function dimsChanged():void
+		{
+			if ( tiles.selectedIndex >= 0 && tiles.selectedIndex < Global.spriteTrailData.sprites.length )
+			{
+				var data:SpriteTrailEntry = tiles.GetMetaDataAtIndex( tiles.selectedIndex ) as SpriteTrailEntry;
+				if ( data && data.sprite && data.sprite.bitmap )
+				{
+					data.dims = new FlxPoint(Wid.value, Ht.value);
+					var bmp:BitmapData = GetBitmapForData(data);
+					tiles.SetTileAtIndex(bmp, data, tiles.selectedIndex );
+					UpdateValues();
+				}
+			}
+		}
+		
+		private function frameChanged():void
+		{
+			if ( tiles.selectedIndex >= 0 && tiles.selectedIndex < Global.spriteTrailData.sprites.length )
+			{
+				var data:SpriteTrailEntry = tiles.GetMetaDataAtIndex( tiles.selectedIndex ) as SpriteTrailEntry;
+				if ( data && data.sprite && data.sprite.bitmap )
+				{
+					var bitmap:Bitmap = data.sprite.bitmap;
+					var wid:int = data.sprite.previewBitmap.width;
+					var ht:int = data.sprite.previewBitmap.height;
+					var numRows:uint = Math.floor( bitmap.height / ht );
+					var numColumns:uint = Math.floor( bitmap.width / wid );
+					var maxIndex:uint = ( numColumns * numRows ) - 1;
+					FrameNum.value = Math.min( FrameNum.value, maxIndex );
+					Global.spriteTrailData.sprites[ tiles.selectedIndex ].frame = data.frame = FrameNum.value;
+					var bmp:BitmapData = GetBitmapForData(data);
+					tiles.SetTileAtIndex(bmp, data, tiles.selectedIndex );
+					UpdateValues();
+				}
+			}
+		}
+		
+		private function UpdateValues():void
+		{
+			Global.spriteTrailData.RotateFollows = RotateFollows.selected;
+			Global.spriteTrailData.RotationOffset = RotationOffset.value;
+			Global.spriteTrailData.SpriteSeparation = SpriteDist.value;
+			Global.spriteTrailData.CleverSpread = CleverSpread.selected;
+			Global.spriteTrailData.RandomSprites = RandomSprites.selected;
+			Global.spriteTrailData.EdgeSprites = EdgeSprites.selected;
+			Global.spriteTrailData.RandomSeed = RandomSeed.value;
+			
+			EditorTypeSprites.UpdateSpriteTrails = true;
+		}
+		
+		private function TransferButtonClick( event:ItemClickEvent ):void
+		{
+			if ( event.label == "Get From Selected Trail" )
+			{
+				var editor:EditorState = FlxG.state as EditorState;
+				var selection:Vector.<EditorAvatar> = editor.spriteEditor.GetSelection();
+				var i:int = selection.length;
+				var found:Boolean = false;
+				while (i--)
+				{
+					var spriteTrail:SpriteTrailObject = selection[i] as SpriteTrailObject;
+					if ( spriteTrail )
+					{
+						Global.spriteTrailData = spriteTrail.trailData.Clone();
+						found = true;
+						break;
+					}
+				}
+				if ( !found )
+				{
+					selection = editor.pathEditor.GetSelection();
+					i = selection.length;
+					while (i--)
+					{
+						if ( selection[i].attachment )
+						{
+							spriteTrail = selection[i].attachment.Child as SpriteTrailObject;
+							if ( spriteTrail )
+							{
+								Global.spriteTrailData = spriteTrail.trailData.Clone();
+								found = true;
+								break;
+							}
+						}
+					}
+				}
+				if ( found )
+				{
+					GetFromGlobals();
+				}
+			}
+			else if ( event.label == "Send To Selected Trail" )
+			{
+				UpdateValues();
+			}
+		}
+		
+		private function ButtonClick( event:ItemClickEvent ):void
+		{
+			if ( event.label == "Add From Current Sprite Entry" )
+			{
+				var currentSprite:SpriteEntry = App.getApp().spriteList.selectedItem as SpriteEntry;
+				if ( currentSprite && currentSprite.previewBitmap )
+				{
+					var newData:SpriteTrailEntry = new SpriteTrailEntry( currentSprite );
+					if ( currentSprite.IsTileSprite )
+					{
+						
+					}
+					else
+					{
+						newData.frame = currentSprite.previewIndex;
+					}
+					var bmp:BitmapData = GetBitmapForData(newData);
+					var index:int = ( tiles.selectedIndex < tiles.GetDataLength() ) ? tiles.selectedIndex : tiles.GetDataLength();
+					tiles.insertTile(bmp, newData, index);
+					tiles.autoResizeParents = true;
+					EditorTypeSprites.UpdateSpriteTrails = true;
+					updateScrollbar();
+					Global.spriteTrailData.sprites.splice(index, 0, newData);
+					tiles.selectedIndex = index;
+					TileSelectionChanged();
+				}
+			}
+			else if ( event.label == "Delete Selected Sprite" )
+			{
+				var len:int = tiles.GetDataLength();
+				var i:int = tiles.selectedIndex;
+				if ( len && i < len )
+				{
+					tiles.removeTileByIndex( i );
+					len--;
+					if ( i >= len )
+						tiles.selectedIndex--;
+					EditorTypeSprites.UpdateSpriteTrails = true;
+				}
+				if ( len == 0 )
+				{
+					tiles.autoResizeParents = false;
+				}
+				updateScrollbar();
+				Global.spriteTrailData.sprites.splice(i, 1);
+				EditorTypeSprites.UpdateSpriteTrails = true;
+			}
+		}
+		
+		private function updateScrollbar():void
+		{
+			hscroll.maxScrollPosition = Math.max(0, (tiles.TileWidth * tiles.GetDataLength()) - 400);
+			hscroll.pageSize = 400;
+			scroll();
+			hscroll.visible = ( hscroll.maxScrollPosition > 0 );
+		}
+		
+		private function scroll():void
+		{
+			SpritePreview.x = -hscroll.scrollPosition;
+		}
+			
+		]]>
+	</mx:Script>
+	
+	<comUI:states>
+		<mx:State name="default">
+			<mx:RemoveChild target="{AnimState}" />
+			<mx:RemoveChild target="{SpriteSheetState}" />
+		</mx:State>
+		<mx:State name="anims">
+			<mx:RemoveChild target="{SpriteSheetState}" />
+		</mx:State>
+		<mx:State name="spritesheets">
+			<mx:RemoveChild target="{AnimState}" />
+		</mx:State>
+	</comUI:states>
+	
+	<mx:Box id="container">
+		<mx:Box id="SpritePreviewWrapper" width="400" borderStyle="solid" horizontalScrollPolicy="off" verticalScrollPolicy="off" >
+			<mx:Box id="SpritePreview" width="100%" height="50" horizontalScrollPolicy="off" verticalScrollPolicy="off" backgroundColor="0xffffff" />
+		</mx:Box>
+		<mx:HScrollBar id="hscroll" width="400" scroll="scroll()" repeatDelay="1000" repeatInterval="500" pageScrollSize="50" lineScrollSize="50" visible="false" />
+		<mx:ButtonBar itemClick="ButtonClick(event);">
+			<mx:dataProvider>
+				<mx:Array>
+					<mx:String>Add From Current Sprite Entry</mx:String>
+					<mx:String>Delete Selected Sprite</mx:String>
+				</mx:Array>
+			</mx:dataProvider>
+		</mx:ButtonBar>
+			
+		<mx:HBox id="AnimState">
+			<mx:Label text="Frame number"/>
+			<mx:NumericStepper id="FrameNum" value="0" minimum="0" maximum="9999" change="frameChanged()" />
+		</mx:HBox>
+		<mx:HBox id="SpriteSheetState">
+			<mx:Label text="X"/>
+			<mx:NumericStepper id="XOff" value="0" minimum="-9999" maximum="9999" change="offsetChanged()" />
+			<mx:Label text="Y"/>
+			<mx:NumericStepper id="YOff" value="0" minimum="-9999" maximum="9999" change="offsetChanged()" />
+			<mx:Label text="Wid"/>
+			<mx:NumericStepper id="Wid" value="50" minimum="1" maximum="9999" change="dimsChanged()" />
+			<mx:Label text="Ht"/>
+			<mx:NumericStepper id="Ht" value="50" minimum="1" maximum="9999" change="dimsChanged()" />
+		</mx:HBox>
+		<mx:HBox id="Anchors">
+			<mx:Label text="Anchor X"/>
+			<mx:NumericStepper id="AnchorX" value="0" minimum="0" maximum="9999" change="anchorChanged()" />
+			<mx:Label text="Anchor Y"/>
+			<mx:NumericStepper id="AnchorY" value="0" minimum="0" maximum="9999" change="anchorChanged()" />
+		</mx:HBox>
+		
+		<mx:HBox>
+			<mx:Label text="Distance Between Sprites"/>
+			<mx:NumericStepper id="SpriteDist" minimum="10" maximum="1000" value="50" stepSize="1" change="UpdateValues()" />
+		</mx:HBox>
+		<mx:CheckBox id="CleverSpread" label="Use Clever Spread Algorithm" change="UpdateValues()" />
+		<mx:CheckBox id="RotateFollows" label="Rotation Follows Path" change="UpdateValues()" />
+		<mx:HBox>
+			<mx:Label text="Rotation Offset"/>
+			<mx:NumericStepper id="RotationOffset" minimum="0" maximum="359" value="0" stepSize="1" change="UpdateValues()" />
+		</mx:HBox>
+		<mx:CheckBox id="EdgeSprites" label="Use Edge Sprites" change="UpdateValues()" />
+		<mx:HBox>
+			<mx:CheckBox id="RandomSprites" label="Use Random Sprites" change="UpdateValues()" />
+			<mx:Label text="Random Seed"/>
+			<mx:NumericStepper id="RandomSeed" minimum="0.01" maximum="1" value="0" stepSize="0.01" change="UpdateValues()" />
+		</mx:HBox>
+		<mx:ButtonBar itemClick="TransferButtonClick(event);">
+			<mx:dataProvider>
+				<mx:Array>
+					<mx:String>Get From Selected Trail</mx:String>
+					<mx:String>Send To Selected Trail</mx:String>
+				</mx:Array>
+			</mx:dataProvider>
+		</mx:ButtonBar>
+		<mx:Button id="Close" label="OK" click="hide()" />
+	</mx:Box>
+</comUI:PopupWindow>

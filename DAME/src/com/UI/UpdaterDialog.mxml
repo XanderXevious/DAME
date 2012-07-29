@@ -1,0 +1,293 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<mx:Window xmlns="*" xmlns:mx="http://www.adobe.com/2006/mxml" styleName="updateDialogWindow"
+    layout="absolute" maximizable="false" resizable="false" currentState="{_updateState}"
+    clipContent="false" showStatusBar="false" width="530" height="180" initialize="onInit()">
+
+    <mx:Metadata>
+        [Event(name="checkUpdate", type="flash.events.Event")]
+        [Event(name="downloadUpdate", type="flash.events.Event")]
+        [Event(name="downloadUpdate", type="flash.events.Event")]
+        [Event(name="cancelUpdate", type="flash.events.Event")]
+    </mx:Metadata>
+
+    <mx:Script>
+        <![CDATA[
+			import com.Utils.Global;
+			
+            public static var EVENT_CHECK_UPDATE:String = "checkUpdate";
+            public static var EVENT_INSTALL_UPDATE:String = "installUpdate";
+            public static var EVENT_DOWNLOAD_UPDATE:String = "downloadUpdate";
+            public static var EVENT_CANCEL_UPDATE:String = "cancelUpdate";
+            public static var EVENT_INSTALL_LATER:String = "installLater";
+
+            [Bindable] public static var UPDATE_DOWNLOADING:String = "updateDownloading";
+            [Bindable] public static var INSTALL_UPDATE:String = "installUpdate";
+            [Bindable] public static var UPDATE_AVAILABLE:String = "updateAvailable";
+            [Bindable] public static var NO_UPDATE:String = "noUpdate";
+            [Bindable] public static var CHECK_UPDATE:String = "checkUpdate";
+            [Bindable] public static var UPDATE_ERROR:String = "updateError";
+
+            [Bindable] private var _isFirstRun:String;
+            [Bindable] private var _installedVersion:String;
+            [Bindable] private var _updateVersion:String;
+            [Bindable] private var _updateDescription:String;
+            [Bindable] private var _applicationName:String;
+            [Bindable] private var _updateState:String;
+            [Bindable] private var _errorText:String = "There was an error checking for updates.";
+			
+			public function onInit():void
+			{
+				disableUpdates.selected = Global.DisableAutoUpdates==true;
+			}
+
+            public function set isFirstRun(value:String):void
+            {
+                _isFirstRun = value;
+            }
+
+            public function set installedVersion(value:String):void
+            {
+                _installedVersion = value;
+            }
+
+            public function set upateVersion(value:String):void
+            {
+                _updateVersion = value;
+            }
+
+            public function set updateState(value:String):void
+            {
+                _updateState = value;
+            }
+
+            public function set applicationName(value:String):void
+            {
+                _applicationName = value;
+            }
+
+            public function set description(value:String):void
+            {
+                _updateDescription = value;
+            }
+
+            public function set errorText(value:String):void
+            {
+                _errorText = value;
+            }
+
+            public function downloadProgress(value:Number):void
+            {
+                if(progressBar) progressBar.setProgress(value, 100);
+            }
+
+            private function continueUpdate():void
+            {
+                if (this.currentState == UpdaterDialog.CHECK_UPDATE){
+                    this.dispatchEvent(new Event(EVENT_CHECK_UPDATE));
+                } else if (this.currentState == UPDATE_AVAILABLE) {
+                    this.dispatchEvent(new Event(EVENT_DOWNLOAD_UPDATE));
+                }else if (this.currentState == INSTALL_UPDATE) {
+                    this.dispatchEvent(new Event(EVENT_INSTALL_UPDATE));
+                }
+            }
+
+            private function cancelUpdate():void
+            {
+                if (this.currentState == INSTALL_UPDATE) {
+                    this.dispatchEvent(new Event(EVENT_INSTALL_LATER));
+                    return;
+                }
+                this.dispatchEvent(new Event(EVENT_CANCEL_UPDATE));
+            }
+
+            public function destroy():void
+            {
+                iconImage.unloadAndStop(true);
+                iconImage.source = null;
+
+                continueButton.removeEventListener(MouseEvent.CLICK, continueUpdate);
+                cancelButton.removeEventListener(MouseEvent.CLICK, cancelUpdate);
+
+                // becaause we used skins, we have to clear them for garbage collection
+                //http://www.firstrowria.com/2009/01/flex-top-5-memory-leaks-in-flex-2-skinning-of-components-eg-button/
+                continueButton.styleName = null;
+                cancelButton.styleName = null;
+				disableUpdates.styleName = null;
+
+                while(this.numChildren > 0){
+                    this.removeChildAt(0);
+                }
+            }
+        ]]>
+    </mx:Script>
+
+    <mx:states>
+        <mx:State name="{CHECK_UPDATE}">
+            <mx:AddChild position="lastChild">
+                <mx:Label x="152" y="86" text="Application:" styleName="updateDialogLabel"/>
+            </mx:AddChild>
+            <mx:AddChild position="lastChild">
+                <mx:Text x="230" y="86" text="{this._applicationName}" styleName="updateDialogText"/>
+            </mx:AddChild>
+            <mx:AddChild position="lastChild">
+                <mx:Label x="107" y="19" text="Check for updates" styleName="updateTitle" />
+            </mx:AddChild>
+            <mx:AddChild position="lastChild">
+                <mx:Text x="107" y="50" text="Allow the application to check for updates?"  styleName="updateDialogText"/>
+            </mx:AddChild>
+            <mx:SetProperty name="height" value="180"/>
+        </mx:State>
+        <mx:State name="{UPDATE_AVAILABLE}">
+            <mx:SetProperty name="height" value="360"/>
+            <mx:AddChild position="lastChild">
+                <mx:Text  text="{this._installedVersion}" x="230" y="114" styleName="updateDialogText"/>
+            </mx:AddChild>
+            <mx:AddChild position="lastChild">
+                <mx:Text  text="{this._updateVersion}" x="230" y="134" styleName="updateDialogText"/>
+            </mx:AddChild>
+            <mx:AddChild position="lastChild">
+                <mx:Label x="118" y="114" text="Installed Version:" styleName="updateDialogLabel"/>
+            </mx:AddChild>
+            <mx:AddChild position="lastChild">
+                <mx:Label x="127" y="134" text="Update Version:" styleName="updateDialogLabel"/>
+            </mx:AddChild>
+            <mx:AddChild position="lastChild">
+                <mx:Label x="152" y="96" text="Application:"  styleName="updateDialogLabel"/>
+            </mx:AddChild>
+            <mx:AddChild position="lastChild">
+                <mx:Text x="230" y="96" text="{this._applicationName}" styleName="updateDialogText"/>
+            </mx:AddChild>
+            <mx:AddChild position="lastChild">
+                <mx:Label x="107" y="19" text="Update Available" styleName="updateTitle"/>
+            </mx:AddChild>
+            <mx:AddChild position="lastChild">
+                <mx:Text x="107" y="50" text="An updated version of the application is available for download." styleName="updateDialogText"/>
+            </mx:AddChild>
+
+            <mx:AddChild position="lastChild">
+                <mx:Label id="releaseLabel" x="10" y="222" text="Release notes" styleName="updateDialogLabel"/>
+            </mx:AddChild>
+            <mx:AddChild position="lastChild">
+                <mx:TextArea text="{_updateDescription}" x="10" y="248" width="508" height="100" styleName="updateDialogTextArea"/>
+            </mx:AddChild>
+
+            <mx:AddChild position="lastChild">
+                <mx:HRule x="10" y="214" width="508" styleName="updateDialogHRule"/>
+            </mx:AddChild>
+            <mx:SetProperty target="{cancelButton}" name="y" value="164"/>
+            <mx:SetProperty target="{continueButton}" name="y" value="164"/>
+			<mx:SetProperty target="{disableUpdates}" name="y" value="164"/>
+            <mx:SetProperty target="{cancelButton}" name="label" value="Download later"/>
+            <mx:SetProperty target="{continueButton}" name="x" value="160"/>
+            <mx:SetProperty target="{continueButton}" name="label" value="Download now"/>
+			<mx:SetProperty target="{disableUpdates}" name="x" value="290"/>
+        </mx:State>
+        <mx:State name="{NO_UPDATE}">
+            <mx:AddChild position="lastChild">
+                <mx:Label x="122" y="86" text="Application:" styleName="updateDialogLabel"/>
+            </mx:AddChild>
+            <mx:AddChild position="lastChild">
+                <mx:Text x="200" y="86" text="{this._applicationName}" styleName="updateDialogText"/>
+            </mx:AddChild>
+            <mx:AddChild position="lastChild">
+                <mx:Label x="107" y="19" text="No Updates" styleName="updateTitle"/>
+            </mx:AddChild>
+            <mx:AddChild position="lastChild">
+                <mx:Text x="107" y="50" text="There is no application update available at this time." styleName="updateDialogText"/>
+            </mx:AddChild>
+            <mx:RemoveChild target="{continueButton}"/>
+			<mx:RemoveChild target="{disableUpdates}"/>
+            <mx:SetProperty target="{cancelButton}" name="label" value="Close"/>
+            <mx:SetProperty name="height" value="180"/>
+        </mx:State>
+        <mx:State name="{UPDATE_DOWNLOADING}">
+            <mx:AddChild position="lastChild">
+                <mx:ProgressBar x="107" y="84" width="411" label=" " id="progressBar" mode="manual" height="15" styleName="updateDialogProgress"/>
+            </mx:AddChild>
+            <mx:AddChild position="lastChild">
+                <mx:Text x="107" y="20" text="Downloading Update" styleName="updateTitle"/>
+            </mx:AddChild>
+            <mx:RemoveChild target="{continueButton}"/>
+            <mx:AddChild position="lastChild">
+                <mx:Label x="107" y="53" text="Download progress..."  styleName="updateDialogLabel"/>
+            </mx:AddChild>
+            <mx:SetProperty name="height" value="180"/>
+			<mx:RemoveChild target="{disableUpdates}"/>
+        </mx:State>
+        <mx:State name="{UPDATE_ERROR}">
+            <mx:AddChild position="lastChild">
+                <mx:Label x="107" y="19" text="Unexpected error" styleName="updateTitle"/>
+            </mx:AddChild>
+            <mx:AddChild position="lastChild">
+                <mx:Label x="107" y="50" text="{_errorText}" styleName="updateDialogLabel"/>
+            </mx:AddChild>
+            <mx:RemoveChild target="{continueButton}"/>
+			<mx:RemoveChild target="{disableUpdates}"/>
+            <mx:SetProperty target="{cancelButton}" name="label" value="Close"/>
+            <mx:SetProperty name="height" value="180"/>
+        </mx:State>
+        <mx:State name="{INSTALL_UPDATE}">
+            <mx:AddChild position="lastChild">
+                <mx:Text  text="{this._installedVersion}" x="230" y="139" styleName="updateDialogText"/>
+            </mx:AddChild>
+            <mx:AddChild position="lastChild">
+                <mx:Text  text="{this._updateVersion}" x="230" y="159" styleName="updateDialogText"/>
+            </mx:AddChild>
+            <mx:AddChild position="lastChild">
+                <mx:Label x="118" y="139" text="Installed Version:" styleName="updateDialogLabel"/>
+            </mx:AddChild>
+            <mx:AddChild position="lastChild">
+                <mx:Label x="127" y="159" text="Update Version:"  styleName="updateDialogLabel"/>
+            </mx:AddChild>
+            <mx:AddChild position="lastChild">
+                <mx:Label x="152" y="121" text="Application:" styleName="updateDialogLabel"/>
+            </mx:AddChild>
+            <mx:AddChild position="lastChild">
+                <mx:Text x="230" y="121" text="{this._applicationName}" styleName="updateDialogText"/>
+            </mx:AddChild>
+            <mx:AddChild position="lastChild">
+                <mx:Label x="107" y="19" text="Install update" id="windowTitle4" styleName="updateTitle"/>
+            </mx:AddChild>
+            <mx:AddChild position="lastChild">
+                <mx:Text x="107" y="50" text="The update for the application is downloaded and ready to be installed." styleName="updateDialogText"/>
+            </mx:AddChild>
+
+            <mx:AddChild position="lastChild">
+                <mx:Label x="10" y="262" text="Release notes" styleName="updateDialogLabel"/>
+            </mx:AddChild>
+            <mx:AddChild position="lastChild">
+                <mx:TextArea id="relaeseNotesTextArea0" text="{_updateDescription}" x="10" y="288" width="508" height="100" styleName="updateDialogTextArea"/>
+            </mx:AddChild>
+            <mx:SetProperty name="height" value="402"/>
+            <mx:AddChild position="lastChild">
+                <mx:ProgressBar id="installProgressBar" x="107" y="84" width="411" label=" " mode="manual" height="15" styleName="installDialogProgress" creationComplete="installProgressBar.setProgress(100,100)"/>
+            </mx:AddChild>
+            <mx:AddChild position="lastChild">
+                <mx:HRule x="10" y="249" width="508" styleName="updateDialogHRule"/>
+            </mx:AddChild>
+            <mx:SetProperty target="{cancelButton}" name="label" value="Postpone until restart"/>
+            <mx:SetProperty target="{cancelButton}" name="y" value="198"/>
+            <mx:SetProperty target="{continueButton}" name="y" value="198"/>
+            <mx:SetProperty target="{continueButton}" name="x" value="200"/>
+            <mx:SetProperty target="{continueButton}" name="label" value="Install update"/>
+			<mx:SetProperty target="{disableUpdates}" name="y" value="198"/>
+			<mx:SetProperty target="{disableUpdates}" name="x" value="320"/>
+        </mx:State>
+    </mx:states>
+
+	
+		<mx:Button x="20" y="129" label="Cancel" id="cancelButton" click="cancelUpdate()" height="34" styleName="updateDialogButton" 
+			disabledSkin="@Embed(source='../../../assets/updater/Button_Default_DisabledSkin.png')" 
+			downSkin="@Embed(source='../../../assets/updater/Button_Default_downSkin.png')" 
+			overSkin="@Embed(source='../../../assets/updater/Button_Default_overSkin.png')"
+			upSkin="@Embed(source='../../../assets/updater/Button_Default_upSkin.png')" />
+		<mx:Button x="102" y="129" label="Check for Updates" id="continueButton" click="continueUpdate()" height="34" styleName="updateDialogButton"
+			disabledSkin="@Embed(source='../../../assets/updater/Button_Default_DisabledSkin.png')" 
+			downSkin="@Embed(source='../../../assets/updater/Button_Default_downSkin.png')" 
+			overSkin="@Embed(source='../../../assets/updater/Button_Default_overSkin.png')"
+			upSkin="@Embed(source='../../../assets/updater/Button_Default_upSkin.png')" />
+		<mx:CheckBox x="172" y="129" label="Disable Auto Updates" id="disableUpdates" click="App.getApp().DisableAutoUpdates.checked = Global.DisableAutoUpdates = disableUpdates.selected;" height="34" styleName="updateDialogCheckbox"/>
+    
+	<mx:Image source="@Embed('../../../assets/updater/UpdateIcon.png')" x="15" y="25" width="81" height="74" id="iconImage"/>
+
+</mx:Window>

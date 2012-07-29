@@ -1,0 +1,178 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<mx:VBox xmlns:mx="http://www.adobe.com/2006/mxml"  xmlns:comUI="com.UI.*" creationComplete="init()" enterFrame="Update()">
+	
+	<mx:Script>
+    <![CDATA[
+		import com.Tiles.FlxTilemapExt;
+		import com.UI.Tiles.TileGrid;
+		import com.UI.RenamePopup;
+		import com.Utils.Global;
+		import flash.display.BitmapData;
+		import mx.collections.ArrayCollection;
+		import com.Tiles.TileAnim;
+		import mx.events.ItemClickEvent;
+		import org.flixel.FlxG;
+		
+		public var tiles:TileGrid;
+		
+		// Only used when initialising for the first time.
+		public var initTileConnectionsIndex:uint = 0;
+		
+		public var initTilemapHeight:uint = 0;
+		public var initTilemapWidth:uint = 0;
+		
+		[Bindable]
+		public var RowRemoved:Function = null;
+		
+		private var currentFrame:uint = 0;
+		private var totalAnimTime:Number = 0;
+		
+		public var tileAnim:TileAnim = null;
+		public var tilemap:FlxTilemapExt = null;
+		
+		private function init():void
+		{			
+			tiles = new TileGrid(TileBox.width, TileBox.height, tileAnim ? tileAnim.tiles.length : 2, 1);
+			var uiref:DraggableTileWrapper = new DraggableTileWrapper;
+			TileBox.addChild(uiref);
+			uiref.width = TileBox.width;
+			uiref.height = TileBox.height;
+			
+			if ( initTilemapHeight )
+			{
+				var ratio:Number = (tiles.height -15) / initTilemapHeight;
+				tiles.TileWidth = initTilemapWidth * ratio;
+				tiles.TileHeight = initTilemapHeight * ratio;
+			}
+			
+			uiref.setTileObject(tiles);
+			tiles.canAcceptDrop = true;
+			tiles.canBeginDrag = true;
+			tiles.autoResizeParents = true;
+			tiles.Selectable = true;
+			tiles.maintainTotalHeight = true;
+			tiles.AddHBar(hbar, TileWrapper);
+			tiles.ContainerObject = TileBox;
+			
+			if ( tileAnim )
+			{
+				tiles.ColumnCount = tileAnim.tiles.length;
+				for ( var i:uint = 0; i < tileAnim.tiles.length; i++ )
+				{
+					var bitmap:BitmapData = tilemap ? bitmap = tilemap.GetTileBitmap(tileAnim.tiles[i]) : new BitmapData(1, 1);
+					tiles.SetTileIdForIndex(i, tileAnim.tiles[i], bitmap );
+				}
+				FPS.value = tileAnim.fps;
+				Name.text = tileAnim.name;
+				Looped.selected = tileAnim.looped;
+				tileAnim = null;
+			}
+		}
+		
+		private function RemoveRow():void
+		{
+			if( RowRemoved != null )
+			{
+				RowRemoved(this);
+			}
+		}
+		
+		private function frameButtonsHandler(event:ItemClickEvent):void
+		{
+			switch( event.label )
+			{
+				case "Add Frame":
+				tiles.ColumnCount++;
+				tiles.pushTile(new BitmapData(1, 1, true, 0xffffffff), 0);
+				break;
+				
+				case "Remove Frame":
+				var length:uint = tiles.GetDataLength();
+				// Only remove frames if length is 3 or more. Any less and it would cease to be a valid animation.
+				if ( length > 2 )
+				{
+					tiles.ColumnCount--;
+					if ( tiles.selectedIndex != -1 )
+					{
+						tiles.removeTileByIndex( tiles.selectedIndex );
+						if ( tiles.selectedIndex > 0)
+						{
+							tiles.selectedIndex--;
+						}
+					}
+					else
+					{
+						tiles.removeTileByIndex(length - 1);
+					}
+				}
+				break;
+			}
+		}
+		
+		private function Update():void
+		{
+			if ( !tiles )
+			{
+				return;
+			}
+			
+			var newTotalAnimTime:Number = totalAnimTime + FlxG.elapsed;
+			var maxTime:Number = tiles.GetDataLength() / FPS.value;
+			if ( newTotalAnimTime > maxTime )
+			{
+				newTotalAnimTime = newTotalAnimTime - maxTime;
+			}
+			totalAnimTime = newTotalAnimTime;
+			
+			var newFrame:uint = Math.floor( totalAnimTime * FPS.value );
+			if ( newFrame != currentFrame )
+			{
+				AnimPreview.data = tiles.GetBitmapDataAtIndex( newFrame );
+				currentFrame = newFrame;
+			}
+		}
+		
+		private function sliderChanged():void
+		{
+			
+		}
+		
+		
+	]]>
+    </mx:Script>
+	
+	<mx:VBox>
+		<mx:HBox>
+			<mx:Label text="Name:"/>
+			<mx:TextInput id="Name" width="100%" />
+			<mx:Label text="FPS:" />
+			<mx:HSlider id="FPS" minimum="0.5" maximum="30" value="10" width="120"
+				snapInterval="0.5" tickInterval="10" labels="[0,10,20,30]" change="sliderChanged()" />
+			<mx:CheckBox id="Looped" label="Loops" selected="true" />
+		</mx:HBox>
+		<mx:HBox>
+			<mx:Box id="TileWrapper" width="330" borderStyle="solid" horizontalScrollPolicy="off" verticalScrollPolicy="off">
+				<mx:Box id="TileBox" width="100%" height="50" horizontalScrollPolicy="off" verticalScrollPolicy="off" />
+				<mx:HScrollBar visible="true" id="hbar" bottom="0" width="330" repeatDelay="1000" repeatInterval="500"
+							minScrollPosition="0" maxScrollPosition="1000" lineScrollSize="50" pageScrollSize="100"/>
+			</mx:Box>
+			<mx:Box width="80" height="50" borderStyle="solid" horizontalScrollPolicy="off" verticalScrollPolicy="off">
+				<comUI:SpriteRenderer id="AnimPreview" width="100%" height="100%" minWidth="32" minHeight="32" />
+			</mx:Box>
+		</mx:HBox>
+		<mx:HBox>
+			<mx:ButtonBar id="frameButtons" itemClick="frameButtonsHandler(event);">
+				<mx:dataProvider>
+					<mx:Array>
+						<mx:String>Add Frame</mx:String>
+						<mx:String>Remove Frame</mx:String>
+					</mx:Array>
+				</mx:dataProvider>
+			</mx:ButtonBar>
+			<mx:Button id="removeButton" label="Remove Anim" click="RemoveRow();"/>
+			
+		</mx:HBox>
+	</mx:VBox>	
+	<mx:HRule width="100%" />
+	
+</mx:VBox>

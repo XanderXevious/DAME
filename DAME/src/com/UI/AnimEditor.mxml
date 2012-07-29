@@ -1,0 +1,466 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<comUI:PopupWindow xmlns:mx="http://www.adobe.com/2006/mxml" xmlns:comUI="com.UI.*"
+    width="100%" height="100%"
+	resizable="false" showGripper="false" showStatusBar="false" maximizable="false" minimizable="false"
+	defaultButton="{btnOK}"
+    title="Animation Editor">
+
+    <mx:Script>
+        <![CDATA[
+			import com.Editor.EditorType;
+			import com.Editor.EditorTypeDraw;
+			import com.EditorState;
+			import com.Game.EditorAvatar;
+			import com.Layers.LayerAvatarBase;
+			import com.Layers.LayerSprites;
+			import com.Operations.HistoryStack;
+			import com.Operations.OperationDeleteAvatar;
+			import com.Tiles.ImageBank;
+			import com.Tiles.SpriteEntry;
+			import com.Tiles.TileAnim;
+			import com.UI.Tiles.TileGrid;
+			import com.UI.DraggableTileWrapper;
+			import com.Utils.Global;
+			import com.Utils.Misc;
+			import flash.display.BitmapData;
+			import flash.display.NativeMenu;
+			import flash.display.NativeMenuItem;
+			import mx.collections.ArrayCollection;
+			import mx.events.CloseEvent;
+			import mx.events.DataGridEvent;
+			import mx.events.ListEvent;
+			import org.flixel.FlxG;
+			import org.flixel.FlxPoint;
+			import flash.events.Event;
+           
+			public var Layer:LayerAvatarBase = null;
+			private var objects:ArrayCollection = new ArrayCollection;
+			
+			private var currentSprite:EditorAvatar = null;
+			
+			private var tiles:TileGrid = null;
+           
+            override protected function init():void
+			{				
+				width = container.width + 20;
+				height = container.height + titleBar.height + 20;
+				
+				titleName = "Animation Editor";
+				AllowMinimizeToStatusBar();
+				doubleClickTitleBarShrinks = true;
+				
+				tiles = new TileGrid(320, SpritePreview.height-15, 10, 1);
+				var uiref:DraggableTileWrapper = new DraggableTileWrapper;
+				SpritePreview.addChild(uiref);
+				uiref.width = SpritePreview.width;
+				uiref.height = SpritePreview.height;
+				uiref.setTileObject(tiles);
+				tiles.autoResizeParents = true;
+				tiles.canAcceptDrop = false;
+				tiles.canBeginDrag = false;
+				tiles.smoothDraw = true;
+				tiles.maintainTotalHeight = true;
+				tiles.AddHBar(hbar, SpritePreviewWrapper);
+				tiles.ContainerObject = SpritePreview;
+				tiles.Selectable = true;
+				tiles.SelectionChanged = tileFrameChanged;
+				
+				tiles.contextMenu = new NativeMenu();
+				tiles.contextMenu.addEventListener(Event.DISPLAYING, tiles.menuActivated, false, 0 , true);	
+				var submenu:NativeMenu = new NativeMenu();
+				tiles.contextMenu.addSubmenu(submenu, "Insert Blank Frame...");
+				var item:NativeMenuItem = new NativeMenuItem("After Current Frame");
+				item.addEventListener(Event.SELECT, blankTileMenuItemHandler,false,0,true);
+				submenu.addItem(item);
+				item = new NativeMenuItem("Before Current Frame");
+				item.addEventListener(Event.SELECT, blankTileMenuItemHandler,false,0,true);
+				submenu.addItem(item);
+				submenu = new NativeMenu();
+				tiles.contextMenu.addSubmenu(submenu, "Add Selected Frame From Tiles Panel...");
+				item = new NativeMenuItem("After Current Frame");
+				item.addEventListener(Event.SELECT, tilePanelMenuItemHandler,false,0,true);
+				submenu.addItem(item);
+				item = new NativeMenuItem("Before Current Frame");
+				item.addEventListener(Event.SELECT, tilePanelMenuItemHandler,false,0,true);
+				submenu.addItem(item);
+				item = new NativeMenuItem("Into Current Frame");
+				item.addEventListener(Event.SELECT, tilePanelMenuItemHandler,false,0,true);
+				submenu.addItem(item);
+				submenu = new NativeMenu();
+				tiles.contextMenu.addSubmenu(submenu, "Copy Highlighted Frame...");
+				item = new NativeMenuItem("After Current Frame");
+				item.addEventListener(Event.SELECT, copyTileMenuItemHandler,false,0,true);
+				submenu.addItem(item);
+				item = new NativeMenuItem("Before Current Frame");
+				item.addEventListener(Event.SELECT, copyTileMenuItemHandler,false,0,true);
+				submenu.addItem(item);
+				item = new NativeMenuItem("Into Current Frame");
+				item.addEventListener(Event.SELECT, copyTileMenuItemHandler,false,0,true);
+				submenu.addItem(item);
+				item = new NativeMenuItem("Delete Frame");
+				item.addEventListener(Event.SELECT, tileMenuItemHandler,false,0,true);
+				tiles.contextMenu.addItem(item);
+				
+				UpdateData();
+				
+				super.init();
+            }
+			
+			private function blankTileMenuItemHandler(event:Event):void
+			{
+				var anim:TileAnim = getCurrentAnim();
+				if ( anim == null )
+					return;
+				if ( tiles.selectedIndex < 0 || tiles.selectedIndex >= anim.tiles.length )
+					return;
+				
+				var spriteEntry:SpriteEntry = currentSprite.spriteEntry;
+				spriteEntry.bitmap.bitmapData = Misc.insertNewTile( spriteEntry.bitmap.bitmapData, -1, spriteEntry.numFrames-1, spriteEntry.previewBitmap.width, spriteEntry.previewBitmap.height, spriteEntry.numFrames );
+				ImageBank.MarkImageAsChanged( spriteEntry.imageFile, spriteEntry.bitmap );
+				var state:EditorState = FlxG.state as EditorState;
+				EditorType.updateTileListForSprite(spriteEntry, false, null, state.drawEditor.ModifySprites );
+				
+				switch( event.target.label )
+				{
+					case "After Current Frame":
+						anim.tiles.splice(tiles.selectedIndex + 1, 0, spriteEntry.numFrames-1 );
+						FrameNumber.value = tiles.selectedIndex = tiles.selectedIndex+1;
+						
+					break;
+					case "Before Current Frame":
+						anim.tiles.splice(tiles.selectedIndex, 0, spriteEntry.numFrames-1 );
+						FrameNumber.value = tiles.selectedIndex;
+					break;
+				}
+				UpdateData();
+			}
+			
+			private function tilePanelMenuItemHandler(event:Event):void
+			{
+				var anim:TileAnim = getCurrentAnim();
+				if ( anim == null )
+					return;
+				var app:App = App.getApp();
+				if ( app.myTileList.selectedIndex < 0 || app.myTileList.selectedIndex >= currentSprite.spriteEntry.numFrames )
+					return;
+					
+				switch( event.target.label )
+				{
+					case "After Current Frame":
+						anim.tiles.splice(tiles.selectedIndex + 1, 0, app.myTileList.selectedIndex );
+						FrameNumber.value = tiles.selectedIndex = tiles.selectedIndex + 1;
+					break;
+					case "Before Current Frame":
+						anim.tiles.splice(tiles.selectedIndex, 0, app.myTileList.selectedIndex );
+					break;
+					case "Into Current Frame":
+						anim.tiles[tiles.selectedIndex] = app.myTileList.selectedIndex;
+					break;
+				}
+				UpdateData();
+			}
+			
+			private function copyTileMenuItemHandler(event:Event):void
+			{
+				var anim:TileAnim = getCurrentAnim();
+				if ( anim == null )
+					return;
+				if ( tiles.selectedIndex < 0 || tiles.selectedIndex >= anim.tiles.length )
+					return;
+					
+				switch( event.target.label )
+				{
+					case "After Current Frame":
+						anim.tiles.splice(tiles.selectedIndex + 1, 0, anim.tiles[tiles.clickIndex] );
+						FrameNumber.value = tiles.selectedIndex = tiles.selectedIndex + 1;
+					break;
+					case "Before Current Frame":
+						anim.tiles.splice(tiles.selectedIndex, 0, anim.tiles[tiles.clickIndex] );
+					break;
+					case "Into Current Frame":
+						anim.tiles[tiles.selectedIndex] = anim.tiles[tiles.clickIndex];
+					break;
+				}
+				
+				UpdateData();
+			}
+			
+			private function tileMenuItemHandler(event:Event):void
+			{
+				switch( event.target.label )
+				{
+					case "Delete Frame":
+					var anim:TileAnim = getCurrentAnim();
+					if ( anim )
+					{
+						// Only remove frames if length is 3 or more. Any less and it would cease to be a valid animation.
+						if ( tiles.clickIndex >= 0 && tiles.clickIndex < anim.tiles.length && anim.tiles.length > 2 )
+						{
+							anim.tiles.splice(tiles.clickIndex, 1);
+							if ( FrameNumber.value >= anim.tiles.length )
+							{
+								tiles.selectedIndex = FrameNumber.value = 0;
+							}
+							UpdateData();
+						}
+					}
+					break;
+				}
+			}
+			
+			private function getCurrentAnim():TileAnim
+			{
+				if ( currentSprite )
+				{
+					var spriteEntry:SpriteEntry = currentSprite.spriteEntry;
+					var i:int = 0;
+					for each( var anim:TileAnim in spriteEntry.anims )
+					{
+						var name:String = anim.name.length ? anim.name : ( "UNNAMED_ANIM " + i );
+						if ( name == Anims.value )
+						{
+							return anim;
+						}
+					}
+				}
+				return null;
+			}
+			
+			private function ok():void
+			{
+				StopPlaying();
+				if ( currentSprite )
+				{
+					currentSprite.RemoveAnimOverride();
+				}
+				App.getApp().animEditor = null;
+				Global.windowedApp.ButtonAnimEditor.selected = false;
+				ForceClose();
+            }
+			
+			private function changeAnim():void
+			{
+				if ( currentSprite )
+				{
+					var spriteEntry:SpriteEntry = currentSprite.spriteEntry;
+					var i:int = 0;
+					for each( var anim:TileAnim in spriteEntry.anims )
+					{
+						var name:String = anim.name.length ? anim.name : ( "UNNAMED_ANIM " + i );
+						if ( name == Anims.value )
+						{
+							FrameNumber.maximum = anim.tiles.length - 1;
+							var frames:Array = [];
+							for each( var val:uint in anim.tiles )
+							{
+								frames.push( val );
+							}
+							currentSprite.SetupAnimOverride(frames, anim.fps, anim.looped);
+							if ( Play.selected )
+							{
+								currentSprite.PlayAnimOverride();
+							}
+							else
+							{
+								currentSprite.SetCurrentAnimFrameIndex( FrameNumber.value );
+								currentSprite.PauseAnim();
+							}
+							UpdateFrameList(spriteEntry, anim);
+							if ( FrameNumber.value >= anim.tiles.length )
+							{
+								FrameNumber.value = 0;
+								IndexNumber.text = "0";
+							}
+							else
+							{
+								IndexNumber.text = anim.tiles[FrameNumber.value].toString();
+							}
+							return;
+						}
+						i++;
+					}
+				}
+			}
+			
+			private function changeFrame():void
+			{
+				if ( currentSprite && !Play.selected )
+				{
+					currentSprite.SetCurrentAnimFrameIndex( FrameNumber.value );
+					tiles.selectedIndex = FrameNumber.value;
+					var anim:TileAnim = getCurrentAnim();
+					if ( anim && FrameNumber.value > 0)
+					{
+						IndexNumber.text = anim.tiles[FrameNumber.value].toString();
+					}
+				}
+			}
+			
+			private function onNewAnim():void
+			{
+				if ( currentSprite )
+				{
+					var spriteEntry:SpriteEntry = currentSprite.spriteEntry;
+					var tileAnim:TileAnim = new TileAnim;
+					tileAnim.name = "NEW_ANIM " + spriteEntry.anims.length;
+					tileAnim.tiles.push(0);
+					tileAnim.tiles.push(0);
+					spriteEntry.anims.push(tileAnim);
+					animsArray.push( tileAnim.name);
+					Anims.selectedIndex = spriteEntry.anims.length - 1;
+					changeAnim();
+				}
+			}
+			
+			private function tileFrameChanged():void
+			{
+				FrameNumber.value = tiles.selectedIndex;
+				changeFrame();
+			}
+			
+			private function changeOnionSkin():void
+			{
+				currentSprite.SetOnionSkin( PreviousFrameOnion.selected, NextFrameOnion.selected, DrawOnionAbove.selected, OnionSkinAlpha.value );
+			}
+			
+			private function onSelect():void
+			{
+				var currentState:EditorState = FlxG.state as EditorState;
+				var editorDraw:EditorTypeDraw = currentState.getCurrentEditor(App.getApp()) as EditorTypeDraw;
+				if ( editorDraw )
+				{
+					editorDraw.WaitForSelect();
+				}
+			}
+			
+			private function onPlay():void
+			{
+				if ( currentSprite )
+				{
+					if ( Play.selected )
+					{
+						currentSprite.PlayAnimOverride();
+					}
+					else
+					{
+						currentSprite.PauseAnim();
+						currentSprite.SetCurrentAnimFrameIndex( FrameNumber.value );
+					}
+				}
+			}
+			
+			private function UpdateFrameList(spriteEntry:SpriteEntry, anim:TileAnim):void
+			{
+				tiles.clearTiles();
+				tiles.TileWidth = spriteEntry.previewBitmap.width;
+				tiles.TileHeight = spriteEntry.previewBitmap.height;
+				tiles.ColumnCount = anim.tiles.length;
+				for ( var i:uint = 0; i < anim.tiles.length; i++ )
+				{
+					var tile:BitmapData = Misc.GetTileBitmap(spriteEntry.bitmap.bitmapData, anim.tiles[i], tiles.TileWidth, tiles.TileHeight);
+					tiles.pushTile(tile, i);
+				}
+			}
+			
+			public function UpdateData():void
+			{
+				var currentState:EditorState = FlxG.state as EditorState;
+				var editorDraw:EditorTypeDraw = currentState.getCurrentEditor(App.getApp()) as EditorTypeDraw;
+				animsArray.length = 0;
+				
+				if ( editorDraw && editorDraw.GetSelectedSprite())
+				{
+					var spriteEntry:SpriteEntry = editorDraw.GetSelectedSprite().spriteEntry;
+					if ( spriteEntry && !spriteEntry.IsTileSprite)
+					{
+						var i:uint = 0;
+						var foundCurrentAnim:Boolean = false;
+						for each( var anim:TileAnim in spriteEntry.anims )
+						{
+							var name:String = anim.name.length ? anim.name : ( "UNNAMED_ANIM " + i );
+							animsArray.push( name );
+							if ( name == Anims.value )
+							{
+								foundCurrentAnim = true;
+							}
+							i++;
+						}
+						if ( spriteEntry.anims.length == 0 )
+						{
+							tiles.clearTilesMinimal();
+						}
+						if ( !foundCurrentAnim )
+						{
+							Anims.selectedIndex = 0;
+						}
+						if ( currentSprite && currentSprite != editorDraw.GetSelectedSprite() )
+						{
+							currentSprite.RemoveAnimOverride();
+						}
+						currentSprite = editorDraw.GetSelectedSprite();
+						currentSprite.SetOnionSkin( PreviousFrameOnion.selected, NextFrameOnion.selected, DrawOnionAbove.selected, OnionSkinAlpha.value );
+						changeAnim();
+					}
+				}
+				else
+				{
+					tiles.clearTilesMinimal();
+				}
+			}
+			
+			public function StopPlaying():void
+			{
+				if ( Play.selected )
+				{
+					Play.selected = false;
+					if ( currentSprite )
+					{
+						FrameNumber.value = currentSprite.GetCurrentAnimFrameIndex();
+					}
+				}
+			}
+        ]]>
+    </mx:Script>
+	
+	<mx:Array id="animsArray"/>
+	
+	<mx:VBox id="container" horizontalAlign="center" width="100%" >
+		<mx:Form>
+			<mx:FormItem label="Anim:">
+				<comUI:MyComboBox id="Anims" dataProvider="{animsArray}" editable="false" change="changeAnim()" />
+			</mx:FormItem>
+			<mx:Box id="SpritePreviewWrapper" width="300" borderStyle="solid" horizontalScrollPolicy="off" verticalScrollPolicy="off" paddingBottom="0" verticalGap="0" >
+				<mx:Box id="SpritePreview" width="100%" height="50" horizontalScrollPolicy="off" verticalScrollPolicy="off" backgroundColor="0xffffff" paddingBottom="0" verticalGap="0" toolTip="Right click for options..." />
+				<mx:HScrollBar visible="true" id="hbar" bottom="0" width="300" repeatDelay="1000" repeatInterval="500"
+					minScrollPosition="0" maxScrollPosition="1000" lineScrollSize="50" pageScrollSize="100"/>
+			</mx:Box>
+			
+			<mx:FormItem label="Frame:">
+				<mx:HBox>
+					<mx:NumericStepper id="FrameNumber" minimum="0" maximum="100" value="0" change="changeFrame()" />
+					<mx:Label text="Index:"/>
+					<mx:Label id="IndexNumber" text="0"/>
+				</mx:HBox>
+			</mx:FormItem>
+			<mx:FormItem label="Onion Skin:">
+				<mx:VBox>
+					<mx:HBox>
+						<mx:CheckBox id="PreviousFrameOnion" label="Prev Frame" selected="true" change="changeOnionSkin()"/>
+						<mx:CheckBox id="NextFrameOnion" label="Next Frame" selected="false" change="changeOnionSkin()"/>
+					</mx:HBox>
+					<mx:HBox>
+						<mx:CheckBox id="DrawOnionAbove" label="Draw Above" selected="false" change="changeOnionSkin()"/>
+						<mx:Label text="Alpha"/>
+						<mx:NumericStepper id="OnionSkinAlpha" minimum="0.1" maximum="1" value="0.5" stepSize="0.1" change="changeOnionSkin()" />
+					</mx:HBox>
+				</mx:VBox>
+			</mx:FormItem>
+		</mx:Form>
+		<mx:HBox>
+			<mx:Button id="SelectSprite" label="Select A Sprite" click="onSelect()" />
+			<mx:Button id="Play" label="Play" click="onPlay()" toggle="true" />
+			<mx:Button id="NewAnim" label="New Anim" click="onNewAnim()"/>
+		</mx:HBox>
+		<mx:Button id="btnOK" label="OK" click="ok()" />
+	</mx:VBox>
+</comUI:PopupWindow>

@@ -1,0 +1,1247 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<comUI:PopupWindow xmlns:mx="http://www.adobe.com/2006/mxml" xmlns:comUI="com.UI.*"
+    width="100%" height="100%" currentState="default"
+    defaultButton="{btnOK}" title="Layer Properties" horizontalScrollPolicy="off" verticalScrollPolicy="off" >
+
+    <mx:Script>
+        <![CDATA[
+			import com.Layers.LayerEntry;
+			import com.Layers.LayerGroup;
+			import com.Layers.LayerImage;
+			import com.Layers.LayerMap;
+			import com.Operations.HistoryStack;
+			import com.Operations.OperationMoveMap;
+			import com.Operations.OperationResizeMap;
+			import com.Tiles.FlxTilemapExt;
+			import com.Properties.PropertyType;
+			import com.Tiles.TileAnim;
+			import com.Utils.DebugDraw;
+			import com.Utils.Global;
+			import com.Utils.Misc;
+			import flash.display.Bitmap;
+			import flash.display.BitmapData;
+			import flash.events.Event;
+			import flash.events.NativeWindowBoundsEvent;
+			import flash.filesystem.File;
+			import flash.geom.Point;
+			import flash.geom.Rectangle;
+			import mx.formatters.NumberFormatter;
+			import flash.ui.ContextMenu;
+			import flash.ui.ContextMenuItem;
+			import mx.collections.ArrayCollection;
+			import mx.core.ClassFactory;
+			import mx.events.CloseEvent;
+			import com.Editor.GuideLayer;
+			import com.UI.AlertBox; 
+			import com.Tiles.ImageBank;
+			import com.UI.Tiles.TileGrid;
+			import mx.events.DataGridEvent;
+
+            [Bindable]
+            public var txt:String;
+			public var opener:Object;
+			
+			public var okPressedCallback:Function = null;
+			
+			public var Layer:LayerEntry = null;
+			
+			private var currentFile:File = null;
+			private static var tileSetBitmap:Bitmap = null;
+			
+			public var Group:LayerGroup = null;
+			
+			public var isImage:Boolean = false;
+			
+			private var tiles:TileGrid = null;
+			
+			// Dummy tilemap. Not the one we're editing. Just for tile previews.
+			private var tilemap:FlxTilemapExt;
+			
+			private var createdAnims:Boolean = false;
+			
+			private var setupTilePropsTab:Boolean = false;
+			private var setupTileAnimsTab:Boolean = false;
+			
+			private var propertyList:Vector.<ArrayCollection>;
+			private var properties:ArrayCollection = null;
+			
+			[Bindable]
+			private var tabsDP:ArrayCollection;
+			
+			[Bindable]
+			[Embed(source="../../../assets/tile2dIcon.png")] public var Icon2d:Class;
+			
+			[Bindable]
+			[Embed(source="../../../assets/tileDiamondIcon.png")] public var IconDiamond:Class;
+			
+			[Bindable]
+			[Embed(source = "../../../assets/tileStaggeredDiamondIcon.png")] public var IconStaggeredDiamond:Class;
+			
+			[Bindable]
+			[Embed(source = "../../../assets/tileSkewRightIcon.png")] public var IconSkewRight:Class;
+			
+			[Bindable]
+			[Embed(source = "../../../assets/tileSkewLeftIcon.png")] public var IconSkewLeft:Class;
+			
+			[Bindable]
+			[Embed(source = "../../../assets/tileSkewUpIcon.png")] public var IconSkewUp:Class;
+			
+			[Bindable]
+			[Embed(source="../../../assets/tileSkewDownIcon.png")] public var IconSkewDown:Class;
+			
+			[Bindable]
+            public var tileType:ArrayCollection = new ArrayCollection(
+				[ { label:LayerMap.TileType2d, icon:Icon2d }, 
+				  {label:LayerMap.TileTypeDiamond, icon:IconDiamond }, 
+                  {label:LayerMap.TileTypeStaggeredDiamond, icon:IconStaggeredDiamond },
+				  {label:LayerMap.TileTypeSkewRight, icon:IconSkewRight },
+				  {label:LayerMap.TileTypeSkewLeft, icon:IconSkewLeft },
+				  {label:LayerMap.TileTypeSkewUp, icon:IconSkewUp },
+				  {label:LayerMap.TileTypeSkewDown, icon:IconSkewDown },
+				  {label:LayerMap.TileTypeCustom } ]);
+				  
+			override protected function init():void
+			{
+				TileTypeBox.dropdown.iconField = "icon";
+				
+				var isMap:Boolean = false;
+				if ( ( Layer && Layer.map ) || ( !Layer && !isImage) )
+				{
+					isMap = true;
+					tabsDP = new ArrayCollection();
+					tabsDP.addItem({ label: "Main Settings" });
+					tabsDP.addItem( { label: "Animations" } );
+					tabsDP.addItem({ label: "Tile Properties" });
+					multi.initTabs(tabsDP, mainView);
+			
+					tiles = new TileGrid(320, TilePreview.height-15, 10, 1);
+					var uiref:DraggableTileWrapper = new DraggableTileWrapper;
+					TilePreview.addChild(uiref);
+					uiref.width = TilePreview.width;
+					uiref.height = TilePreview.height;
+					uiref.setTileObject(tiles);
+					tiles.autoResizeParents = true;
+					tiles.canAcceptDrop = false;
+					tiles.canBeginDrag = true;
+					tiles.smoothDraw = true;
+					tiles.maintainTotalHeight = true;
+					tiles.AddHBar(hbar, TilePreviewWrapper);
+					tiles.ContainerObject = TilePreview;
+					
+					currentState = "2d";	// Change the default for maps.
+				}
+
+				if ( Layer == null )
+				{
+					//throw new Error("No layer specified for LayerPropertiesPopup");
+					//cancel();
+					if ( currentFile && tileSetBitmap )
+					{
+						TilesetPath.text = currentFile.nativePath;
+						var guess:uint = Math.min(tileSetBitmap.bitmapData.width, tileSetBitmap.bitmapData.height );
+						TileWidth.value = guess;
+						TileHeight.value = guess;
+					}
+					if ( !isImage )
+					{
+						LayerImageGroup.visible = false;
+						LayerImageGroup.height = 0;
+					}
+					else
+					{
+						LayerTilesGroup.visible = false;
+						LayerTilesGroup.height = 0;
+					}
+					propertyList = new Vector.<ArrayCollection>;
+				}
+				else
+				{
+					if ( Layer is LayerImage )
+					{
+						isImage = true;
+						var imageLayer:LayerImage = Layer as LayerImage;
+						ImageBank.LoadImage( imageLayer.imageFile, imageLoaded );
+						ImageLayerXPos.value = imageLayer.sprite.x;
+						ImageLayerYPos.value = imageLayer.sprite.y;
+					}
+					else
+					{
+						LayerImageGroup.visible = false;
+						LayerImageGroup.height = 0;
+						LayerImageGroup.enabled = false;
+					}
+					if ( Layer.children == null )
+					{
+						LayerXScroll.value = Layer.xScroll;
+						LayerYScroll.value = Layer.yScroll;
+					}
+					
+					if ( Layer.map != null )
+					{
+						LayerXPos.value = Layer.map.x;
+						LayerYPos.value = Layer.map.y;
+						LayerWidth.value = Layer.map.widthInTiles;
+						LayerHeight.value = Layer.map.heightInTiles;
+						
+						DrawIdx.value = Layer.map.drawIndex;
+						CollideIdx.value = Layer.map.collideIndex;
+						RepeatingX.selected = Layer.map.repeatingX;
+						RepeatingY.selected = Layer.map.repeatingY;
+						
+						var layerMap:LayerMap = Layer as LayerMap;
+						if ( layerMap )
+						{
+							ShareTilePropsCheckBox.selected = layerMap.SharesTileProperties();
+							ShareTileAnimsCheckBox.selected = layerMap.SharesTileAnims();
+							TilesetPath.text = layerMap.imageFileObj.nativePath;
+							//if ( layerMap.imageFile.length )
+							{
+								//currentFile = new File(layerMap.imageFile);
+								ImageBank.LoadImage( layerMap.imageFileObj, imageLoaded );
+							}
+						}
+						// The imageLoaded callback sets the tilewidth, but if the image is already loaded then
+						// we can override it now as it would have been called instantly.
+						TileWidth.value = Layer.map.tileWidth;// Map.tileWidth;
+						TileHeight.value = Layer.map.tileHeight;// Map.tileHeight;
+						ChangeXPos();
+						ChangeYPos();
+						
+						for ( var i:int = 0; i < tileType.length; i++ )
+						{
+							if ( tileType[i].label == layerMap.tilemapType )
+							{
+								TileTypeBox.selectedIndex = i;
+							}
+						}
+						
+						if ( layerMap.tilemapType == LayerMap.TileTypeDiamond)
+						{
+							tileSpacingY.value = layerMap.map.tileSpacingY * 2;
+						}
+						/*else if ( layerMap.tilemapType == LayerMap.TileTypeStaggeredDiamond )
+						{
+							tileSpacingY.value = layerMap.map.tileSpacingY * 2;
+							xStagger.value = Layer.map.xStagger;
+						}*/
+						else
+						{
+							tileSpacingX.value = Layer.map.tileSpacingX;
+							tileSpacingY.value = Layer.map.tileSpacingY;
+							xStagger.value = Layer.map.xStagger;
+							tileOffsetX.value = Layer.map.tileOffsetX;
+							tileOffsetY.value = Layer.map.tileOffsetY;
+						}
+						
+						stackHeight.value = layerMap.map.stackHeight;
+						
+						TileTypeChanged();
+						HasHeight.selected = layerMap.hasHeight;
+						UpdateHasHeight();
+						propertyList = layerMap.GetTileProperties();
+						
+						i = propertyList.length;
+						while ( i-- )
+						{
+							if ( propertyList[i] && propertyList[i].length > 0 )
+							{
+								tiles.AddTileHighlight(i);
+							}
+						}
+					}
+					else
+					{
+						LayerWidth.enabled = false;
+						LayerHeight.enabled = false;
+						TilesetPath.enabled = false;
+						TilesetButton.enabled = false;
+						LayerXPos.enabled = false;
+						LayerYPos.enabled = false;
+						LayerTilesGroup.visible = false;
+						LayerTilesGroup.height = 0;
+					}
+					
+					UpdateTilePreview();
+				}
+
+				if ( !isMap )
+				{
+					mainView.height = 100;
+				}
+				
+				validateNow();
+				
+				width = container.width + 20;
+				height = container.height + titleBar.height + 20;
+				
+				ShowTitleBarIcons = false;
+				
+				nativeWindow.addEventListener(NativeWindowBoundsEvent.RESIZE, onResize);
+				
+				super.init();
+            }
+			
+			protected function onResize(event:NativeWindowBoundsEvent=null):void
+			{
+				if ( tiles )
+				{
+					TilePreviewWrapper.width = hbar.width = event.afterBounds.width - 30;
+					TilePreviewWrapper_Anims.width = hbarAnims.width = event.afterBounds.width - 30;
+					TilePreviewWrapper_Props.width = hbarProps.width = event.afterBounds.width - 30;
+				}
+			}
+			
+			private function getComboTileIcon(item:Object):Class
+            {
+				if( TileTypeBox.selectedItem.icon )
+				{
+                    return TileTypeBox.selectedItem.icon;
+                }
+                
+                return null;
+                
+            }
+				  
+			private function TileTypeChanged():void
+			{
+				currentState = TileTypeBox.selectedLabel;
+				UpdateHasHeight();
+				UpdateTilePreview();
+			}
+			
+			private function GetIsoTilemapValues():Object
+			{
+				var isoData:Object = new Object;
+				
+				if ( TileTypeBox.selectedLabel == LayerMap.TileTypeCustom )
+				{
+					isoData.tileWidth = tileSpacingX.value;
+				}
+				else
+				{
+					// Defaults
+					isoData.tileWidth = TileWidth.value;
+					isoData.tileHeight = tileSpacingY.value;
+					isoData.xStagger = 0;
+					isoData.tileOffsetX = isoData.tileOffsetY = 0;
+				}
+				
+				isoData.stackHeight = HasHeight.selected ? stackHeight.value : 0;
+
+				switch ( TileTypeBox.selectedLabel )
+				{
+					case LayerMap.TileTypeDiamond:
+						isoData.tileOffsetX = -TileWidth.value / 2;
+						isoData.tileOffsetY = tileSpacingY.value / 2;
+						isoData.tileHeight = tileSpacingY.value / 2;
+						isoData.tileWidth = TileWidth.value / 2;
+						isoData.xStagger = 0
+						break;
+					case LayerMap.TileTypeStaggeredDiamond:
+						isoData.xStagger = TileWidth.value / 2;
+						isoData.tileHeight = tileSpacingY.value;
+						isoData.tileOffsetX = isoData.tileOffsetY = 0;
+					case LayerMap.TileTypeSkewLeft:
+					case LayerMap.TileTypeSkewRight:
+						isoData.tileWidth = TileWidth.value - Math.abs(tileOffsetX.value);
+						isoData.tileOffsetX = tileOffsetX.value;
+						isoData.tileOffsetY = 0;
+						break;
+					case LayerMap.TileTypeSkewUp:
+					case LayerMap.TileTypeSkewDown:
+						isoData.tileOffsetY = tileOffsetY.value;
+						isoData.tileOffsetX = 0;
+						break;
+					case LayerMap.TileType2d:
+						isoData.tileHeight = tileSpacingY.value;
+						break;
+					default:
+						isoData.tileHeight = tileSpacingY.value;
+						isoData.tileOffsetX = tileOffsetX.value;
+						isoData.tileOffsetY = tileOffsetY.value;
+						isoData.xStagger = 0;
+						break;
+				}
+				
+				if ( TileTypeBox.selectedLabel == LayerMap.TileTypeCustom )
+				{
+					isoData.xStagger = xStagger.value;
+				}
+				else if ( TileTypeBox.selectedLabel != LayerMap.TileTypeDiamond )
+				{
+					if ( !HasHeight.selected )
+					{
+						switch( TileTypeBox.selectedLabel )
+						{
+							case LayerMap.TileTypeSkewUp:
+								isoData.tileHeight = TileHeight.value + tileOffsetY.value;
+								break;
+							case LayerMap.TileTypeSkewDown:
+								isoData.tileHeight = TileHeight.value - tileOffsetY.value;
+								break;
+							default:
+								isoData.tileHeight = TileHeight.value;
+								break;
+						}
+						
+					}
+				}
+				return isoData;
+			}
+           
+			private function applyLayerChanges():void
+			{
+				if ( Layer == null )
+				{
+					if ( currentFile == null || Group == null )
+					{
+						return;
+					}
+					if ( isImage )
+					{
+						var imageLayer:LayerImage;
+						Layer = imageLayer = new LayerImage( Group, "Image" + (Group.children.length + 1) ).SetImage( currentFile );
+						Layer.SetScrollFactors( LayerXScroll.value, LayerYScroll.value );
+						imageLayer.sprite.x = ImageLayerXPos.value;
+						imageLayer.sprite.y = ImageLayerYPos.value;
+						return;
+					}
+					var isoData:Object = GetIsoTilemapValues();
+					var layerMap:LayerMap = new LayerMap( Group, "Map" + (Group.children.length + 1) ).CreateEmptyMap( TilesetPath.text, TileWidth.value, TileHeight.value, LayerWidth.value, LayerHeight.value, isoData.tileWidth, isoData.tileHeight, isoData.xStagger, isoData.tileOffsetX, isoData.tileOffsetY );
+					setCommonMapValues(layerMap, false);
+					layerMap.hasHeight = HasHeight.selected;
+					Layer = layerMap;
+					Layer.map.stackHeight = isoData.stackHeight;
+					return;
+				}
+				
+				layerMap = Layer as LayerMap;
+				if ( layerMap && Layer.map != null)
+				{
+					var widthChanged:Boolean = LayerWidth.value != Layer.map.widthInTiles;
+					var heightChanged:Boolean = LayerHeight.value != Layer.map.heightInTiles;
+					isoData = GetIsoTilemapValues();
+					layerMap.hasHeight = HasHeight.selected;
+					Layer.map.stackHeight = isoData.stackHeight;
+					
+					if ( widthChanged || heightChanged || TileWidth.value != Layer.map.tileWidth || TileHeight.value != Layer.map.tileHeight
+						|| isoData.tileWidth != Layer.map.tileSpacingX || isoData.tileHeight != Layer.map.tileSpacingY
+						|| isoData.xStagger != Layer.map.xStagger 
+						|| isoData.tileOffsetX != Layer.map.tileOffsetX || isoData.tileOffsetY != Layer.map.tileOffsetY )
+					{
+						var widthLessThan:Boolean = ( LayerWidth.value < Layer.map.widthInTiles );
+						var heightLessThan:Boolean = ( LayerHeight.value < Layer.map.heightInTiles );
+
+						if( widthLessThan && heightLessThan)
+							AlertBox.Show("New Dimensions are less than (" + Layer.map.widthInTiles + ") and (" + Layer.map.heightInTiles + "). You may lose data. Click OK to continue.", "Warning", AlertBox.OK | AlertBox.CANCEL, null, resizeMap, AlertBox.CANCEL);
+						else if( widthLessThan )
+							AlertBox.Show("New Width is less than width(" + Layer.map.widthInTiles + "). You may lose data. Click OK to continue.", "Warning", AlertBox.OK | AlertBox.CANCEL, null, resizeMap, AlertBox.CANCEL);
+						else if( heightLessThan )
+							AlertBox.Show("New Height is less than height(" + Layer.map.heightInTiles + "). You may lose data. Click OK to continue.", "Warning", AlertBox.OK | AlertBox.CANCEL, null, resizeMap, AlertBox.CANCEL);
+						else
+							resizeMap(null);
+							
+						setCommonMapValues(layerMap, true);
+						return;
+					}
+					else
+					{
+						setCommonMapValues(layerMap, true);
+						layerMap.SetTilesetImageFile( currentFile );
+						layerMap.tileWidth = TileWidth.value;
+						layerMap.tileHeight = TileHeight.value;
+					}
+					return;
+				}
+				
+				Layer.SetScrollFactors( LayerXScroll.value, LayerYScroll.value );
+				imageLayer = Layer as LayerImage;
+				if ( imageLayer )
+				{
+					imageLayer.SetImage( currentFile );
+					imageLayer.sprite.x = ImageLayerXPos.value;
+					imageLayer.sprite.y = ImageLayerYPos.value;
+					return;
+				}
+			}
+
+			private function setCommonMapValues( layerMap:LayerMap, isModify:Boolean ):void
+			{
+				if ( isModify )
+				{
+					if ( layerMap.map.x != LayerXPos.value || layerMap.map.y != LayerYPos.value )
+					{
+						HistoryStack.BeginOperation( new OperationMoveMap( layerMap ) );
+					}
+				}
+				var repeatingChanged:Boolean = ( layerMap.map.repeatingX != RepeatingX.selected ) || (layerMap.map.repeatingY != RepeatingY.selected);
+				layerMap.map.repeatingX = RepeatingX.selected;
+				layerMap.map.repeatingY = RepeatingY.selected;
+				layerMap.map.x = LayerXPos.value;
+				layerMap.map.y = LayerYPos.value;
+				layerMap.tilemapType = TileTypeBox.selectedLabel;
+				layerMap.SetScrollFactors( LayerXScroll.value, LayerYScroll.value );
+				layerMap.map.collideIndex = CollideIdx.value;
+				layerMap.map.UpdateDrawIndex( DrawIdx.value );
+				
+				var len:int = tiles.GetDataLength();
+				if ( isModify || setupTilePropsTab )
+				{
+					if ( propertyList.length > tiles.GetDataLength() )
+					{
+						propertyList.length = tiles.GetDataLength();
+					}
+					var i:int = propertyList.length;
+					while ( i-- )
+					{
+						if ( propertyList[i] && propertyList[i].length == 0 )
+						{
+							propertyList[i] = null;
+						}
+					}
+					layerMap.map.propertyList = propertyList;
+					layerMap.SetSharesTileProperties(ShareTilePropsCheckBox.selected);
+				}
+				
+				if ( isModify || setupTileAnimsTab )
+				{
+					if ( createdAnims )
+					{
+						layerMap.map.tileAnims = layerMap.SharesTileAnims() ? new Vector.<TileAnim> : null;
+						
+						if ( AnimTilesRows != null )
+						{
+							var rows:Array = AnimTilesRows.getChildren();
+							if ( rows.length )
+							{
+								var tileAnims:Vector.<TileAnim> = new Vector.<TileAnim>;
+								for (var rowIndex:uint = 0; rowIndex < rows.length; rowIndex++ )
+								{
+									var row:AnimTilesRow = rows[rowIndex];
+									if ( row.tiles )
+									{
+										var tileAnim:TileAnim = new TileAnim;
+										tileAnim.fps = row.FPS.value;
+										tileAnim.name = row.Name.text;
+										tileAnim.looped = row.Looped.selected;
+										var numTiles:uint = row.tiles.GetDataLength();
+										for ( i = 0; i < numTiles; i++ )
+										{
+											var tileId:int = row.tiles.GetMetaDataAtIndex(i) as int;
+											tileAnim.tiles.push(tileId);
+										}
+										tileAnims.push(tileAnim);
+									}
+								}
+								layerMap.map.tileAnims = tileAnims;
+							}
+						}
+					}
+					layerMap.SetSharesTileAnims(ShareTileAnimsCheckBox.selected);
+				}
+				
+				if ( repeatingChanged )
+				{
+					layerMap.map.UpdateScreenSize();
+				}
+				
+			}
+
+			private function resizeMap(eventObj:CloseEvent):void
+			{
+				if ( eventObj == null || eventObj.detail == AlertBox.OK)
+				{
+					var hAlignPercent:Number = 0;
+					if ( PlacementX.selectedLabel == "MIDDLE" )
+						hAlignPercent = 0.5;
+					else if ( PlacementX.selectedLabel == "RIGHT" )
+						hAlignPercent = 1;
+					var vAlignPercent:Number = 0;
+					if ( PlacementY.selectedLabel == "MIDDLE" )
+						vAlignPercent = 0.5;
+					else if ( PlacementY.selectedLabel == "BOTTOM" )
+						vAlignPercent = 1;
+					var layerMap:LayerMap = Layer as LayerMap;
+					HistoryStack.BeginOperation( new OperationResizeMap( layerMap ) );
+					
+					var isoData:Object = GetIsoTilemapValues();
+					
+					layerMap.SetTilesetImageFile( currentFile );
+					Layer.map.x = LayerXPos.value;
+					Layer.map.y = LayerYPos.value;
+					layerMap.tileWidth = TileWidth.value;
+					layerMap.tileHeight = TileHeight.value;
+					Layer.SetScrollFactors( LayerXScroll.value, LayerYScroll.value );
+					Layer.map.collideIndex = CollideIdx.value;
+					Layer.map.UpdateDrawIndex( DrawIdx.value );
+					Layer.map.tileSpacingX = isoData.tileWidth;
+					Layer.map.tileSpacingY = isoData.tileHeight;
+					Layer.map.xStagger = isoData.xStagger;
+					Layer.map.tileOffsetX = isoData.tileOffsetX;
+					Layer.map.tileOffsetY = isoData.tileOffsetY;
+					
+					Layer.map.resizeMap( LayerWidth.value, LayerHeight.value, TileWidth.value, TileHeight.value, hAlignPercent, vAlignPercent, PreserveTilePositions.selected );
+				}
+			}
+			
+			private function browseTileset():void
+			{
+				var fileChooser:File = new File(Global.CurrentImageFile.url);
+				
+				var imageFilter:FileFilter = new FileFilter("Images", "*.bmp;*.jpg;*.jpeg;*.png");
+
+				fileChooser.browseForOpen("Load Image", [imageFilter] );
+				solveFileChooserModality(fileChooser);
+				fileChooser.addEventListener(Event.SELECT, loadFileSelected,false,0,true);
+				
+			}
+			
+			private function loadFileSelected(event:Event):void
+			{
+				var newFile:File = event.target as File;
+				if ( Misc.FilesMatch(currentFile, newFile) )
+				{
+					return;	// Same file so do nothing.
+				}
+				
+				newFile.removeEventListener(Event.SELECT, loadFileSelected);
+				ImageBank.LoadImage( event.target as File, imageLoaded );
+			}
+			
+			private function imageLoaded( data:Bitmap, file:File ):void
+			{
+				if ( !Misc.FilesMatch(file, currentFile ) )
+				{
+					ImageBank.RemoveImageRef( currentFile );
+				}
+				currentFile = file;
+				TilesetPath.text = currentFile.nativePath;
+				ImageLayerPath.text = currentFile.nativePath;
+				
+				tileSetBitmap = data;
+				
+				var guess:uint = Math.min( data.bitmapData.width, data.bitmapData.height );
+				TileWidth.value = guess;
+				TileHeight.value = guess;
+				
+				Global.CurrentImageFile = new File(currentFile.url);
+				
+				if ( tiles )
+				{
+					UpdateTilePreview();
+				}
+			}
+			
+			private function UpdateTilePreview():void
+			{
+				// Do this once before, just in case the bitmap isn't loaded.
+				tileSpacingX.value = Math.min(TileWidth.value, tileSpacingX.value );
+				tileSpacingY.value = Math.min(TileHeight.value, tileSpacingY.value );
+				
+				if ( tileSetBitmap == null || !LayerTilesGroup.visible )
+					return;
+					
+				// This can happen if the flex minimizer for the numeric stepper hasn't updated yet.
+				if ( !TileWidth.value || !TileHeight.value )
+					return;
+				
+				TileHeight.value = Math.min(TileHeight.value, tileSetBitmap.height);
+				TileWidth.value = Math.min(TileWidth.value, tileSetBitmap.width);
+				
+				// I think this is ok to do in all types of map.
+				{
+					tileSpacingX.value = Math.min(TileWidth.value, tileSpacingX.value );
+					tileSpacingY.value = Math.min(TileHeight.value, tileSpacingY.value );
+				}
+					
+				// Create a dummy map just to get access to the tile previews.
+				tilemap = new FlxTilemapExt();
+				tilemap.width = 1;
+				tilemap.height = 1;
+				var isoData:Object = GetIsoTilemapValues();
+				tilemap.tileSpacingX = isoData.tileWidth;
+				tilemap.tileSpacingY = isoData.tileHeight;
+				tilemap.xStagger = isoData.xStagger;
+				tilemap.tileOffsetX = isoData.tileOffsetX;
+				tilemap.tileOffsetY = isoData.tileOffsetY;
+				
+				// Need this so that I can reload the tile image file if needed.
+				tilemap.loadExternalMap( "0", tileSetBitmap.bitmapData, TileWidth.value, TileHeight.value );
+				
+				tiles.clearTiles();
+				tiles.ColumnCount = tilemap.tileCount;
+				var ratio:Number = (TilePreview.height)/ tilemap.tileHeight;
+				tiles.TileWidth = tilemap.tileWidth * ratio;
+				tiles.TileHeight = tilemap.tileHeight * ratio;
+				
+				
+				
+				/*if ( tilemap.tileCount * tiles.TileWidth < 410 )
+				{
+					//tiles.height = TilePreview.height;
+				}
+				else
+				{
+					//tiles.height = TilePreview.height - 15;
+					ratio = tiles.height / tilemap.tileHeight;
+					tiles.TileWidth = tilemap.tileWidth * ratio;
+					tiles.TileHeight = tilemap.tileHeight * ratio;
+				}*/
+				
+				
+				if ( tilemap.tileCount )
+				{
+					var baseBmp:BitmapData = tilemap.GetTileBitmap(0).clone();
+
+					baseBmp.copyPixels(tilemap.selectionBmp, new Rectangle(0, 0, tilemap.tileWidth, tilemap.tileHeight), new Point, null, null, true);
+					tiles.pushTile(baseBmp, 0);
+				}
+				for ( var i:uint = 1; i < tilemap.tileCount; i++ )
+				{
+					tiles.pushTile(tilemap.GetTileBitmap(i), i);
+				}	
+				
+				//UpdateAnimTilePreview();
+			}
+			
+			private function UpdateAnimTilePreview():void
+			{
+				if ( AnimTilesRows == null )
+				{
+					return;
+				}
+				var rows:Array = AnimTilesRows.getChildren();
+				var rowIndex:uint = rows.length;
+				while (rowIndex-- )
+				{
+					var newRow:AnimTilesRow = rows[rowIndex];
+					if ( newRow.tiles )
+					{
+						var ratio:Number = (newRow.tiles.height -15) / tilemap.tileHeight;
+						newRow.tiles.TileWidth = tilemap.tileWidth * ratio;
+						newRow.tiles.TileHeight = tilemap.tileHeight * ratio;
+						var i:uint = newRow.tiles.GetDataLength();
+						while ( i-- )
+						{
+							var tileId:int = newRow.tiles.GetMetaDataAtIndex(i) as int;
+							if ( tileId >= 0 && tileId < tilemap.tileCount )
+							{
+								newRow.tiles.ReplaceImageData( tileId, tilemap.GetTileBitmap(tileId) );
+							}
+						}
+					}
+					else if (newRow && tilemap)
+					{
+						newRow.initTilemapHeight = tilemap.tileHeight;
+						newRow.initTilemapWidth = tilemap.tileWidth;
+					}
+				}
+			}
+			
+			private function OnAnimTilesRemoved( row:AnimTilesRow ):void
+			{
+				AnimTilesRows.removeChild(row);
+			}
+			
+			private function AddNewTileAnim():void
+			{
+				var newRow:AnimTilesRow = new AnimTilesRow();
+				newRow.RowRemoved = OnAnimTilesRemoved;
+				if ( tilemap )
+				{
+					newRow.initTilemapHeight = tilemap.tileHeight;
+					newRow.initTilemapWidth = tilemap.tileWidth;
+				}
+				AnimTilesRows.addChild(newRow);
+			}
+			
+			private function ChangeXPos():void
+			{
+				LayerXUnitPos.value = LayerXPos.value / TileWidth.value;
+			}
+			
+			private function ChangeYPos():void
+			{
+				LayerYUnitPos.value = LayerYPos.value / TileHeight.value;
+			}
+			
+			private function ChangeUnitXPos():void
+			{
+				LayerXPos.value = LayerXUnitPos.value * TileWidth.value;
+			}
+			
+			private function ChangeUnitYPos():void
+			{
+				LayerYPos.value = LayerYUnitPos.value * TileHeight.value;
+			}
+			
+			private function ChangeDims():void
+			{
+				if ( Layer && Layer.map && ( Layer.map.widthInTiles != LayerWidth.value || Layer.map.heightInTiles != LayerHeight.value ) )
+				{
+					PlacementX.enabled = PlacementY.enabled = PreserveTilePositions.enabled = true;
+				}
+				else
+				{
+					PlacementX.enabled = PlacementY.enabled = PreserveTilePositions.enabled = false;
+				}
+			}
+			
+			private function createTilemap(event:Event):void
+			{
+				currentFile = event.target as File;
+				if ( currentFile.exists )
+				{
+					AlertBox.Show("File already exists. Cancelling operation.", "Error", AlertBox.OK, null, null, AlertBox.OK);
+					currentFile = null;
+					return;
+				}
+				TilesetPath.text = currentFile.nativePath;
+				// By default it will create 2 tiles - the blank tile 0 and a normal one.
+				tileSetBitmap = new Bitmap( new BitmapData(2 * TileWidth.value, TileHeight.value, true, 0x00000000) );
+				ImageBank.CreateNewImage(currentFile, tileSetBitmap);
+				ok();
+			}
+			
+			private function selectTilemapImage(eventObj:CloseEvent):void
+			{
+				if ( eventObj == null || eventObj.detail == AlertBox.OK)
+				{
+					var fileChooser:File = new File(Global.CurrentImageFile.url);
+					fileChooser.browseForSave("Create new tilemap image");
+					solveFileChooserModality(fileChooser);
+					fileChooser.addEventListener(Event.SELECT, createTilemap,false,0,true);
+				}
+			}
+           
+            private function ok():void
+			{
+				if ( Layer == null && (currentFile == null || Group == null ) )
+				{
+					if ( isImage )
+					{
+						AlertBox.Show("An image layer requires an image file.", "No image specified.", AlertBox.OK, null);
+						return;
+					}
+					AlertBox.Show("Create a new tilemap file?", "Unknown tilemap image", AlertBox.OK | AlertBox.CANCEL, null, selectTilemapImage, AlertBox.CANCEL);
+					return;
+				}
+				applyLayerChanges();
+				
+				ImageBank.RemoveImageRef( currentFile );
+				
+				if ( okPressedCallback!=null )
+				{
+					okPressedCallback(this);
+				}
+				ForceClose();
+				DebugDraw.singleton.HasCachedShape = false;	// force a refresh
+            }
+			
+			private function cancel():void
+			{
+				if ( propertyList && Layer != null )
+				{
+					var mapLayer:LayerMap = Layer as LayerMap;
+					if ( mapLayer )
+					{
+						// Ensure we clean up if we changed any of the properties due to selections.
+						var i:int = propertyList.length;
+						while ( i-- )
+						{
+							if ( propertyList[i] && propertyList[i].length == 0 )
+							{
+								propertyList[i] = null;
+							}
+						}
+					}
+				}
+				ImageBank.RemoveImageRef( currentFile );
+				ForceClose();
+			}
+			
+			private function TabsChanged():void
+			{
+				if ( mainView.selectedChild == MainSettings )
+				{
+					TilePreviewWrapper.addChildAt(TilePreview, 0);
+					tiles.AddHBar(hbar, TilePreviewWrapper);
+					tiles.ContainerObject = TilePreview;
+					tiles.canBeginDrag = true;
+					tiles.Selectable = false;
+					// Force a redraw
+					tiles.selectedIndex = -1;
+					tiles.ShowTileHighlights = false;
+				}
+				else if ( mainView.selectedChild == AnimationsGroup )
+				{
+					var layerMap:LayerMap = Layer as LayerMap;
+					var tileAnims:Vector.<TileAnim> = null;
+					if ( !layerMap && !setupTileAnimsTab )
+					{
+						setupTileAnimsTab = true;
+						ShareTileAnimsCheckBox.selected = ( FlxTilemapExt.sharedTileAnims[TilesetPath.text] != null );
+						if( ShareTileAnimsCheckBox.selected )
+						{
+							createdAnims = true;
+							tileAnims = FlxTilemapExt.sharedTileAnims[TilesetPath.text];
+						}
+					}
+					else if ( AnimTilesRows != null && !createdAnims && layerMap )
+					{
+						createdAnims = true;
+						tileAnims = layerMap.GetTileAnims();
+					}
+					if ( tileAnims )
+					{
+						// Start fresh to make it easier.
+						AnimTilesRows.removeAllChildren();
+						
+						for each( var anim:TileAnim in tileAnims )
+						{
+							var newRow:AnimTilesRow = new AnimTilesRow();
+							newRow.tileAnim = anim;
+							newRow.tilemap = tilemap;
+							newRow.RowRemoved = OnAnimTilesRemoved;
+							if ( tilemap )
+							{
+								newRow.initTilemapHeight = tilemap.tileHeight;
+								newRow.initTilemapWidth = tilemap.tileWidth;
+							}
+							AnimTilesRows.addChild(newRow);
+						}
+					}
+					TilePreviewWrapper_Anims.addChildAt(TilePreview, 0);
+					tiles.AddHBar(hbarAnims, TilePreviewWrapper_Anims);
+					tiles.ContainerObject = TilePreview;
+					UpdateAnimTilePreview();
+					tiles.canBeginDrag = true;
+					tiles.Selectable = false;
+					// Force a redraw
+					tiles.selectedIndex = -1;
+					tiles.ShowTileHighlights = false;
+				}
+				else if ( mainView.selectedChild == TilePropertiesGroup )
+				{
+					TilePreviewWrapper_Props.addChildAt(TilePreview, 0);
+					tiles.AddHBar(hbarProps, TilePreviewWrapper_Props);
+					tiles.ContainerObject = TilePreview;
+					tiles.canBeginDrag = false;
+					tiles.Selectable = true;
+					// Force a redraw
+					tiles.selectedIndex = 0;
+					tiles.SelectionChanged = TileSelectionChanged;
+					
+					if ( layerMap && layerMap.GetTileProperties().length )
+					{
+						propertyList = layerMap.GetTileProperties();
+					}
+					else if ( !layerMap && !setupTilePropsTab )
+					{
+						setupTilePropsTab = true;
+						ShareTilePropsCheckBox.selected = ( FlxTilemapExt.sharedProperties[TilesetPath.text] != null );
+						if( ShareTilePropsCheckBox.selected )
+						{
+							propertyList = FlxTilemapExt.sharedProperties[TilesetPath.text];
+						}
+					}
+					TileSelectionChanged();
+					tiles.ShowTileHighlights = true;
+				}
+			}
+			
+			private function TileSelectionChanged():void
+			{
+				while ( tiles.selectedIndex >= propertyList.length )
+				{
+					propertyList.push( new ArrayCollection );
+				}
+				properties = propertyList[tiles.selectedIndex];
+				if ( !properties )
+				{
+					properties = propertyList[tiles.selectedIndex] = new ArrayCollection();
+				}
+				propsGrid.dataProvider = properties;
+				TileId.text = String(tiles.selectedIndex);
+			}
+			
+			private function UpdateHasHeight():void
+			{
+				BaseHeightGroup.visible = HasHeight.selected || currentState == "Custom Iso";
+			}
+			
+			
+			
+			private function addProperty():void
+			{
+				propsGrid.displayMenu();
+			}
+			
+			private function removeProperty():void
+			{
+				if ( propsGrid.selectedItem != null )
+				{
+					for each( var prop:Object in properties )
+					{
+						if ( prop == propsGrid.selectedItem )
+						{
+							properties.removeItemAt( properties.getItemIndex( prop ) );
+							if ( !properties.length )
+							{
+								tiles.RemoveTileHighlight(tiles.selectedIndex);
+							}
+							return;
+						}
+					}
+				}
+			}
+			
+			public function OnPropertyAdded(type:String):void
+			{
+				if ( !properties.length )
+				{
+					tiles.AddTileHighlight(tiles.selectedIndex);
+				}
+			}
+           
+        ]]>
+    </mx:Script>
+	
+	
+
+	
+	
+	<comUI:states>
+		<mx:State name="default">
+			<mx:RemoveChild target="{AnimationsGroup}" />
+			<mx:RemoveChild target="{TilePropertiesGroup}" />
+			<mx:RemoveChild target="{multi}" />
+		</mx:State>
+		<mx:State name="2d">
+			<mx:RemoveChild target="{IsoGroup}" />
+			<mx:RemoveChild target="{BaseWidthGroup}"/>
+		</mx:State>
+		<mx:State name="Diamond">
+			<mx:RemoveChild target="{IsoGroup}"/>
+			<mx:RemoveChild target="{BaseWidthGroup}"/>
+		</mx:State>
+		<mx:State name="Staggered Diamond">
+			<mx:RemoveChild target="{IsoGroup}"/>
+			<mx:RemoveChild target="{BaseWidthGroup}"/>
+		</mx:State>
+		<mx:State name="Skew Right">
+			<mx:RemoveChild target="{StaggerGroup}"/>
+			<mx:RemoveChild target="{BaseWidthGroup}"/>
+			<mx:RemoveChild target="{yOffsetGroup}"/>
+			<mx:SetProperty target="{tileOffsetX}" name="minimum" value="0"/>
+		</mx:State>
+		<mx:State name="Skew Left">
+			<mx:RemoveChild target="{StaggerGroup}"/>
+			<mx:RemoveChild target="{BaseWidthGroup}"/>
+			<mx:RemoveChild target="{yOffsetGroup}"/>
+			<mx:SetProperty target="{tileOffsetX}" name="maximum" value="0"/>
+		</mx:State>
+		<mx:State name="Skew Up">
+			<mx:RemoveChild target="{StaggerGroup}"/>
+			<mx:RemoveChild target="{BaseWidthGroup}"/>
+			<mx:RemoveChild target="{xOffsetGroup}"/>
+			<mx:SetProperty target="{tileOffsetY}" name="maximum" value="0"/>
+		</mx:State>
+		<mx:State name="Skew Down">
+			<mx:RemoveChild target="{StaggerGroup}"/>
+			<mx:RemoveChild target="{BaseWidthGroup}"/>
+			<mx:RemoveChild target="{xOffsetGroup}"/>
+			<mx:SetProperty target="{tileOffsetY}" name="minimum" value="0"/>
+		</mx:State>
+		<mx:State name="Custom Iso">
+		</mx:State>
+	</comUI:states>
+
+	<mx:Box id="container" width="100%" height="100%" paddingLeft="10" >
+		<comUI:MultiRowTabs id="multi" rowHeight="18" tabsPerRow="3" horizontalScrollPolicy="off"/>
+		<mx:ViewStack id="mainView" change="TabsChanged();" width="100%" height="540" paddingTop="0" paddingBottom="0" horizontalScrollPolicy="off" creationPolicy="all">
+			<mx:VBox id="MainSettings">
+				<mx:Label text="Layer Options:" />
+				<mx:Box id="LayerTilesGroup" width="100%">
+					<mx:HBox width="100%">
+						<mx:Label text="Tileset" textAlign="right" width="100" />
+						<mx:TextInput id="TilesetPath" width="250" toolTip="Location of image containing all tiles of this tilemap." />
+						<mx:Button id="TilesetButton" label="..." click="browseTileset()" />
+					</mx:HBox>
+					
+					<mx:Box id="TilePreviewWrapper" width="420" borderStyle="solid" horizontalScrollPolicy="off" verticalScrollPolicy="off" paddingBottom="0" verticalGap="0">
+						<mx:Box id="TilePreview" width="100%" height="60" horizontalScrollPolicy="off" verticalScrollPolicy="off" paddingBottom="0" verticalGap="0" />
+						<mx:HScrollBar visible="true" id="hbar" bottom="0" width="420" repeatDelay="1000" repeatInterval="500"
+							minScrollPosition="0" maxScrollPosition="1000" lineScrollSize="50" pageScrollSize="100"/>
+					</mx:Box>
+					
+					<mx:HBox width="100%">
+						<mx:Label text="Tile Width" textAlign="right" width="100" />
+						<mx:NumericStepper id="TileWidth" stepSize="1" value="50" minimum="1" maximum="4000" width="100" change="UpdateTilePreview()" toolTip="Width of each tile in pixels." />
+						<mx:Label text="Tile Height" textAlign="right" width="100"/>
+						<mx:NumericStepper id="TileHeight" stepSize="1" value="50" minimum="1" maximum="4000" width="100" change="UpdateTilePreview()" toolTip="Height of each tile in pixels." />
+					</mx:HBox>
+					
+					<mx:HBox width="100%">
+						<mx:Label text="Tilemap Type" textAlign="right" width="100" />
+						<comUI:MyComboBox id="TileTypeBox" dataProvider="{tileType}" change="TileTypeChanged()" iconFunction="getComboTileIcon"
+							toolTip="Specify the type of tilemap: 2D or isometric."/>
+						<mx:CheckBox label="HasHeight" id="HasHeight" textAlign="right" width="100" change="UpdateHasHeight()" toolTip="If the tile is '2.5d' by extending above the base of the tile." />
+					</mx:HBox>
+					
+					<mx:HBox width="100%" id="BaseWidthGroup">
+						<mx:Label text="Base tile width" textAlign="right" width="100" />
+						<mx:NumericStepper id="tileSpacingX" stepSize="1" value="0" minimum="0" maximum="999" width="100" change="UpdateTilePreview()" toolTip="The base width of each tile or the offset of each tile within a row from the previous one." />
+					</mx:HBox>
+					
+					<mx:HBox width="100%" id="BaseDimGroup">
+						<mx:HBox width="100%" id="BaseHeightGroup">
+							<mx:Label text="Base tile height" textAlign="right" width="100"/>
+							<mx:NumericStepper id="tileSpacingY" stepSize="1" value="50" minimum="0" maximum="999" width="100" change="UpdateTilePreview()" toolTip="The base height of each tile or the offset of each tile within a column from the previous one." />
+							<mx:Label text="Stack Height" textAlign="right" width="100"/>
+							<mx:NumericStepper id="stackHeight" stepSize="1" value="0" minimum="0" maximum="1000" width="100" toolTip="If you wish to stack tiles then this height is how much each tile will be offset by." />
+						</mx:HBox>
+					</mx:HBox>
+						
+					<mx:Box id="IsoGroup" width="100%" borderThickness="1" borderStyle="solid" paddingRight="10" paddingTop="10" paddingBottom="10">
+						<mx:HBox width="100%" id="StaggerGroup">
+							<mx:Label text="X Stagger" textAlign="right" width="100" />
+							<mx:NumericStepper id="xStagger" stepSize="1" value="0" minimum="-999" maximum="999" width="100" toolTip="How much alternate (even numbered) rows are offset by." />
+						</mx:HBox>
+						
+						<mx:HBox width="100%" id="TileOffsetGroup">
+							<mx:HBox id="xOffsetGroup">
+								<mx:Label text="X Tile Offset" textAlign="right" width="100"/>
+								<mx:NumericStepper id="tileOffsetX" stepSize="1" value="0" minimum="-999" maximum="999" width="100" change="UpdateTilePreview()" toolTip="The number of pixels to offset horizontally when moving to a new row." />
+							</mx:HBox>
+							<mx:HBox id="yOffsetGroup">
+								<mx:Label text="Y Tile Offset" textAlign="right" width="100"/>
+								<mx:NumericStepper id="tileOffsetY" stepSize="1" value="0" minimum="-999" maximum="999" width="100" change="UpdateTilePreview()" toolTip="The number of pixels to offset vertically when moving along each tile in a row." />
+							</mx:HBox>
+						</mx:HBox>
+					</mx:Box>
+				
+					<mx:HBox width="100%">
+						<mx:Label text="X" textAlign="right" width="100" />
+						<mx:NumericStepper id="LayerXPos" stepSize="1" value="0" minimum="-99999" maximum="99999" width="100" change="ChangeXPos()" toolTip="x coordinate of the start(left) of the tilemap."/>
+						<mx:Label text="Y" textAlign="right" width="100" />
+						<mx:NumericStepper id="LayerYPos" stepSize="1" value="0" minimum="-99999" maximum="99999" width="100" change="ChangeYPos()" toolTip="y coordinate of the start(top) of the tilemap."/>
+					</mx:HBox>
+					
+					<mx:HBox width="100%">
+						<mx:Label text="X In Tiles" textAlign="right" width="100" />
+						<mx:NumericStepper id="LayerXUnitPos" stepSize="1" value="0" minimum="-99999" maximum="99999" width="100" change="ChangeUnitXPos()" toolTip="x coordinate in tile units of the start(left) of the tilemap." />
+						<mx:Label text="Y In Tiles" textAlign="right" width="100" />
+						<mx:NumericStepper id="LayerYUnitPos" stepSize="1" value="0" minimum="-99999" maximum="99999" width="100" change="ChangeUnitYPos()" toolTip="y coordinate in tile units of the start(top) of the tilemap."/>
+					</mx:HBox>
+				
+					<mx:HBox width="100%">
+						<mx:Label text="Width In Tiles" textAlign="right" width="100" />
+						<mx:NumericStepper id="LayerWidth" stepSize="1" value="10" minimum="1" maximum="99999" width="100" change="ChangeDims()" toolTip="Width of the tilemap in tiles."/>
+						<mx:Label text="Height In Tiles" textAlign="right" width="100" />
+						<mx:NumericStepper id="LayerHeight" stepSize="1" value="10" minimum="1" maximum="99999" width="100" change="ChangeDims()" toolTip="Height of the tilemap in tiles." />
+					</mx:HBox>
+					
+					<mx:HBox width="100%">
+						<mx:Label text="Placement X" textAlign="right" width="100"/>
+						<mx:ComboBox id="PlacementX" width="100" enabled="false" >
+							<mx:dataProvider>
+							  <mx:Array>
+								 <mx:String>LEFT</mx:String>
+								 <mx:String>MIDDLE</mx:String>
+								 <mx:String>RIGHT</mx:String>
+							   </mx:Array>
+						   </mx:dataProvider>
+						</mx:ComboBox>
+						
+						<mx:Label text="Placement Y" textAlign="right" width="100" />
+						<mx:ComboBox id="PlacementY" width="100" enabled="false">
+							<mx:dataProvider>
+							  <mx:Array>
+								 <mx:String>TOP</mx:String>
+								 <mx:String>MIDDLE</mx:String>
+								 <mx:String>BOTTOM</mx:String>
+							   </mx:Array>
+						   </mx:dataProvider>
+						</mx:ComboBox>
+					</mx:HBox>
+					
+					<mx:HBox width="100%">
+						<mx:Spacer width="20"/>
+						<mx:CheckBox id="PreserveTilePositions" label="Preserve Tile Positions" enabled="false" />
+					</mx:HBox>
+					
+					<mx:HBox width="100%">
+						<mx:Label text="Draw Index" textAlign="right" width="100" />
+						<mx:NumericStepper id="DrawIdx" stepSize="1" value="1" minimum="0" maximum="9999" width="100" toolTip="Index of first tile that will be drawn." />
+						<mx:Label text="Collide Index" textAlign="right" width="100"/>
+						<mx:NumericStepper id="CollideIdx" stepSize="1" value="1" minimum="0" maximum="9999" width="100" toolTip="Index of first collidable tile." />
+					</mx:HBox>
+					
+					<mx:HBox width="100%">
+						<mx:Spacer width="20"/>
+						<mx:CheckBox id="RepeatingX" label="Repeat X" selected="false" toolTip="Does this tilemap repeat horizontally?" />
+						<mx:CheckBox id="RepeatingY" label="Repeat Y" selected="false" toolTip="Does this tilemap repeat vertically?" />
+					</mx:HBox>
+				</mx:Box>
+				
+				<mx:Box id="LayerImageGroup" width="100%">
+					<mx:HBox width="100%">
+						<mx:Label text="Image" textAlign="right" width="100"/>
+						<mx:TextInput id="ImageLayerPath" width="250" />
+						<mx:Button id="ImageLayerButton" label="..." click="browseTileset()" />
+					</mx:HBox>
+					
+					<mx:HBox width="100%">
+						<mx:Label text="X" textAlign="right" width="100"/>
+						<mx:NumericStepper id="ImageLayerXPos" stepSize="1" value="0" minimum="-99999" maximum="99999" width="100" toolTip="The horizontal position of this image." />
+						<mx:Label text="Y" textAlign="right" width="100"/>
+						<mx:NumericStepper id="ImageLayerYPos" stepSize="1" value="0" minimum="-99999" maximum="99999" width="100" toolTip="The vertical position of this image." />
+					</mx:HBox>
+				</mx:Box>
+					
+				<mx:HBox width="100%">
+					<mx:Label text="Scroll Factor X" textAlign="right" width="100"/>
+					<mx:NumericStepper id="LayerXScroll" stepSize="0.01" value="1.00" minimum="-20" maximum="20.00" width="100" toolTip="The rate that this layer will scroll horizontally." />
+					<mx:Label text="Scroll Factor Y" textAlign="right" width="100"/>
+					<mx:NumericStepper id="LayerYScroll" stepSize="0.01" value="1.00" minimum="-20" maximum="20.00" width="100" toolTip="The rate that this layer will scroll vertically." /> 
+				</mx:HBox>
+			</mx:VBox>
+			
+			<mx:VBox id="AnimationsGroup" width="100%">
+				<mx:Box id="TilePreviewWrapper_Anims" width="420" borderStyle="solid" horizontalScrollPolicy="off" verticalScrollPolicy="off" paddingBottom="0" verticalGap="0">
+					<mx:HScrollBar visible="true" id="hbarAnims" bottom="0" width="420" repeatDelay="1000" repeatInterval="500"
+						minScrollPosition="0" maxScrollPosition="1000" lineScrollSize="50" pageScrollSize="100"/>
+				</mx:Box>
+				<mx:Label text="Animations: (No 2 anims should start with the same tile. Drag tile into anim.)"/>
+				<mx:VBox id="AnimTilesRows" width="100%" height="280" />
+				<mx:Button label="Add new anim" click="AddNewTileAnim()" />
+				<mx:CheckBox label="Share with similar tilesets" id="ShareTileAnimsCheckBox"/>
+			</mx:VBox>
+			
+			<mx:VBox id="TilePropertiesGroup" width="100%">
+				<mx:Box id="TilePreviewWrapper_Props" width="420" borderStyle="solid" horizontalScrollPolicy="off" verticalScrollPolicy="off" paddingBottom="0" verticalGap="0">
+					<mx:HScrollBar visible="true" id="hbarProps" bottom="0" width="420" repeatDelay="1000" repeatInterval="500"
+							minScrollPosition="0" maxScrollPosition="1000" lineScrollSize="50" pageScrollSize="100"/>
+				</mx:Box>
+				<mx:VBox width="100%">
+					<mx:HBox>
+						<mx:Label text="Tile Id: "/>
+						<mx:Label id="TileId" text="0"/>
+					</mx:HBox>
+					<comUI:PropertyGrid id="propsGrid" OnPreAddProperty="OnPropertyAdded" />
+					<mx:HBox>
+						<mx:Button id="btnAddProp" label="Add" toolTip="Add Property" icon="@Embed(source='../../../assets/addPropertyIcon_off.png')" click="addProperty()" />
+						<mx:Button id="btnRemoveProp" label="Remove" toolTip="Remove Property" icon="@Embed(source='../../../assets/deletePropertyIcon_off.png')" click="removeProperty()" />
+					</mx:HBox>
+				</mx:VBox>
+				<mx:CheckBox label="Share with similar tilesets" id="ShareTilePropsCheckBox"/>
+			</mx:VBox>
+		</mx:ViewStack>
+		
+		<mx:HBox horizontalAlign="center" width="100%">
+			<mx:Button id="btnOK" label="OK" click="ok()" />
+			<mx:Button id="btnCancel" label="Cancel" click="cancel()" />
+		</mx:HBox>
+	</mx:Box>
+</comUI:PopupWindow>

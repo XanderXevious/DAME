@@ -1,0 +1,45 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+	<head>
+		<META http-equiv="Content-Type" content="text/html; charset=UTF-8">
+		<title>DAME - Sprite Trails</title>
+		<style type="text/css">
+			h1 {color:#0000CC;}
+			h2 {color:#000099;}
+			h3 {color:#000066;}
+			pc {color:#AA0000;}
+			dpc {color:#0000AA;}
+		</style>
+	</head>
+	<body>
+		<p align=right><a href="index.html">Return to help contents...</a></p>
+		<h1>Editing Sprite Trails in DAME</h1>
+		<p>With DAME you can lay out a path to automatically display a sequence of sprites along it that will be updated whenever you make a change to a path or the sequence.</p>
+		<table border="0">
+		<ol>
+			<li><a href="#settingup">Setting Up</a> </li>
+			<li><a href="#editing">Editing</a></li>
+		</ol>
+		</table>
+		
+		<p/>
+		<h2><a name="settingup">1. Setting Up</a></h2>
+		<p>The first thing you must do is to lay out a path. With the path ready (you can adjust it later), right click on the path and choose <em>Attach Sprite Trail</em> from the context menu. Then all you need to do is move to the sprite layer you wish to place the sprite trail in and left click. This will display the Sprite Trails window, if it wasn't open already:</p>
+		<img src="spritetrails.jpg" alt="The Sprite Trails Window.">
+		<p>Unlike the screenshot, it's likely that the window will not have any sprites associated with it, so you'll need to set it up. You can click the <em>Add From Current Sprite Entry</em> button to bring the sprite entry currently selected in the sprites tab to the panel. As long as the sprite trail object or the path are selected the trail should immediately refresh with that sprite displayed at periodic intervals along the path.</p>
+		
+		<h2><a name="editing">2. Editing</a></h2>
+		<p>Firstly, if the sprite trail window is not open you can bring it up by going to the Tools menu and selecting <em>Show Sprite Trail Settings</em>.</p>
+		<p>Sprite Trails will always automatically refresh as long as they are associated with a selected sprite trail object or path with a sprite trail attached. Whenever you want to edit a sprite trail you must select that sprite trail and click <em>Get From Selected Trail</em> before modifying any values. You can send that data over to another sprite trail by clicking <em>Send To Selected Trail</em>.</p>
+		<p>There are only a few options controlling sprite trails but they allow for many different variations as you can see from this screenshot:</p>
+		<img src="spritetrails2.jpg" alt="Some Sprite Trails.">
+		<p>It is possible to have multiple occurrences of the same sprite in the sequence. You can also modify each entry to control the region displayed within the sprite. The <em>X</em>, <em>Y</em>, <em>Wid</em> and <em>Ht</em> values control this and modifying them will change only the selected sprite in the display at the top.</p> You can also control the anchor of the selected sprite in the list with the <em>Anchor X</em> and <em>Anchor Y</em> values. This will change the position where the sprite will attach itself to the path.</p>
+		<p>Normally the sprites are spaced based on the <em>Distance Between Sprites</em> value. However, there is a problem with this: If the path length is not an exact multiple of the distance then the last sprite will not necessarily be at the end. This is even more evident with closed paths as the beginning and end sprites may end up bunched together. Using the <em>Clever Spread Algorithm</em> will ensure that the distance is only used as a guideline and the sprites will be spaced much more intelligently.</p>
+		<p>You can make the sprites rotate along with the path using <em>Rotation Follows Path</em> and you can offset them by an angle with the <em>Rotation Offset</em>, whether they follow the paths rotation or not.</p>
+		<p>Finally, the sprite sequence can be controlled. You have options allowing you to display the sprites in the sequence as listed or to be random, controlled by a <em>Random Seed</em>. You can also choose to have the first and last sprite in the list be the first and last sprites in along the path, along you to 'close' a trail properly.</p>
+		
+		<center class="copyright"> 
+		</center>
+	</body>
+</html>
+<!-- -->

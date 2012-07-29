@@ -1,0 +1,1031 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<mx:VBox xmlns:mx="http://www.adobe.com/2006/mxml" width="100%" height="100%" xmlns:comUI="com.UI.*"
+horizontalScrollPolicy="off" creationComplete="init()" label="Layers">
+	
+	<mx:Script>
+		<![CDATA[
+			
+			import com.Editor.GuideLayer;
+			import com.EditorState;
+			import com.Operations.OperationMoveLayers;
+			import com.Utils.DebugDraw;
+			import org.flixel.FlxPoint;
+			//import com.FileHandling.TMX;
+			import com.Game.Avatar;
+			import com.Game.AvatarLink;
+			import com.Game.EditorAvatar;
+			import com.Layers.LayerAvatarBase;
+			import com.Layers.LayerEntry;
+			import com.Layers.LayerGroup;
+			import com.Layers.LayerImage;
+			import com.Layers.LayerMap;
+			import com.Layers.LayerPaths;
+			import com.Layers.LayerShapes;
+			import com.Layers.LayerSprites;
+			import com.Operations.HistoryStack;
+			import com.Operations.OperationAddLayer;
+			import com.Operations.OperationDeleteLayer;
+			import com.Operations.OperationReorderLayer;
+			import com.Operations.OperationPaintTiles;
+			import com.Operations.OperationResizeManyMaps;
+			import com.Utils.Global;
+			import com.Utils.Misc;
+			import flash.display.NativeMenu;
+			import flash.display.NativeMenuItem;
+			import flash.events.ContextMenuEvent;
+			import flash.events.Event;
+			import flash.filesystem.File;
+			import flash.net.FileFilter;
+			import flash.net.URLLoader;
+			import flash.net.URLRequest;
+			import flash.ui.ContextMenu;
+			import flash.ui.ContextMenuItem;
+			import com.UI.AlertBox;   
+			import mx.collections.ArrayCollection;
+			import mx.controls.listClasses.IListItemRenderer;
+			import mx.managers.PopUpManager;
+			import mx.events.ListEvent;
+			import org.flixel.FlxG;
+			import mx.events.CloseEvent;
+			import mx.events.DragEvent;
+            import mx.managers.DragManager;
+            import mx.core.DragSource;
+			import mx.core.UIComponent;
+			import com.MainGame;
+			
+			private var _draggedLayer:LayerEntry = null;
+			
+			private var highlightedTreeItem:LayerEntry = null;
+			private var layerToSelect:LayerEntry = null;
+			
+			public function layerTreeItemChanged():void
+			{
+				App.getApp().LayerTreeItemChanged( layerTree.selectedItem as LayerEntry );
+			}
+		
+			
+			private function resizeMapListener(eventObj:CloseEvent):void
+			{
+			}
+			
+			 // Called when the user moves the drag proxy onto the drop target.
+			private function onDragEnter( event:DragEvent ) : void
+            {
+                event.preventDefault();
+                event.currentTarget.hideDropFeedback(event);
+                var ds:DragSource = event.dragSource;
+                var items:Array = ds.dataForFormat("treeItems") as Array;
+                if (items != null && items.length > 0 )
+				{
+					if (items[0] is LayerEntry)
+					{
+						_draggedLayer = items[0];
+						HistoryStack.BeginOperation( new OperationReorderLayer( _draggedLayer ) );
+					}
+				}
+                DragManager.acceptDragDrop(UIComponent(event.currentTarget));
+            }
+			
+			private function onDragOver( event:DragEvent ) : void
+			{
+				// Prevent dragging items outside of their parent control.
+				if ( event.dragInitiator != event.currentTarget )
+				{
+					event.preventDefault();
+					event.currentTarget.hideDropFeedback(event);
+					DragManager.showFeedback(DragManager.NONE);
+				}
+			}
+			
+			
+
+            private function onLayerDragComplete( event:DragEvent ) : void
+            {
+				// If I just select the item here it gets deselected for some reason.
+				// Have to tell the app to do it on the next frame.
+                setTreeItemToSelect(_draggedLayer);
+				var i:uint = 0;
+				var groups:ArrayCollection = App.getApp().layerGroups;
+				var foundLayer:Boolean = false;
+				for each( var layer:LayerEntry in groups )
+				{
+					if ( layer == _draggedLayer && !_draggedLayer.IsGroup() )
+					{
+						// this layer has been moved outside of a group. move it into the nearest group.
+						groups.removeItemAt( i );
+						if ( i < groups.length )
+						{
+							groups[i].children.addItemAt( layer, 0 );
+							layer.parent = groups[i];
+						}
+						else
+						{
+							groups[i - 1].children.addItemAt( layer, groups[i - 1].children.length);
+							layer.parent = groups[i - 1];
+						}
+						foundLayer = true;
+					}
+					var group:LayerGroup = layer as LayerGroup;
+					if ( group && _draggedLayer.IsGroup())
+					{
+						for each( var mapEntry:LayerEntry in group.children )
+						{
+							if ( mapEntry == _draggedLayer )
+							{
+								// this group has been moved into another group. move it outside.
+								var index:uint = group.children.getItemIndex( mapEntry );
+								var len:uint = group.children.length;
+								group.children.removeItemAt( group.children.getItemIndex( mapEntry ) );
+								// If it's closer to the top of the group it's been moved into then move
+								// before this group, otherwise move after.
+								if ( index <= len / 2 )
+								{
+									groups.addItemAt( mapEntry, i );
+								}
+								else
+								{
+									groups.addItemAt( mapEntry, i + 1 );
+								}
+							}
+						}
+					}
+					i++;
+				}
+				if ( !foundLayer )
+				{
+					// The layer was moved into another group. Find the group and readjust the layer's parent reference.
+					for each( layer in groups )
+					{
+						if ( layer.children && layer.children.contains( _draggedLayer ) )
+						{
+							_draggedLayer.parent = layer as LayerGroup;
+						}
+					}
+				}
+				
+				var mapLayer:LayerMap = _draggedLayer as LayerMap;
+				if ( mapLayer && mapLayer.IsMasterLayer() )
+				{
+					// Remove this layer's master layer status if another master layer already exists in the group.
+					for each( mapEntry in mapLayer.parent.children )
+					{
+						var testMapLayer:LayerMap = mapEntry as LayerMap;
+						if ( testMapLayer && testMapLayer.IsMasterLayer() && testMapLayer != mapLayer )
+						{
+							mapLayer.SetMasterLayer(false);
+						}
+					}
+				}
+            }    
+			
+			//{ region tree Updating
+			
+			private function treeRollOver(event:ListEvent):void
+			{
+				highlightedTreeItem = event.itemRenderer.data as LayerEntry;
+			}
+			
+			private function treeRollOut(event:ListEvent):void
+			{
+				highlightedTreeItem = null;
+			}
+			
+			private function treeDoubleClick(event:ListEvent):void
+			{
+				var currentItem:LayerEntry = layerTree.selectedItem as LayerEntry;
+				if ( currentItem == null )
+				{
+					currentItem = highlightedTreeItem;
+				}
+				var layerPopup:LayerPropertiesPopup = App.CreatePopupWindow(LayerPropertiesPopup,true) as LayerPropertiesPopup;
+				if ( layerPopup )
+				{
+					layerPopup.Layer = currentItem;
+					layerPopup.opener = layerTree;
+					layerPopup.okPressedCallback = layerEdited;
+				}
+			}
+			
+			public function setTreeItemToSelect( item:LayerEntry ):void
+			{
+				layerToSelect = item;
+				addEventListener(Event.ENTER_FRAME, updateTree);
+			}
+			
+			private function updateTree(event:Event):void
+			{
+				if ( layerToSelect && layerToSelect.children && layerToSelect.children.length )
+				{
+					// If it's a group then we try to select a child of it. So it must be expanded to work.
+					layerTree.expandChildrenOf( layerToSelect, true );
+					//layerTree.selectedItem = layerToSelect.children[0];
+				}
+				else
+				{
+					if ( layerToSelect && layerToSelect.parent )
+					{
+						layerTree.expandChildrenOf( layerToSelect.parent, true );
+					}
+					layerTree.selectedItem = layerToSelect;
+				}
+				App.getApp().layerChangedCallback();
+				removeEventListener(Event.ENTER_FRAME, updateTree );
+				var currentState:EditorState = FlxG.state as EditorState;
+				if ( currentState )
+				{
+					currentState.UpdateMapList();
+				}
+			}
+			
+			private function treeFocusOutHandler(event:FocusEvent):void
+			{
+				// Determine if we've lost focus from the tree to something else.
+				var obj:Object = event.relatedObject;
+				
+				// When dragging we get the focus out but we don't want to change the selection
+				// as that is handled by the drag.
+				if ( DragManager.isDragging )
+				{
+					return;
+				}
+				
+				while( obj != null )
+				{
+					if ( obj == layerTree )
+					{
+						break;
+					}
+					obj = obj.parent;
+				}
+				if ( obj != layerTree )
+				{
+					var currentItem:LayerEntry = layerTree.selectedItem as LayerEntry;
+					
+					App.getApp().layerChangedCallback();
+				}
+			}
+			
+			//} endregion
+			
+			//{ region Context Menu
+			
+			private function contextMenu_menuSelect(event:ContextMenuEvent):void
+			{
+				var rightClickItemRenderer:IListItemRenderer = null;
+                
+                if (event.mouseTarget is IListItemRenderer)
+                    rightClickItemRenderer = IListItemRenderer(event.mouseTarget);
+                else if (event.mouseTarget.parent is IListItemRenderer)
+                    rightClickItemRenderer = IListItemRenderer(event.mouseTarget.parent);
+                
+                if (rightClickItemRenderer != null )
+                {
+                    var rightClickIndex:int = layerTree.itemRendererToIndex(rightClickItemRenderer);
+                    
+                    if (rightClickIndex != int.MIN_VALUE )
+					{
+						if ( layerTree.selectedIndex != rightClickIndex )
+						{
+							layerTree.selectedIndex = rightClickIndex;
+							layerTree.selectedItem = rightClickItemRenderer.data;
+						}
+					}
+					else
+					{
+						layerTree.selectedIndex = int.MIN_VALUE;
+						layerTree.selectedItem = null;
+					}
+                }
+            }
+			
+			private function contextMenuActivated(event:ContextMenuEvent):void
+			{
+				contextMenu_menuSelect(event);
+				var contextMenu:ContextMenu = event.target as ContextMenu;
+				contextMenu.removeAllItems();
+				
+				// Adjust the enabled menu options based on the current selected tree item.
+				var currentItem:LayerEntry = layerTree.selectedItem as LayerEntry;
+				if ( currentItem == null )
+				{
+					currentItem = highlightedTreeItem;
+				}
+
+				if ( currentItem == null )
+				{
+					// It's a layer group.
+					addNewContextMenuItem(contextMenu, "Add New Group");
+				}
+				else 
+				{
+					if ( currentItem.IsGroup() )
+					{
+						var submenu:NativeMenu = new NativeMenu();
+						contextMenu.addSubmenu(submenu, "Add");
+						addNewNativeContextMenuItem(submenu, "New Group");
+						addNewNativeContextMenuItem(submenu, "New Map Layer");
+						addNewNativeContextMenuItem(submenu, "Rip Tilemap");
+						addNewNativeContextMenuItem(submenu, "New Sprite Layer");
+						addNewNativeContextMenuItem(submenu, "New Path Layer");
+						addNewNativeContextMenuItem(submenu, "New Shape Layer");
+						addNewNativeContextMenuItem(submenu, "New Image Layer");
+						var hasMaps:Boolean = false;
+						for ( var i:uint = 0; !hasMaps && i < currentItem.children.length; i++ )
+						{
+							if ( currentItem.children[i] is LayerMap )
+							{
+								hasMaps = true;
+							}
+						}
+						if ( hasMaps )
+						{
+							addNewContextMenuItem(contextMenu, "Clear All Maps");
+							addNewContextMenuItem(contextMenu, "Resize All Maps");
+						}
+						
+					}
+					addNewContextMenuItem(contextMenu, "Edit Layer Info");
+					addNewContextMenuItem(contextMenu, "Rename");
+					
+					//addNewCheckedContextMenuItem(contextMenu, "Template From This Layer", currentItem.isTemplateSource, true  );
+					addNewContextMenuItem(contextMenu, "Duplicate");
+					addNewContextMenuItem(contextMenu, "Duplicate Empty");
+					
+					addNewContextMenuItem(contextMenu, "Delete");
+					addNewNativeContextMenuItem(contextMenu, "Move layers to screen location");
+					
+					
+					
+					var mapLayer:LayerMap = currentItem as LayerMap;
+					var avatarLayer:LayerAvatarBase = currentItem as LayerAvatarBase;
+					if ( mapLayer )
+					{
+						addNewContextMenuItem(contextMenu, "Import Map Data");
+						addNewNativeContextMenuItem(contextMenu, "Rip Tilemap Using Existing Tileset");
+						addNewContextMenuItem(contextMenu, "Clear Map");
+						addNewCheckedContextMenuItem(contextMenu, "Make Master Layer", mapLayer.IsMasterLayer(), true  );
+					}
+					else if ( avatarLayer )
+					{
+						addNewContextMenuItem(contextMenu, "Object Finder" );
+						addNewCheckedContextMenuItem( contextMenu, "Align With Master Layer", avatarLayer.AlignedWithMasterLayer, true );
+						addNewCheckedContextMenuItem( contextMenu, "Auto Depth Sort",avatarLayer.AutoDepthSort );
+					}
+				}
+				addNewContextMenuItem(contextMenu, "Reverse Layer Order", true);
+				//addNewContextMenuItem(contextMenu, "Import TMX Data");
+
+			}
+			
+			private function addNewCheckedContextMenuItem( menu:ContextMenu, text:String, ticked:Boolean, separator:Boolean = false ):void
+			{
+				var item:ContextMenuItem = new ContextMenuItem(text, separator);
+				menu.customItems.push(item);
+				item.checked = ticked;
+				item.addEventListener(ContextMenuEvent.MENU_ITEM_SELECT, menuItemSelectHandler);
+			}
+			
+			private function addNewContextMenuItem( menu:ContextMenu, text:String, separator:Boolean = false ):void
+			{
+				var item:ContextMenuItem = new ContextMenuItem(text, separator);
+				menu.customItems.push(item);
+				item.addEventListener(ContextMenuEvent.MENU_ITEM_SELECT, menuItemSelectHandler);
+			}
+			
+			private function addNewNativeContextMenuItem( menu:NativeMenu, text:String, separator:Boolean = false ):void
+			{
+				var item:NativeMenuItem = new NativeMenuItem(text, separator);
+				menu.addItem(item);
+				item.addEventListener(Event.SELECT, menuItemSelectHandler);
+			}
+			
+			private function reverseLayers():void
+			{
+				App.getApp().layerGroups.source.reverse();
+				
+				var groupIndex:uint = App.getApp().layerGroups.length;
+				while (groupIndex--)
+				{
+					var group:LayerGroup = App.getApp().layerGroups[groupIndex];
+					group.children.source.reverse();
+				}
+				
+				layerTree.invalidateList();
+				var editor:EditorState = FlxG.state as EditorState;
+				editor.UpdateMapList();
+			}
+			
+			private function menuItemSelectHandler(event:Event):void
+			{
+				var layer:LayerEntry;
+				
+				var currentItem:LayerEntry = layerTree.selectedItem as LayerEntry;
+				if ( currentItem == null )
+				{
+					currentItem = highlightedTreeItem;
+				}
+				
+				MainGame.flxGame.restoreFocus();	// Just in case focus was lost.
+				
+				switch( event.target.label )
+				{
+				case "Object Finder":
+					if ( currentItem is LayerAvatarBase )
+					{
+						var finderPopup:ObjectFinder = App.CreatePopupWindow(ObjectFinder, true) as ObjectFinder;
+						if ( finderPopup )
+						{
+							finderPopup.Layer = currentItem as LayerAvatarBase;
+						}
+					}
+					break;
+					
+				case "Clear All Maps":
+					if ( currentItem is LayerGroup )
+					{
+						// This operation stores the tilemap data so it does the job for the history.
+						HistoryStack.BeginOperation( new OperationResizeManyMaps( currentItem as LayerGroup ) );
+						for ( var i:uint = 0; i < currentItem.children.length; i++ )
+						{
+							var mapLayer:LayerMap = currentItem.children[i] as LayerMap;
+							if ( mapLayer )
+							{
+								mapLayer.map.ClearMap();
+							}
+						}
+					}
+					break;
+					
+				case "Clear Map":
+					mapLayer = currentItem as LayerMap;
+					if( mapLayer )
+					{
+						HistoryStack.BeginOperation( new OperationPaintTiles( mapLayer ) );
+						mapLayer.map.ClearMap();
+					}
+					break;
+					
+				case "Resize All Maps":
+					if ( currentItem is LayerGroup )
+					{
+						var resizeMapsPopup:ResizeMapsPopup = App.CreatePopupWindow(ResizeMapsPopup,true) as ResizeMapsPopup;
+						if ( resizeMapsPopup )
+						{
+							resizeMapsPopup.Group = currentItem as LayerGroup;
+							resizeMapsPopup.opener = layerTree;
+						}
+					}
+					break;
+					
+				case "Reverse Layer Order":
+					reverseLayers();
+					break;
+					
+				case "Duplicate":
+					DuplicateLayer(currentItem as LayerEntry, true);
+					break;
+					
+				case "Duplicate Empty":
+					DuplicateLayer(currentItem as LayerEntry, false);
+					break;
+					
+				case "New Map Layer":
+					var layerPopup:LayerPropertiesPopup = App.CreatePopupWindow(LayerPropertiesPopup, true) as LayerPropertiesPopup;
+					if ( layerPopup )
+					{
+						layerPopup.opener = layerTree;
+						layerPopup.Group = currentItem as LayerGroup;
+						layerPopup.okPressedCallback = layerAdded;
+					}
+					break;
+					
+				case "Rip Tilemap":
+					var ripPopup:RipTilemapPopup = App.CreatePopupWindow(RipTilemapPopup, true) as RipTilemapPopup;
+					if ( ripPopup )
+					{
+						ripPopup.opener = layerTree;
+						ripPopup.Group = currentItem as LayerGroup;
+						ripPopup.okPressedCallback = layerAdded;
+					}
+					break;
+					
+				case "Rip Tilemap Using Existing Tileset":
+					ripPopup = App.CreatePopupWindow(RipTilemapPopup, true) as RipTilemapPopup;
+					if ( ripPopup )
+					{
+						ripPopup.opener = layerTree;
+						ripPopup.oldLayer = currentItem as LayerMap;
+						ripPopup.Group = currentItem.parent as LayerGroup;
+						ripPopup.okPressedCallback = layerAdded;
+					}
+					break;
+					
+				case "New Sprite Layer":
+					layer = new LayerSprites( currentItem as LayerGroup, "Layer" + (currentItem.children.length + 1) );
+					InsertLayerInCorrectOrder(currentItem.children, layer);
+					HistoryStack.BeginOperation( new OperationAddLayer( layer ) );
+					setTreeItemToSelect( layer );
+					break;
+					
+				case "New Path Layer":
+					layer = new LayerPaths( currentItem as LayerGroup, "Layer" + (currentItem.children.length + 1) );
+					InsertLayerInCorrectOrder(currentItem.children, layer);
+					HistoryStack.BeginOperation( new OperationAddLayer( layer ) );
+					setTreeItemToSelect( layer );
+					break;
+					
+				case "New Shape Layer":
+					layer = new LayerShapes( currentItem as LayerGroup, "Layer" + (currentItem.children.length + 1) );
+					InsertLayerInCorrectOrder(currentItem.children, layer);
+					HistoryStack.BeginOperation( new OperationAddLayer( layer ) );
+					setTreeItemToSelect( layer );
+					break;
+					
+				case "New Image Layer":
+					layerPopup = App.CreatePopupWindow(LayerPropertiesPopup, true) as LayerPropertiesPopup;
+					if ( layerPopup )
+					{
+						layerPopup.opener = layerTree;
+						layerPopup.Group = currentItem as LayerGroup;
+						layerPopup.isImage = true;
+						layerPopup.okPressedCallback = layerAdded;
+					}
+					break;
+					
+				case "New Group":
+				case "Add New Group":
+					var newGroupPopup:NewGroupPopup = App.CreatePopupWindow(NewGroupPopup,true) as NewGroupPopup;
+					if ( newGroupPopup )
+					{
+						newGroupPopup.openerTree = layerTree;
+						newGroupPopup.okPressedCallback = newGroupCreated;
+					}
+					break;
+					
+				case "Delete":
+					AlertBox.Show("Are you sure you want to delete " + currentItem.name + "?", "Warning", AlertBox.YES| AlertBox.NO, null, deleteLayerListener, AlertBox.NO);
+					break;
+					
+				case "Rename":
+					var renamePopup:RenamePopup = App.CreatePopupWindow(RenamePopup, true, this.owner) as RenamePopup;
+					if ( renamePopup )
+					{
+						renamePopup.txt = currentItem.name;
+						renamePopup.opener = layerTree;
+						renamePopup.okPressedCallback = layerRenamed;
+					}
+					break;
+					
+				case "Edit Layer Info":
+					layerPopup = App.CreatePopupWindow(LayerPropertiesPopup,true) as LayerPropertiesPopup;
+					if ( layerPopup )
+					{
+						layerPopup.Layer = currentItem;
+						layerPopup.opener = layerTree;
+						layerPopup.okPressedCallback = layerEdited;
+					}
+					break;
+					
+					/*case "Import TMX Data":
+					var filter:FileFilter = new FileFilter("tmx files", "*.tmx");
+					Global.CurrentMapDataFile.browseForOpen("Import TMX data", [filter]);
+					Global.CurrentMapDataFile.addEventListener(Event.SELECT, OpenTMXDataFile);
+					break;*/
+					
+				case "Import Map Data":
+					var filter:FileFilter = new FileFilter("csv files", "*.txt;*.csv");
+					Global.CurrentMapDataFile.browseForOpen("Import tilemaps", [filter]);
+					Global.CurrentMapDataFile.addEventListener(Event.SELECT, OpenMapDataFile);
+					break;
+					
+				case "Make Master Layer":
+					mapLayer = currentItem as LayerMap;
+					if ( mapLayer )
+					{
+						mapLayer.SetMasterLayer(!(event.target as ContextMenuItem).checked);
+						DebugDraw.singleton.HasCachedShape = false;	// force a refresh
+						App.getApp().layerGroups.itemUpdated(mapLayer);
+					}
+					break;
+					
+				case "Align With Master Layer":
+					var avatarLayer:LayerAvatarBase = currentItem as LayerAvatarBase;
+					if ( avatarLayer )
+					{
+						avatarLayer.AlignedWithMasterLayer = !(event.target as ContextMenuItem).checked;
+						if ( avatarLayer.AlignedWithMasterLayer )
+						{
+							// Implicit sorting when aligned.
+							avatarLayer.MakeAutoDepthSort( true );
+						}
+						DebugDraw.singleton.HasCachedShape = false;	// force a refresh
+						App.getApp().layerGroups.itemUpdated(avatarLayer);
+					}
+					break;
+					
+				case "Auto Depth Sort":
+					avatarLayer = currentItem as LayerAvatarBase;
+					if ( avatarLayer )
+					{
+						avatarLayer.MakeAutoDepthSort(!(event.target as ContextMenuItem).checked);
+					}
+					break;
+					
+				case "Move layers to screen location":
+					{
+						HistoryStack.BeginOperation( new OperationMoveLayers( currentItem ) );
+						var groupLayer:LayerGroup = currentItem as LayerGroup;
+						if ( groupLayer )
+						{
+							// First find the amount to move all layers by (if we have a map layer)
+							var diff:FlxPoint = null;
+							for ( i = 0; i < groupLayer.children.length && !diff; i++ )
+							{
+								mapLayer = groupLayer.children[i] as LayerMap;
+								if ( mapLayer )
+								{
+									diff = MoveLayerToScreenPos(mapLayer);
+								}
+							}
+							
+							// Now move all the other layers by that amount.
+							i = groupLayer.children.length;
+							while (i--)
+							{
+								layer = groupLayer.children[i] as LayerEntry;
+								if ( layer != mapLayer )
+								{
+									diff = MoveLayerToScreenPos(layer, diff);
+								}
+							}
+						}
+						else
+						{
+							MoveLayerToScreenPos(currentItem);
+						}
+					}
+					break;
+					
+				/*case "Template From This Layer":
+					if ( App.CurrentTemplateLayer )
+					{
+						var newLayer:LayerEntry = !(event.target as ContextMenuItem).checked ? currentItem : null;
+						AlertBox.Show("Removing a template will remove any properties on templated layers. Continue?", "Warning", AlertBox.YES| AlertBox.NO, null, switchLayerTemplateListener, AlertBox.NO, false, newLayer);
+						break;
+					}
+					if (!(event.target as ContextMenuItem).checked)
+					{
+						currentItem.isTemplateSource = true;
+						App.CurrentTemplateLayer = currentItem;
+					}
+					else
+					{
+						currentItem.isTemplateSource = false;
+					}
+					App.getApp().layerGroups.itemUpdated(currentItem);
+					break;*/
+				}
+			}
+			
+			/*private function switchLayerTemplateListener(eventObj:CloseEvent, newLayer:LayerEntry = null):void
+			{
+				if (eventObj.detail == AlertBox.YES)
+				{
+					if ( App.CurrentTemplateLayer )
+					{
+						App.CurrentTemplateLayer.isTemplateSource = false;
+					}
+					if ( newLayer )
+					{
+						newLayer.isTemplateSource = true;
+					}
+					App.CurrentTemplateLayer = newLayer;
+					App.getApp().layerGroups.itemUpdated(newLayer);
+				}
+			}*/
+			
+			private function MoveLayerToScreenPos(layer:LayerEntry, diff:FlxPoint = null):FlxPoint
+			{
+				if ( !layer )
+				{
+					return null;
+				}
+				var xScroll:Number = layer.xScroll == 0 ? 1 : layer.xScroll;
+				var yScroll:Number = layer.yScroll == 0 ? 1 : layer.yScroll;
+				if ( diff )
+				{
+					var xDiff:Number = diff.x;
+					var yDiff:Number = diff.y;
+				}
+				var mapLayer:LayerMap = layer as LayerMap;
+				if ( mapLayer )
+				{
+					if (!diff)
+					{
+						var mapScreenPos:FlxPoint = EditorState.getScreenXYFromMapXYPrecise(mapLayer.map.x, mapLayer.map.y, mapLayer.xScroll, mapLayer.yScroll);
+						xDiff = -mapScreenPos.x;
+						yDiff = -mapScreenPos.y;
+						if (GuideLayer.SnappingEnabled )
+						{
+							xDiff = Math.floor( xDiff / mapLayer.map.tileWidth ) * mapLayer.map.tileWidth;
+							yDiff = Math.floor( yDiff / mapLayer.map.tileHeight ) * mapLayer.map.tileHeight;
+						}
+						diff = new FlxPoint(xDiff / xScroll, yDiff / yScroll);
+					}
+					else
+					{
+						xDiff *= xScroll;
+						yDiff *= yScroll;
+					}
+					mapLayer.map.x += xDiff;
+					mapLayer.map.y += yDiff;
+				}
+				else
+				{
+					var avatarLayer:LayerAvatarBase = layer as LayerAvatarBase;
+					if ( avatarLayer )
+					{
+						var j:int = avatarLayer.sprites.members.length;
+						var newDiff:FlxPoint = diff;
+						
+						while ( j-- )
+						{
+							var avatar:EditorAvatar = avatarLayer.sprites.members[j];
+							if ( !diff )
+							{
+								if ( !newDiff )
+								{
+									var screenPos:FlxPoint = EditorState.getScreenXYFromMapXYPrecise(avatar.x, avatar.y, avatarLayer.xScroll, avatarLayer.yScroll);
+									xDiff = -screenPos.x;
+									yDiff = -screenPos.y;
+									newDiff = new FlxPoint(xDiff / yScroll, yDiff / yScroll);
+								}
+							}
+							else
+							{
+								xDiff = diff.x * xScroll;
+								yDiff = diff.y * yScroll;
+							}
+							avatar.x += xDiff;
+							avatar.y += yDiff;
+						}
+						diff = newDiff;
+						avatarLayer.minx += xDiff;
+						avatarLayer.miny += yDiff;
+						avatarLayer.maxx += xDiff;
+						avatarLayer.maxy += yDiff;
+					}
+				}
+				
+				return diff;
+			}
+			
+			private function InsertLayerInCorrectOrder(group:Object, layer:LayerEntry):void
+			{
+				// Always add new layers so they are on top in the draw order.
+				if ( Global.DisplayLayersFirstOnTop )
+				{
+					group.addItemAt(layer, 0 );
+				}
+				else
+				{
+					group.addItem( layer );
+				}
+			}
+			
+			/*private function OpenTMXDataFile(event:Event):void
+			{
+				Global.CurrentMapDataFile.removeEventListener(Event.SELECT, OpenTMXDataFile);
+				var tmx:TMX = new TMX(Global.CurrentMapDataFile.url);
+				
+				//HistoryStack.BeginOperation( new OperationAddLayer( popup.newGroup ) );
+				//setTreeItemToSelect( popup.newGroup );
+			}*/
+			
+			
+			private function OpenMapDataFile(event:Event):void 
+			{
+				Global.CurrentMapDataFile.removeEventListener(Event.SELECT, OpenMapDataFile);
+				var layer:LayerMap = layerTree.selectedItem as LayerMap;
+				if ( layer == null )
+				{
+					return;
+				}
+				var urlRequest:URLRequest = new URLRequest(Misc.FixMacFilePaths(Global.CurrentMapDataFile.url));
+				var urlLoader:URLLoader = new URLLoader();
+				urlLoader.dataFormat = URLLoaderDataFormat.TEXT; // default
+				urlLoader.addEventListener(Event.COMPLETE, mapDataLoaded);
+				urlLoader.addEventListener(IOErrorEvent.IO_ERROR, mapDataLoadFailed);
+				urlLoader.addEventListener(SecurityErrorEvent.SECURITY_ERROR, mapDataLoadFailed);
+				urlLoader.load(urlRequest);
+				
+				function mapDataLoaded(event:Event ):void
+				{
+					try
+					{
+						// convert the loaded text into XML
+						var mapData:String = String(urlLoader.data);
+						layer.map.importMapData(mapData);
+						
+						urlLoader.close();
+						
+					}
+					catch (error:Error)
+					{
+						AlertBox.Show("Failed to load map data file: " + error, "Error");
+					}
+
+				}
+				
+				function mapDataLoadFailed(event:Event ):void
+				{
+					AlertBox.Show("Failed to load file", "Error");
+				}
+			}
+			
+			private function DuplicateLayer(layer:LayerEntry, copyContents:Boolean):void
+			{
+				var newLayer:LayerEntry = layer.Clone(layer.parent as LayerGroup, layer.name + "(2)", copyContents);
+				var parent:Object = layer.parent ? layer.parent.children : layerTree.dataProvider; 
+				InsertLayerInCorrectOrder( parent, newLayer );
+				
+				HistoryStack.BeginOperation( new OperationAddLayer( newLayer ) );
+				setTreeItemToSelect( newLayer );
+			}
+			
+			private function newGroupCreated(popup:NewGroupPopup):void
+			{
+				InsertLayerInCorrectOrder( layerTree.dataProvider, popup.newGroup );
+				
+				HistoryStack.BeginOperation( new OperationAddLayer( popup.newGroup ) );
+				setTreeItemToSelect( popup.newGroup );
+			}
+			
+			private function layerAdded(popup:Object):void
+			{
+				var layer:LayerEntry = popup.Layer;
+				if ( layer )
+				{
+					InsertLayerInCorrectOrder(popup.Group.children, layer);
+					HistoryStack.BeginOperation( new OperationAddLayer( layer ) );
+					setTreeItemToSelect( layer );
+				}
+			}
+			
+			private function layerEdited(popup:LayerPropertiesPopup):void
+			{
+				var currentState:EditorState = FlxG.state as EditorState;
+				if ( currentState )
+				{
+					currentState.UpdateCurrentTileList( App.getApp().CurrentLayer );
+				}
+			}
+			
+			private function layerRenamed(popup:RenamePopup):void
+			{
+				var currentItem:LayerEntry = layerTree.selectedItem as LayerEntry;
+				// Replace spaces with underscores.
+				var spaces:RegExp = /\s/g;
+				currentItem.name = popup.txt.replace(spaces,"_");
+				//currentItem.name = popup.txt.replace(" ","_");
+				// Force the tree to refresh the display text for that layer.
+				if ( currentItem.parent )
+					currentItem.parent.children.itemUpdated( currentItem );
+				else
+					layerTree.dataProvider.itemUpdated(currentItem);
+			}
+			
+			private function deleteAvatarConnections(avatar:EditorAvatar, layer:LayerAvatarBase, index:uint, ... arguments):uint
+			{
+				if ( avatar.attachment )
+				{
+					var parent:Avatar = avatar.attachment.Parent;
+					if ( parent )
+					{
+						parent.attachment = null;
+					}
+					var child:Avatar = avatar.attachment.Child;
+					if ( child )
+					{
+						child.attachment = null;
+					}
+					avatar.attachment = null;
+				}
+				var i:uint = avatar.linksFrom.length;
+				while (i--)
+				{
+					AvatarLink.RemoveLink(avatar.linksFrom[i]);
+				}
+				i = avatar.linksTo.length;
+				while ( i-- )
+				{
+					AvatarLink.RemoveLink(avatar.linksTo[i]);
+				}
+				return index;
+			}
+			
+			private function deleteLayerListener(eventObj:CloseEvent):void
+			{
+				if (eventObj.detail == AlertBox.YES)
+				{
+					var currentItem:LayerEntry = layerTree.selectedItem as LayerEntry;
+					if ( !currentItem )
+					{
+						return;
+					}
+					HistoryStack.BeginOperation( new OperationDeleteLayer( currentItem as LayerEntry ) );
+					EditorState.CallFunctionOnLayerOrGroupForAllAvatars(currentItem, deleteAvatarConnections);
+					if ( currentItem.IsGroup() )
+					{
+						layerTree.dataProvider.removeItemAt( layerTree.dataProvider.getItemIndex( currentItem ) );
+						if( layerTree.dataProvider.length )
+							setTreeItemToSelect( layerTree.dataProvider[0] );
+						else
+							layerTree.selectedItem = null;
+					}
+					else
+					{
+						currentItem.parent.children.removeItemAt( currentItem.parent.children.getItemIndex( currentItem ) );
+						setTreeItemToSelect( currentItem.parent );
+					}
+				}
+			}
+			
+			private function layerTreeIconFunc(item:Object):Class
+			{
+				var iconClass:Class;
+				if( item is LayerSprites )
+				{
+					iconClass = spritesLeafIcon;
+				}
+				else if ( item is LayerPaths )
+				{
+					iconClass = pathsLeafIcon;
+				}
+				else if ( item is LayerMap )
+				{
+					iconClass = mapLeafIcon;
+				}
+				else if ( item is LayerShapes )
+				{
+					iconClass = shapesLeafIcon;
+				}
+				else if ( item is LayerImage )
+				{
+					iconClass = imageLeafIcon;
+				}
+				return iconClass;
+            }
+
+			
+			//} endregion
+			
+			public function init():void
+			{				
+				var contextMenu:ContextMenu = new ContextMenu();
+				contextMenu.hideBuiltInItems();
+				//contextMenu.customItems = [new ContextMenuItem("Test", true)];
+				
+				contextMenu.addEventListener(ContextMenuEvent.MENU_SELECT, contextMenuActivated);
+				layerTree.contextMenu = contextMenu;
+				
+				App.getApp().assignLayerChangedCallback(layerTreeItemChanged);
+			}
+			
+			[Bindable]
+            [Embed("../../../assets/spritesLayerIcon.png")]
+            private var spritesLeafIcon:Class;
+			
+			[Bindable]
+            [Embed("../../../assets/pathLayerIcon.png")]
+            private var pathsLeafIcon:Class;
+			
+			[Bindable]
+            [Embed('../../../assets/mapLayerIcon.png')]
+            private var mapLeafIcon:Class;
+			
+			[Bindable]
+            [Embed('../../../assets/shapesLayerIcon.png')]
+            private var shapesLeafIcon:Class;
+			
+			[Bindable]
+            [Embed('../../../assets/imageLayerIcon.png')]
+            private var imageLeafIcon:Class;
+			
+			
+			
+		]]>
+	</mx:Script>
+	
+		<mx:Box verticalGap="0" width="100%" height="100%" minHeight="100" >
+			<!--<mx:HBox width="100%" styleName="RibbonHeader" >
+				<mx:Label text="Layers" />
+			</mx:HBox>-->
+			<comUI:MyTree id="layerTree" borderSides="top bottom" width="100%" height="100%" labelField="name" iconFunction="layerTreeIconFunc"
+				itemRenderer="com.UI.LayersTreeItemRenderer" keyFocusChange="treeFocusOutHandler(event)" mouseFocusChange="treeFocusOutHandler(event)"
+				change="layerTreeItemChanged()" itemRollOut="treeRollOut(event)" itemRollOver="treeRollOver(event)" doubleClickEnabled="true" itemDoubleClick="treeDoubleClick(event)"
+				dragEnabled="true" dropEnabled="true" dragMoveEnabled="true"
+				dragOver="onDragOver(event)" dragEnter="onDragEnter(event)" dragComplete="onLayerDragComplete(event)"/>
+		</mx:Box>
+
+</mx:VBox>

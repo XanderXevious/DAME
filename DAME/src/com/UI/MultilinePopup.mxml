@@ -1,0 +1,52 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<comUI:PopupWindow xmlns:mx="http://www.adobe.com/2006/mxml" xmlns:comUI="com.UI.*"
+    width="300" height="200"
+	resizable="true" showGripper="true" showStatusBar="false" maximizable="false" minimizable="false"
+    defaultButton="{btnOK}">
+
+    <mx:Script>
+        <![CDATA[
+
+            [Bindable]
+            public var txt:String;
+			public var opener:Object;
+			
+			public var okPressedCallback:Function;
+           
+           
+            private function ok():void
+			{
+				if ( ta.text.length > 0 )
+				{
+					txt = ta.text;
+					okPressedCallback(this);
+				}
+                opener.setFocus();
+				ForceClose();
+            }
+           
+            override protected function init():void
+			{
+				// Move caret to end of text.
+				ta.setSelection(txt.length, txt.length);
+                ta.setFocus();      
+				
+				width = container.width + 20;
+				height = container.height + titleBar.height + 20;
+				
+				ShowTitleBarIcons = false;
+				
+				super.init();
+            }
+           
+        ]]>
+    </mx:Script>
+
+	<mx:Box id="container" width="100%" height="100%">
+		<mx:Label text="Enter text" textAlign="center" width="100%"/>
+		<mx:TextArea id="ta" text="{txt}" width="100%" height="100%" />
+		<mx:HBox horizontalAlign="center" width="100%">
+			<mx:Button id="btnOK" label="OK" click="ok()"/>           
+		</mx:HBox>
+	</mx:Box>
+</comUI:PopupWindow>

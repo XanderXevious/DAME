@@ -1,0 +1,263 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<mx:ComboBox xmlns:mx="http://www.adobe.com/2006/mxml" creationComplete="init()">
+   <mx:Script>
+	   <!-- This is a combo box that allows you to set the selected value.
+			It also lets you display an icon on the main bar as well as the drop down. Just specify 
+			an iconFunction that returns the class of the icon or null. -->
+	   
+      <![CDATA[
+		  
+		import mx.controls.List;
+		import mx.core.ClassFactory;
+
+		  
+		//create our own factory so we can set the properties before initialized    
+		private var internalDropdownFactory:ClassFactory = new ClassFactory(List);
+
+		//holds the icon image for display
+		private var displayIconObject:Object;
+				 
+
+		public function init():void
+		{
+			//setup the properties on the factory before init so that
+			//the drop down will gracefully adopt them.
+			// It seems that calling these 2 lines will make the icons in the list show only the 1st time it is opened...
+			//internalDropdownFactory.properties = { iconField:"",iconFunction:null };
+			//dropdownFactory = internalDropdownFactory;
+			_iconField = dropdown.iconField = "icon";
+		}
+
+		/**
+		* store the icon field
+		**/
+		private var _iconField:String="icon";
+		[Bindable]
+		public function set iconField(value:String):void
+		{
+			dropdown.iconField = value;
+			_iconField = value;
+			internalDropdownFactory.properties = {iconField:value};
+
+		}
+		public function get iconField():String
+		{
+			return _iconField;
+		}
+
+		/**
+		* store the icon function
+		**/
+		private var _iconFunction:Function;
+		[Bindable]
+		public function set iconFunction(value:Function):void
+		{
+			_iconFunction = value;
+			internalDropdownFactory.properties = {iconFunction:value};
+		}
+		public function get iconFunction():Function
+		{
+			return _iconFunction;
+		}
+
+
+		/**
+		* when the index changes so should the icon 
+		**/
+		override public function set selectedIndex(value:int):void
+		{
+			super.selectedIndex = value;
+			
+			if (value!=-1){ 
+				showIcon();
+			}
+			
+		}
+
+		//set the icon to the selected item
+		private function showIcon():void
+		{
+			
+			var displayIcon:Class = dataProvider.length ? itemToIcon(dataProvider[selectedIndex]) : null;
+			
+			//remove the previous added object so that a new one can 
+			//be created. I would love to find a way to recycle this 
+			//displayIconObject??     
+			if (getChildByName("displayIconObject"))
+			{
+				removeChild(getChildByName("displayIconObject"));
+			}
+
+			//if no icon then return
+			if (!displayIcon && textInput )
+			{
+				//move the textinput to 0 as there is no icon            
+				textInput.x=0;
+				return;
+			}
+			
+			if ( displayIcon )
+			{
+				//add and size the obejct
+				displayIconObject = new displayIcon;
+				displayIconObject.name="displayIconObject";
+				addChild(DisplayObject(displayIconObject));
+			
+				// set the x based on corerradius
+				DisplayObject(displayIconObject).x = getStyle("cornerRadius");
+				
+				//set the y pos of the icon based on height
+				DisplayObject(displayIconObject).y = (height - DisplayObject(displayIconObject).height) / 2;
+			
+				//move the textinput to make room for the icon            
+				textInput.x = DisplayObject(displayIconObject).width + getStyle("cornerRadius");
+			}
+		}
+				
+		/**
+		* make sure to take into account the icon width 
+		**/        
+		override public function set measuredWidth(value:Number):void
+		{
+			super.measuredWidth = value;
+			if ( displayIconObject )
+			{
+				super.measuredWidth = value + DisplayObject(displayIconObject).width + getStyle("cornerRadius");
+			}
+		}
+
+
+		/**
+		* grab the icon based on the data
+		**/
+		public function itemToIcon(data:Object):Class
+		{
+			if (data == null)
+				return null;
+
+			if (iconFunction != null)
+				return iconFunction(data);
+
+			var iconClass:Class;
+			var icon:*;
+
+			if (data is XML)
+			{
+				try
+				{
+					if (data[iconField].length() != 0)
+					{
+						icon = String(data[iconField]);
+						if (icon != null)
+						{
+							iconClass =
+								Class(systemManager.getDefinitionByName(icon));
+							if (iconClass)
+							   return iconClass;
+
+							return document[icon];
+						}
+					}
+				}
+				catch(e:Error)
+				{
+				}
+			}
+
+			else if (data is Object)
+			{
+				try
+				{
+					if (data[iconField] != null)
+					{
+						if (data[iconField] is Class)
+							return data[iconField];
+
+						if (data[iconField] is String)
+						{
+							iconClass = Class(systemManager.getDefinitionByName(
+													data[iconField]));
+							if (iconClass)
+								return iconClass;
+
+							return document[data[iconField]];
+						}
+					}
+				}
+				catch(e:Error)
+				{
+				}
+			}
+
+			return null;
+		}
+
+         private var _selectedValue:String;
+         private var bSelectedValueSet:Boolean = false;
+         private var bDataProviderSet:Boolean = false;
+		 
+         // Override committ, this may be called repeatedly 
+         override protected function commitProperties():void
+		 {
+            // invoke ComboBox version 
+            super.commitProperties();
+ 
+            // If value set and have dataProvider 
+            if (bSelectedValueSet && bDataProviderSet)
+			{
+               // Set flag to false so code won't be called until selectedValue is set again 
+               bSelectedValueSet=false;
+               // Loop through dataProvider 
+               for (var i:int = 0; i < this.dataProvider.length; i++)
+			   {
+                  // Get this item's data 
+				  var item:Object = this.dataProvider[i];
+                  var label:String = item as String;
+				  if ( !label )
+				  {
+					  if ( item.label is String )
+					  {
+						  label = item.label as String;
+					  }
+				  }
+ 
+                  // Check if is selectedValue 
+                  if (label == _selectedValue)
+				  {
+                     // Yes, set selectedIndex 
+                     this.selectedIndex = i;
+                     break;
+                  }
+               }
+            }
+         }
+ 
+         // Trap dataProvider being set 
+         override public function set dataProvider(o:Object):void
+		 {
+            // invoke ComboBox version 
+            super.dataProvider = o;
+ 
+            // This may get called before dataProvider is set, so make sure not null and has entries 
+            if (o != null && o.length)
+			{
+               // Got it, set flag 
+               bDataProviderSet = true;
+            }
+			
+         }
+ 
+         // set for selectedValue 
+         public function set selectedValue(s:String):void
+		 {
+            // Set flag 
+            bSelectedValueSet = true;
+            // Save value 
+            _selectedValue = s;
+            // Invalidate to force commit 
+            invalidateProperties();
+         }
+      ]]>
+   </mx:Script>
+ 
+</mx:ComboBox>

@@ -1,0 +1,49 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<comUI:PopupWindow xmlns:mx="http://www.adobe.com/2006/mxml" xmlns:comUI="com.UI.*"
+    width="100%" height="100%"
+	resizable="true" showGripper="true" showStatusBar="false" maximizable="false" minimizable="false"
+    title="Output Log">
+
+    <mx:Script>
+        <![CDATA[
+import mx.controls.TextArea;
+			
+			[Bindable]
+			public static var LogText:String = "";
+			
+			private static var logBox:TextArea = null;
+			
+			public static function LogWriteLine( str:String):void
+			{
+				LogText = LogText + "<p>" + str + "</p>";
+				
+				if ( logBox )
+				{
+					// scroll text to bottom.
+					logBox.validateNow();
+					logBox.verticalScrollPosition = logBox.maxVerticalScrollPosition;
+				}
+			}
+           
+            override protected function init():void
+			{				
+				width = container.width + 20;
+				height = container.height + titleBar.height + 20;
+				
+				ShowTitleBarIcons = false;
+				
+				super.init();
+				
+				logBox = LogBox;
+				logBox.validateNow();
+				logBox.verticalScrollPosition = logBox.maxVerticalScrollPosition;
+            }
+           
+        ]]>
+    </mx:Script>
+
+	
+	<mx:VBox id="container" horizontalAlign="center" width="100%" height="100%" >
+		<mx:TextArea id="LogBox" width="100%" height="100%" editable="false" htmlText="{LogText}" />
+	</mx:VBox>
+</comUI:PopupWindow>

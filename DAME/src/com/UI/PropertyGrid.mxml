@@ -1,0 +1,328 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:DataGrid xmlns:mx="http://www.adobe.com/2006/mxml"
+	width="100%" height="100%" variableRowHeight="false" editable="true" itemRenderer="com.UI.PropertyGridRenderer"
+	itemEditBegin="PropertyGridItemEditBegin(event)" itemEditEnd="PropertyGridCheckData(event)" initialize="init();">
+	
+	<mx:Script>
+		<![CDATA[
+		import com.Properties.CustomPropertyFilterType;
+		import com.Properties.CustomPropertyType;
+		import com.Properties.CustomPropertyValue;
+		import com.Properties.PropertyBase;
+		import com.Properties.PropertyData;
+		import com.Properties.PropertyType;
+		import flash.display.NativeMenu;
+		import flash.display.Stage;
+		import flash.events.ContextMenuEvent;
+		import flash.ui.ContextMenu;
+		import flash.ui.ContextMenuItem;
+		import flash.utils.Dictionary;
+		import mx.collections.ArrayCollection;
+		import mx.collections.ListCollectionView;
+		import mx.containers.Box;
+		import mx.events.CollectionEvent;
+		import mx.formatters.NumberFormatter;
+		import mx.controls.dataGridClasses.DataGridColumn;
+		import mx.core.ClassFactory;
+		import mx.events.DataGridEvent;
+		import mx.controls.TextInput;
+
+		public var OnEditBegin:Function = null;
+		public var OnCheckData:Function = null;
+		public var OnPreAddProperty:Function = null;
+		
+		private var enableHiddenColumn:Boolean = false;
+		public function set EnableHiddenColumn( enable:Boolean):void
+		{
+			enableHiddenColumn = false;
+			HiddenColumn.visible = true;
+		}
+		
+		private var dataList:ArrayCollection = null;
+		private var listView:ListCollectionView = null;
+		
+		public function SetDataListProvider( provider:ArrayCollection ):void
+		{
+			dataList = provider;
+			listView = new ListCollectionView(provider);
+			listView.filterFunction = hideHidden;
+			listView.refresh();
+			dataProvider = listView;
+		}
+		
+		private function hideHidden(value:Object):Boolean
+		{
+			var baseProp:PropertyData = value as PropertyData;
+			
+			return enableHiddenColumn || !baseProp || !baseProp.BaseProperty || !baseProp.BaseProperty.Hidden;
+		}
+		
+		[Bindable]
+		public static var BooleanDataProvider:ArrayCollection = new ArrayCollection(
+		[ { label:"true", data:true },
+		  { label:"false", data:false } ]);
+	  
+		private function init():void
+		{
+            addEventListener(CollectionEvent.COLLECTION_CHANGE, collectionChange);
+			if ( enableHiddenColumn )
+			{
+				HiddenColumn.visible = true;
+			}
+        }
+		
+		private function collectionChange(evt:CollectionEvent):void
+		{
+            var dict:Dictionary = new Dictionary;
+			if ( dataProvider )
+			{
+				for ( var i:uint = 0; i < dataProvider.length; i++ )
+				{
+					var propType:PropertyBase = dataProvider[i] as PropertyBase;
+					if ( propType )
+					{
+						var type:CustomPropertyFilterType = propType.GetTypeObj() as CustomPropertyFilterType;
+						if ( type && dict[type] == undefined)
+						{
+							type.ParseTypeList();
+							dict[type] = true;
+						}
+					}
+				}
+			}
+        }
+
+		public function displayMenu():void
+		{
+			var addPropertyMenu:ContextMenu = new ContextMenu();
+			var cmi:ContextMenuItem = new ContextMenuItem("String");
+			addPropertyMenu.addItem(cmi);
+			cmi.addEventListener(ContextMenuEvent.MENU_ITEM_SELECT, addPropertyMenuItemSelected);
+			cmi = new ContextMenuItem("Float");
+			cmi.addEventListener(ContextMenuEvent.MENU_ITEM_SELECT, addPropertyMenuItemSelected);
+			addPropertyMenu.addItem(cmi);
+			cmi = new ContextMenuItem("Integer");
+			cmi.addEventListener(ContextMenuEvent.MENU_ITEM_SELECT, addPropertyMenuItemSelected);
+			addPropertyMenu.addItem(cmi);
+			cmi = new ContextMenuItem("Boolean");
+			cmi.addEventListener(ContextMenuEvent.MENU_ITEM_SELECT, addPropertyMenuItemSelected);
+			addPropertyMenu.addItem(cmi);
+			
+			var customTypesMenu:NativeMenu = new NativeMenu();
+			addPropertyMenu.addSubmenu(customTypesMenu, "Custom Types");
+			
+			cmi = new ContextMenuItem("Customise...");
+			cmi.addEventListener(ContextMenuEvent.MENU_ITEM_SELECT, customiseTypesMenuItemSelected);
+			customTypesMenu.addItem(cmi);
+			
+			for each( var type:CustomPropertyType in CustomPropertyType.TypesProvider)
+			{
+				cmi = new ContextMenuItem(type.name);
+				type.contextMenuCallback = addNewCustomProperty;
+				cmi.addEventListener(ContextMenuEvent.MENU_ITEM_SELECT, type.ContextMenuItemSelected);
+				customTypesMenu.addItem(cmi);
+			}
+			
+			addPropertyMenu.display(stage, stage.mouseX, stage.mouseY);
+		}
+		
+		private function customiseTypesMenuItemSelected(event:ContextMenuEvent):void
+		{
+			App.CreatePopupWindow(PropertyTypesEditor, true);
+		}
+		
+		private function addPropertyMenuItemSelected(event:ContextMenuEvent):void
+		{
+			addNewProperty(event.target.caption);
+		}
+		
+		public function addNewCustomProperty(type:CustomPropertyType):void
+		{
+			if ( dataProvider )
+			{
+				if ( OnPreAddProperty != null )
+				{
+					OnPreAddProperty(type);
+				}
+				var classType:Class = CustomPropertyType;
+				if ( type is CustomPropertyFilterType )
+				{
+					var filterType:CustomPropertyFilterType = type as CustomPropertyFilterType;
+					filterType.ParseTypeList();
+					classType = CustomPropertyFilterType;
+				}
+				
+				if ( type.list.length )
+				{
+					dataProvider.addItem( new PropertyType( classType, "Item" + dataProvider.length, type.list[0], type ) );
+				}
+			}
+		}
+		
+		public function addNewProperty(type:String):void
+		{
+			if ( dataProvider )
+			{
+				if ( OnPreAddProperty != null )
+				{
+					OnPreAddProperty(type);
+				}
+				if ( type == "String" )
+				{
+					dataProvider.addItem( new PropertyType(String, "Item" + dataProvider.length, "" ) );
+				}
+				else if (type == "Float" )
+				{
+					dataProvider.addItem( new PropertyType(Number, "Item" + dataProvider.length, 0 ) );
+				}
+				else if (type == "Integer" )
+				{
+					dataProvider.addItem( new PropertyType(int, "Item" + dataProvider.length, 0 ) );
+				}
+				else if ( type == "Boolean" )
+				{
+					dataProvider.addItem( new PropertyType(Boolean, "Item" + dataProvider.length, "true" ) );
+				}
+			}
+		}
+		
+		private function PropertyGridItemEditBegin(event:DataGridEvent):void
+		{
+			if ( OnEditBegin != null)
+			{
+				OnEditBegin(event);
+			}
+			var propType:PropertyBase = dataProvider[event.rowIndex] as PropertyBase;
+			if ( event.columnIndex == 0 )
+			{
+				// Prevent editing of the name part that comes from the spriteentry base class.
+				if( dataProvider[event.rowIndex] is PropertyData )
+				{
+					event.preventDefault();
+				}
+				return;
+			}
+			else if ( event.columnIndex == 2 )
+			{
+				var propTypeData:PropertyType = propType as PropertyType;
+				var editorClass:ClassFactory = new ClassFactory(com.UI.MyComboBox);
+				editorClass.properties = { dataProvider:BooleanDataProvider, selectedValue:propTypeData.Hidden };
+				var dgc:DataGridColumn = event.currentTarget.columns[event.currentTarget.editedItemPosition.columnIndex];
+				dgc.itemEditor = editorClass;
+				return;
+			}
+			else if ( propType )
+			{
+				if ( propType.Type == Boolean )
+				{
+					editorClass = new ClassFactory(com.UI.MyComboBox);
+					editorClass.properties = { dataProvider:BooleanDataProvider, selectedValue:propType.Value };
+					dgc = event.currentTarget.columns[event.currentTarget.editedItemPosition.columnIndex];
+					dgc.itemEditor = editorClass;
+					return;
+				}
+				else if ( propType.Type == String )
+				{
+					editorClass = new ClassFactory(com.UI.MyTextBox);
+					//editorClass.properties = { dataProvider:BooleanDataProvider, selectedValue:propType.Value };
+					dgc = event.currentTarget.columns[event.currentTarget.editedItemPosition.columnIndex];
+					dgc.itemEditor = editorClass;
+					return;
+				}
+				else
+				{
+					var customType:CustomPropertyType = propType.GetTypeObj();
+					if ( customType != null )
+					{
+						if ( customType is CustomPropertyFilterType )
+						{
+							var filterType:CustomPropertyFilterType = customType as CustomPropertyFilterType;
+							filterType.ParseTypeList();
+							/*var dataIndex:int = filterType.indexOfData(propType.Value as CustomPropertyValue);
+							if ( dataIndex != -1 )
+							{
+								propType.TextValue = filterType.list[dataIndex].label;
+							}*/
+						}
+						editorClass = new ClassFactory(com.UI.MyComboBox);
+						editorClass.properties = { dataProvider:customType.list, selectedValue:propType.TextValue };
+						dgc = event.currentTarget.columns[event.currentTarget.editedItemPosition.columnIndex];
+						dgc.itemEditor = editorClass;
+						return;
+					}
+				}
+			}
+			
+			// Default editor. Must do this as the combo editor can override the default.
+			dgc = event.currentTarget.columns[event.currentTarget.editedItemPosition.columnIndex];
+			editorClass = new ClassFactory(mx.controls.TextInput);
+			dgc.itemEditor = editorClass;
+		}
+		
+		
+		private var myFormatter:NumberFormatter = new NumberFormatter();
+
+		private function PropertyGridCheckData(event:DataGridEvent):void
+		{
+			if ( OnCheckData != null)
+			{
+				OnCheckData(event);
+			}
+			if ( event.columnIndex == 1 )
+			{
+				var textInput:TextInput = itemEditorInstance as TextInput;
+				var prop:PropertyBase = dataProvider[event.rowIndex];
+				if ( textInput && event.rowIndex < dataProvider.length )
+				{
+					var type:Class = prop.Type;
+					var newValue:String = textInput.text;
+					myFormatter.useThousandsSeparator = false;
+					if ( type == Number )
+					{
+						myFormatter.precision = 6;
+						textInput.text = myFormatter.format(newValue);
+					}
+					else if ( type == int )
+					{
+						myFormatter.precision=0;
+						textInput.text = myFormatter.format(newValue);
+					}
+				}
+				else if (  prop.GetTypeObj() != null )
+				{
+					var combo:com.UI.MyComboBox = DataGrid(event.target).itemEditorInstance as com.UI.MyComboBox;
+					if ( combo.selectedIndex >= 0 && combo.selectedIndex < combo.dataProvider.length )
+					{
+						prop.Value = combo.dataProvider[combo.selectedIndex];
+					}
+					else
+					{
+						prop.Value = null;
+					}
+				}
+			}
+			else if ( event.columnIndex == 2 )
+			{
+				var propTypeData:PropertyType = dataProvider[event.rowIndex] as PropertyType;
+				combo = DataGrid(event.target).itemEditorInstance as com.UI.MyComboBox;
+				if ( combo.selectedIndex >= 0 && combo.selectedIndex < combo.dataProvider.length )
+				{
+					var res:Object = combo.dataProvider[combo.selectedIndex];
+					propTypeData.Hidden = res.data;
+				}
+				else
+				{
+					propTypeData.Hidden = false;
+				}
+			}
+		}
+		
+		]]>
+	</mx:Script>
+	
+	<mx:columns>
+		<mx:DataGridColumn headerText="Property" dataField="Name" draggable="false" />
+		<mx:DataGridColumn headerText="Default Value" dataField="TextValue" draggable="false"  />
+		<mx:DataGridColumn id="HiddenColumn" headerText="Hidden" dataField="Hidden" draggable="false" visible="false" />
+	</mx:columns>
+</mx:DataGrid>

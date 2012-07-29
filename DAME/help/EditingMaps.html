@@ -1,0 +1,158 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+	<head>
+		<META http-equiv="Content-Type" content="text/html; charset=UTF-8">
+		<title>DAME - Editing Maps</title>
+		<style type="text/css">
+			h1 {color:#0000CC;}
+			h2 {color:#000099;}
+			h3 {color:#000066;}
+			pc {color:#AA0000;}
+			dpc {color:#0000AA;}
+		</style>
+	</head>
+	<body>
+		<p align=right><a href="index.html">Return to help contents...</a></p>
+		<h1>Editing a DAME map</h1>
+		<p>Dame provides many features to make editing a level/map for your game easier. Click on the links to learn more about each feature:</p>
+		<ol>
+			<li><a href="#start">Starting</a> </li>
+			<li><a href="#painting">Painting</a> </li>
+			<li><a href="#erasing">Erasing</a> </li>
+			<li><a href="#selection">Selection </a> </li>
+			<li><a href="#tilematrix">Tile Matrix</a> </li>
+			<li><a href="#drawing">Drawing on Tiles</a></li>
+			<li><a href="#move">Moving and Resizing</a> </li>
+			<li><a href="#misc">Miscellaneous features</a> </li>
+		</ol>
+		
+		<p/>
+		<h2><a name="start">1. Starting</a></h2>
+		<p>To begin with make sure that you have a map layer in your project. Select the layers tab on the left side of the editor and right click on either a group or an empty space in the panel. You can either add a new group containing a map or add a map to an existing group. Once you have added a map you will be presented with this window:</p>
+		<img src="maplayerproperties.jpg" alt="The layer properties window."/>
+		<ol>
+			<li>Tileset: the location of the image used to represent the tiles.</li>
+			<li>TileWidth: The width of each tile in pixels.</li>
+			<li>TileHeight: The height of each tile in pixels.</li>
+			<li>Tilemap Type: Change this if you want to create an isometric map. See <a href="#Isometric">Isometric maps</a></li>
+			<li>Has Height: Select this to give the tiles height. I.e. the next tile above will start below the top of the tile image. See <a href="#Isometric">Isometric maps</a></li>
+			<li>x: The x coordinate of the top left of the map in pixels.</li>
+			<li>y: The y coordinate of the top left of the map in pixels.</li>
+			<li>x unit: The x position of the top left of the map in tile units. This value and 'x' will automatically update if you change the other value.</li>
+			<li>y unit: The y position of the top left of the map in tile units - linked to the 'y' value.</li>
+			<li>width: The width of the map in tiles.</li>
+			<li>height: The height of the map in tiles.</li>
+			<li>Placement X: This is not relevant when adding a new map, but is useful if resizing an existing map as it controls where all the tiles from the map get shifted during the resize operation.</li>
+			<li>Placement Y: As above.</li>
+			<li>draw idx: The first drawn tile index. By default this is 1, meaning that tile 0 is transparent and not visible.</li>
+			<li>collide idx: The first tile index used for collisions. By default this is 1, meaning that tile 0 is not considered for collisions in your game.</li>
+			<li>Repeat x: Select this to repeat the tilemap horizontally.</li>
+			<li>Repeat y: Select this to repeat the tilemap vertically.</li>
+			<li>scroll x: The rate of the scroll of the map horizontally. Larger numbers scroll it faster.</li>
+			<li>scroll y: The rate of the scroll of the map vertically.</li>
+		</ol>
+		<p>For a tilemap to work you will need a tilemap image, also known as a spritesheet, which can consist of tiles in a single row or multiple rows. You can either import an existing image by clicking on the "..." button or you can create a new image and edit it in the editor (you will be given an option for this if you press OK without specifying a source image). DAME will try to guess the size of any imported image but you can change the tile width and tile height yourself by tweaking the values in the controls. You also have options to specify the position of the map in the world and its dimensions in tile units. (You have the option to edit the layer properties later on if you wish by selecting the option "Edit Layer Info" when you right click on a map layer in the layers panel.)</p>
+		<p>With DAME you will be able to see a preview of each tile in the tilemap at the top of the window, updated in real-time whenever you change any values. You should see on the first tile a representation of the 'shape' of the tile.</p>
+		<p>Once you have clicked OK you should find the map in the layers panel. Make sure to left click on it to make it the active layer so that you will be ready to edit it. If you wish you can import existing tilemap data in comma separated values (CSV) format. Do this by right-clicking on the map in the layers panel and selecting "Import Map Data".</p>
+		
+		<h2><a name="painting">2. Painting</a></h2>
+		<p>With the map layer selected click on the paint brush icon on the DAME toolbar. This will allow you to paint on the tilemap.</p>
+		<img src="paintIcon.jpg" alt="The paint brush icon."/> 
+		<p>In order to paint you must first familiarise yourself with the tiles tool window. This will pop up whenever you have a map layer selected. You can resize the window by dragging it on the bottom right, and double click the title bar to minimise and restore its size:</p>
+		<img src="tiles_window.jpg" alt="The tiles tool window."/> 
+		<p>Left clicking on a tile in the window will make it the active tile. Right clicking will bring up the menu with options to zoom in and out, copy, insert and delete tiles and to view the raw image data. For now just select the tile you wish and hold down the left mouse button to paint that tile somewhere within the valid region of the map. You can identify the valid map area by looking for the border around the map. If you get lost press Ctrl-G or go to the main menu and select View->Center Layer to refocus the view to the center of the map.</p>
+		<p>It is also possible to block fill contiguous areas with one tile. To do this just select the paint bucket icon on the toolbar and the click on a tile for it, and all its neighbouring tiles of the same type, to automatically be changed to the selected tile in the tiles window.</p>
+		<img src="paintbucketicon.jpg" alt="The paint bucket icon."/> 
+		
+		<h2><a name="erasing">3. Erasing</a></h2>
+		<p>There are two ways to erase a tile. As erasing a tile just sets the tile index to 0 you can select tile 0 and paint that down, otherwise you can hold down the right mouse button and paint on the map to erase, regardless of the currently selected tile. Note that if you set the draw index of the layer to 0 then tile 0 will actually be drawn. By default it is 1. To change this you can right click on the layer and edit the info.</p>
+		
+		<h2><a name="selection">4. Selection</a></h2>
+		<p>With the map layer selected click on the selection icon on the DAME toolbar.<img src="selecticon.jpg" alt="The selection icon."/> </p>
+		
+		<p>Now left clicking on the map will allow you to select areas. You can click on individual tiles or drag a box to select every tile that falls within the box. Ctrl-click to select add to/delete from the current selection and Shift-click to add to the selection. The selected areas will be outlined by selection boxes.</p>
+		<p>Hold your left mouse button over any selected area and move the mouse to move the selection. Until you change your selection it will remember any tiles when you move the selected area over them, allowing you to freely move it wherever you want.</p>
+		<p>You can also copy and paste any tile selection, even onto other layers that use different tile maps!</p>
+		<p>An alternative method of selection is to use the magic wand. Clicking on the wand icon on the toolbar and then on any tile in the map will automatically select every contiguous tile of the same type.</p>
+		<img src="magicwandicon.jpg" alt="The magic wand icon."/> 
+		
+		<h2><a name="tilematrix">5. Tile Matrix</a></h2>
+		<p>The tile matrix allows you to automatically paint blocks of tiles in one go, correctly accounting for edges and inside tiles. It works by looking at the relationship between tiles you are painting in the new matrix on your map and their neighbours, finding the best match to the tiles in the matrix.</p>
+		<p>First click on the tile matrix icon with a map layer selected.<img src="tilematrixicon.jpg" alt="The tile matrix icon."/> This should now bring up the tile matrix window, shown below.</p>
+		<img src="tilematrix.jpg" alt="The tile matrix window."/> 
+		<ol>
+			<li>Matrix chooser: The name of the current matrix is displayed here, and you can change the matrix by clicking on the area and selecting a new one.</li>
+			<li>Add New Matrix: Clicking on the + button adds a new matrix as a copy of the current one. Will give you a prompt to enter a name. Names do not have to be unique.</li>
+			<li>Rename matrix: Clicking on the 'R' button lets you change the name of the current matrix.</li>
+			<li>Empty matrix: Clicking on the 'E' button lets you empty the current matrix.</li>
+			<li>Delete matrix: Clicking on the - button lets you delete the current matrix.</li>
+			<li>The matrix: Drag tiles into here to update the main matrix.</li>
+			<li>Matrix settings: Lets you control the dimensions of the matrix as well as some extra properties:
+				<ul>
+					<li>Randomize middle tiles: If ticked then areas completely surrounded by tiles either horizontally or vertically will be randomly chosen from the middle tiles in the matrix. If not then they will be evenly spread across all middle tiles. This is only relevant when you have a matrix larger than 3 x 3 tiles.</li>
+					<li>Ignore clear tiles: Lets you choose to either paint the invisible tiles or only paint visible tiles.</li>
+					<li>Ignore map edges: This is for when your matrix touches the edge of a map. If ticked then it will consider the map edges as not being edge tiles but instead as inner tiles. If unset then the tiles at the edge will be considered as edge tiles. It effectively lets you create blocks that continue beyond the visible map regions.</li>
+					<li>Allow special tile connections: If ticked then the right side of the matrix window will be visible and special tile connections will be active. If unticked then you will only have the basic matrix to use.</li>
+				</ul>
+			</li>
+			<li>Connection set row: You can choose to change the connection set used for this row from the drop down box. You can drag tiles into the row to set them. When you hover the cursor over a tile in the connection set some little boxes will appear at the 4 corners and 4 edges of the tile. Clicking on each box will cycle the colours between clear, green and red. These boxes control how the tile looks for other tiles when deciding if it should be placed down. If a box is red then the tile that connects in that direction must not be present. If it is green then it must be present, and if clear then it does not matter if the neighbouring tile in that direction is present or not.</li>
+			<li>Row options: Choose to remove this row, rename the set this row uses or remove the set this row uses entirely.</li>
+			<li>Commands: You can add a new row, add a new set or reset to the default sets.</li>
+		</ol>
+		<p>If you're creating a new project it will initially be empty, so on the tiles window left click and drag a tile from it into a box within the tile matrix. Repeat for all the tiles you wish, also making sure that it fits the correct dimensions. Note that you can also drag tiles from one box in the tile matrix window to another.</p>
+		<p>Now, go onto the map and begin to paint. DAME will calculate the correct tile to place down based on the neighbouring tiles you've placed down during this session of using the tile matrix. Left click-dragging will generate a box and right clicking will erase individual tiles from the matrix, but not from the map itself. To confirm the matrix just click on the green tick button on the toolbar. To cancel the matrix click on the red cross button, change layers or go out of tile matrix mode. Note that nothing will be confirmed until you click on the green tick.<img src="tickicon.jpg" alt="The tick icon."/> You should find that it is possible to create some simple map layouts with little effort and without the need to change tiles over and over again:</p>
+		<p>One final tool is the ability to join new matrices with existing tiles using the matrix magnet, selected from the toolbar:<img src="magneticon.jpg" alt="The matrix magnet icon."/> When this is selected any tiles you select will be highlighted differently. They will become part of the matrix without those tiles on the map being replaced by the tiles in the matrix.</p>
+		<img src="tilematrix_painting.jpg" alt="The results of using the tile matrix."/> 
+		
+		<h2><a name="drawing">6. Drawing on Tiles</a></h2>
+		<p>It is also possible to edit the tilemap image from within DAME itself. The advantage of this is that you can easily generate seamless tiles and add tiles as you need without the need to switch to a paint package again and again. While this isn't intended as a replacement to conventional paint programs, it should allow you to do quick editing on the images and visualise the results immediately. First click on the draw icon while you have a tilemap selected.<img src="drawicon.jpg" alt="The draw icon."/> Then to start with just draw anywhere on a tile on a map. You should see the results reflected immediately on this and any other map that uses this tilemap image:</p>
+		<img src="tile_drawing.jpg" alt="The results of drawing on a tile."/> 
+		<p>DAME provides some basic drawing tools:</p>
+		<table border="0">
+		<tr>
+			<td width="10"/>
+			<td>
+				<table>
+				<tr><td><img src="lockicon.jpg" alt="Lock tiles"/>Locked tile mode - when selected then while the mouse is held down it will only paint over the tile you initially clicked the mouse on.</td></tr>
+				<tr><td><img src="eyedroppericon.jpg" alt="Eyedropper"/>Eyedropper - choose a colour by clicking on the map.</td></tr>
+				<tr><td><img src="erasericon.jpg" alt="Eraser"/>Eraser - switches to eraser mode.</td></tr>
+				<tr><td><img src="linedrawicon.jpg" alt="Draw Lines"/>Draw Lines - draw (or erase) lines.</td></tr>
+				<tr><td><img src="paintbucketicon.jpg" alt="Paint Bucket"/>Paint Bucket - fill (or erase) a region (within one tile) with the current colour.</td></tr>
+				<tr><td>Colour select - click on the coloured box to choose the drawing colour.</td></tr>
+				<tr><td>Opacity - select how opaque your brush strokes will be.</td></tr>
+				<tr><td>Size - select the size/thickness of your brush strokes.</td></tr>
+				<tr><td><img src="drawordericon.jpg" alt="Draw order"/>Draw order - choose from one of three modes to control how you draw on tiles. These can be Always (there are no restrictions to where pixels will be drawn); Above (you will only replace colour of pixels - opacity of pixels will remain unchanged ); Behind (you will draw behind any existing pixels)</td></tr>
+				<tr><td><img src="drawbaseicon.jpg" alt="Draw On Base"/>Draw on base - This is for isometric/2.5d tiles, and allows you to only draw on the base area of the tile - i.e. the part of the tile that represents the ground.</td></tr>
+				<tr><td><img src="noiseicon.jpg" alt="Random Noise"/>Random noise - pixels will be drawn with a random intensity.</td></tr>
+				<tr><td><img src="perlinicon.jpg" alt="Perlin Noise"/>Perlin noise - pixels will be drawn using perlin noise. The noisemap will be randomly generated each time you begin a new brush stroke. The scale of the noisemap can be controlled with the "sz" control to the right - 1 being a perfect 1-1 mapping of the noisemap onto each tile.</td></tr>
+				<tr><td>16 colour palette - An easy access palette of 16 colours. Click to select and double click to modify the colour.</td></tr>
+				</table>
+			</td>
+		</tr>
+		</table>
+		<p>Right clicking on a tile in drawing mode will bring up a context menu. You can lock the current tile under the cursor so that any drawing will only happen on the current locked tile, preventing you from accidentally drawing on a neighbouring tile. You can also insert new tiles quickly from there.</p>
+		
+		<h2><a name="move">7. Moving and Resizing.</a></h2>
+		<p>There are two ways to move and resize maps. The first is to edit them in the layer properties. The second is to manipulate them in real time. With the tilemap selected and in editing mode click on the Move/Resize Maps icon: <img src="resizemapicon.jpg" alt="Move/Resize Maps"/>. Bars should appear around the edges and the corner of the map. If you click on any of the bars you will be able to drag the edge of the tilemap around, allowing you to either grow or shrink the map as you wish. If you click and drag within the map itself you can move the map around. Finally, if you have Snap To Grid enabled, when you move the map around it will move so that it will be aligned with the tile units at its original location.</p>
+		<p>Note that with version 2 of DAME and above you can also select a group and move the entire group in real-time.</p>
+		
+		<h2><a name="Isometric">8. Isometric and 2.5d Maps.</a></h2>
+		DAME supports multiple types of pseudo 3d tilemap. When you create or edit the tilemap properties you can specify the tilemap type. DAME will only expose the options relevant to the type of tilemap you choose, simplifying the process. Don't worry - you can still get access to all of the hidden values through the exporter. Custom Iso is the only tilemap type where all of the options are available. If you select the "Has Height" option then this will also make available some parameters. Here is an explanation of the parameters:
+		<ol>
+			<li>Base tile width: The width of the actual base of the tile, used to calculate where the next tile begins. Always less than Tile Width.</li>
+			<li>Base tile height:The height of the actual base of the tile, used to calculate where the next tile below begins. Always less than Tile Height.</li>
+			<li>Stack height: When stacking tiles above each other, this is the amount each tile will be placed above the one below.</li>
+			<li>X Stagger: Staggering allows the even rows of tiles to be offset by a certain amount of pixels.</li>
+			<li>X Tile Offset: The number of pixels each new row will be offset by.</li>
+			<li>Y Tile Offset: The number of pixels each tile within a row will be offset from the previous one.</li>
+		</ol>
+		
+		<h2><a name="misc">9. Miscellaneous features.</a></h2>
+		<p>Select View Raw Image Data to view the actual tilemap image and resize it as you wish. You also have the option to save it there too (Note that saving the project will save any changes you have made to the tilemap anyway).</p>
+		<p>Underneath the layers panel there is a tickbox for "Has Hits". This does nothing internally but is useful when exporting.</p>
+		
+		<center class="copyright"> 
+		</center>
+	</body>
+</html>
+<!-- -->

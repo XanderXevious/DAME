@@ -1,0 +1,422 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<mx:VBox xmlns:mx="http://www.adobe.com/2006/mxml" width="100%" height="100%" xmlns:comUI="com.UI.*"
+	horizontalScrollPolicy="off" creationComplete="init()" label="Sprites">
+	
+	<mx:Script>
+		<![CDATA[
+			import com.Editor.EditorTypeSprites;
+			import com.EditorState;
+			import com.Operations.HistoryStack;
+			import com.Operations.OperationAddSpriteEntry;
+			import com.Operations.OperationDeleteSpriteEntry;
+			import com.Operations.OperationReorderSpriteEntry;
+			import com.Properties.PropertyType;
+			import com.Tiles.SpriteEntry;
+			import com.Utils.Global;
+			import flash.display.Bitmap;
+			import flash.display.BitmapData;
+			import flash.display.DisplayObject;
+			import flash.events.ContextMenuEvent;
+			import flash.geom.Point;
+			import flash.geom.Rectangle;
+			import flash.ui.ContextMenuItem;
+			import mx.controls.listClasses.IListItemRenderer;
+            import mx.managers.PopUpManager;
+			import com.UI.RenamePopup;
+			import mx.events.*;
+			import mx.collections.ArrayCollection;
+			import mx.events.DragEvent;
+            import mx.managers.DragManager;
+            import mx.core.DragSource;
+			import mx.core.UIComponent;
+			import com.Tiles.ImageBank;
+			import org.flixel.FlxG;
+			
+			[Bindable]
+            private var spritesContextMenu:ContextMenu;
+			private var editSpriteMenuItem:ContextMenuItem;
+			
+			private var _draggedSprite:SpriteEntry = null;
+			private var highlightedSpriteTreeItem:SpriteEntry = null;
+			
+			// Called when the user moves the drag proxy onto the drop target.
+			private function onDragEnter( event:DragEvent ) : void
+            {
+                event.preventDefault();
+                event.currentTarget.hideDropFeedback(event);
+
+                var ds:DragSource = event.dragSource;
+                var items:Array = ds.dataForFormat("treeItems") as Array;
+                if (items != null && items.length > 0 )
+				{
+					if ( items[0] == App.getApp().spriteData[0] )
+					{
+						// Prevent dragging the root folder for all sprites.
+						return;
+					}
+					else if (items[0] is SpriteEntry)
+					{
+						_draggedSprite = items[0];
+						HistoryStack.BeginOperation( new OperationReorderSpriteEntry( _draggedSprite ) );
+					}
+				}
+                DragManager.acceptDragDrop(UIComponent(event.currentTarget));
+            }
+			
+			private function onDragOver( event:DragEvent ) : void
+			{
+				// Prevent dragging items outside of their parent control.
+				if ( event.dragInitiator != event.currentTarget )
+				{
+					event.preventDefault();
+					event.currentTarget.hideDropFeedback(event);
+					DragManager.showFeedback(DragManager.NONE);
+				}
+			}
+
+			private function onSpriteDragComplete( event:DragEvent ) : void
+            {
+				// Prevent moving anything outside the root folder.
+				
+				var groups:ArrayCollection = App.getApp().spriteData;
+				
+				if ( _draggedSprite == groups[0] )
+				{
+					// Dragging an item before the root node makes it the first entry in the root node.
+					groups[1].children.addItemAt(_draggedSprite, 0 );
+					groups.removeItemAt( 0 );
+				}
+				else if ( groups.length > 1 )
+				{
+					// Dragging an item after the root node makes it the last entry in the root node.
+					groups[0].children.addItemAt( _draggedSprite, groups[0].children.length );
+					groups.removeItemAt( 1 );
+				}
+			}
+
+			private function contextMenu_menuSelect(event:ContextMenuEvent):void
+			{
+				/*var currentItem:SpriteEntry = SpriteListTree.selectedItem as SpriteEntry;
+				if ( currentItem && currentItem.isSprite() )
+				{
+					editSpriteMenuItem.visible = true;
+				}
+				else
+				{
+					editSpriteMenuItem.visible = false;
+				}*/
+				
+				var rightClickItemRenderer:IListItemRenderer = null;
+                
+                if (event.mouseTarget is IListItemRenderer)
+                    rightClickItemRenderer = IListItemRenderer(event.mouseTarget);
+                else if (event.mouseTarget.parent is IListItemRenderer)
+                    rightClickItemRenderer = IListItemRenderer(event.mouseTarget.parent);
+                
+                if (rightClickItemRenderer != null )
+                {
+                    var rightClickIndex:int = SpriteListTree.itemRendererToIndex(rightClickItemRenderer);
+                    
+                    if (rightClickIndex != int.MIN_VALUE && SpriteListTree.selectedIndex != rightClickIndex)
+					{
+                        SpriteListTree.selectedIndex = rightClickIndex;
+						SpriteListTree.selectedItem = rightClickItemRenderer.data;
+					}
+                }
+				
+            }
+
+			
+            private function contextMenuItem_renameSelect(evt:ContextMenuEvent):void
+			{
+				if ( SpriteListTree.selectedItem != null )
+				{
+					var popup:RenamePopup = App.CreatePopupWindow(RenamePopup,true, this.owner) as RenamePopup;
+					if ( popup )
+					{
+						popup.txt = SpriteListTree.selectedItem.name;
+						popup.opener = this;
+						popup.okPressedCallback = spriteRenamed;   
+					}
+					
+				}
+			}
+			
+			private function spriteRenamed(popup:RenamePopup):void
+			{
+				SpriteListTree.selectedItem.name = popup.txt;
+				App.getApp().spriteData.itemUpdated(SpriteListTree.selectedItem);
+			}
+			
+			private function contextMenuItem_addFolder(evt:ContextMenuEvent):void
+			{
+				if ( SpriteListTree.selectedItem != null )
+				{
+					var selected:SpriteEntry = SpriteListTree.selectedItem as SpriteEntry;
+					var group:SpriteEntry = !selected.isSprite() ? selected : findParentEntry( App.getApp().spriteData[0], selected );
+					
+					var newEntry:SpriteEntry = new SpriteEntry( "New Folder", new ArrayCollection() );
+					group.children.addItemAt( newEntry, 0 );
+					
+					HistoryStack.BeginOperation( new OperationAddSpriteEntry( newEntry, group ) );
+					
+					App.getApp().spriteData.itemUpdated( group );
+					SpriteListTree.expandChildrenOf( group, true );
+				}
+			}
+			
+			private function findParentEntry( group:SpriteEntry, sprite:SpriteEntry ): SpriteEntry
+			{
+				var currentState:EditorState = FlxG.state as EditorState;
+				return currentState.FindParentSpriteEntry( group, sprite );
+			}
+			
+			private function spriteAdded(popup:Object):void
+			{
+				var selected:SpriteEntry = SpriteListTree.selectedItem as SpriteEntry;
+				var group:SpriteEntry = !selected.isSprite() ? selected : findParentEntry( App.getApp().spriteData[0], selected );
+				
+				group.children.addItem( popup.Entry );
+				HistoryStack.BeginOperation( new OperationAddSpriteEntry( popup.Entry, group ) );
+					
+				App.getApp().spriteData.itemUpdated( group );
+				SpriteListTree.expandChildrenOf( group, true );
+			}
+			
+			private function contextMenuItem_addAnimSprite(evt:ContextMenuEvent):void
+			{
+				if ( SpriteListTree.selectedItem != null )
+				{
+					var popup:SpriteDataPopup = SpriteDataPopup(App.CreatePopupWindow(SpriteDataPopup,true));
+					if ( popup )
+					{
+						popup.txt = SpriteListTree.selectedItem.name;
+						popup.opener = this;
+						popup.okPressedCallback = spriteAdded;  
+					}
+				}
+			}
+			
+			private function multipleSpritesAdded(popup:Object):void
+			{
+				var selected:SpriteEntry = SpriteListTree.selectedItem as SpriteEntry;
+				var group:SpriteEntry = !selected.isSprite() ? selected : findParentEntry( App.getApp().spriteData[0], selected );
+				
+				for ( var i:uint = 0; i < popup.multipleImages.length; i++)
+				{
+					if ( popup.multipleImages[i].entry != null )
+					{
+						group.children.addItem( popup.multipleImages[i].entry );
+						HistoryStack.BeginOperation( new OperationAddSpriteEntry( popup.multipleImages[i].entry, group ) );
+					}
+				}
+					
+				App.getApp().spriteData.itemUpdated( group );
+				SpriteListTree.expandChildrenOf( group, true );
+			}
+			
+			private function contextMenuItem_addMultipleAnimSprites(evt:ContextMenuEvent):void
+			{
+				if ( SpriteListTree.selectedItem != null )
+				{
+					var popup:SpriteDataPopup = SpriteDataPopup(App.CreatePopupWindow(SpriteDataPopup,true));
+					if ( popup )
+					{
+						popup.loadMultiple = true;
+						popup.txt = SpriteListTree.selectedItem.name;
+						popup.opener = this;
+						popup.okPressedCallback = multipleSpritesAdded;  
+					}
+				}
+			}
+			
+			private function contextMenuItem_addTileSprite(evt:ContextMenuEvent):void
+			{
+				if ( SpriteListTree.selectedItem != null )
+				{
+					var popup:SpriteTileDataPopup = App.CreatePopupWindow(SpriteTileDataPopup,true) as SpriteTileDataPopup;
+					if ( popup )
+					{
+						popup.txt = SpriteListTree.selectedItem.name;
+						popup.opener = this;
+						popup.okPressedCallback = spriteAdded;  
+					}
+				}
+			}
+			
+			private function contextMenuItem_editSprite(evt:ContextMenuEvent):void
+			{
+				// Ignores the value of evt as called from doubleClick event handler too.
+				
+				if ( SpriteListTree.selectedItem != null && SpriteListTree.selectedItem.isSprite() )
+				{
+					var entry:SpriteEntry = SpriteListTree.selectedItem as SpriteEntry;
+					if ( entry.IsTileSprite )
+					{
+						var popup:SpriteTileDataPopup = App.CreatePopupWindow(SpriteTileDataPopup,true) as SpriteTileDataPopup;
+						if ( popup )
+						{
+							popup.opener = this;
+							popup.Entry = SpriteListTree.selectedItem as SpriteEntry;
+						}
+					}
+					else
+					{
+						var spriteAnimPopup:SpriteDataPopup = App.CreatePopupWindow(SpriteDataPopup,true) as SpriteDataPopup;
+						if ( spriteAnimPopup )
+						{
+							spriteAnimPopup.opener = this; 
+							spriteAnimPopup.Entry = SpriteListTree.selectedItem as SpriteEntry;
+						}
+					}
+				}
+			}
+			
+			private function contextMenuItem_duplicate(evt:ContextMenuEvent):void
+			{
+				if ( SpriteListTree.selectedItem != null && SpriteListTree.selectedItem.isSprite() )
+				{
+					var sprite:SpriteEntry = SpriteListTree.selectedItem as SpriteEntry;
+					var group:SpriteEntry = findParentEntry( App.getApp().spriteData[0], sprite );
+					
+					var newsprite:SpriteEntry = new SpriteEntry( sprite.name + "_2_" );
+					
+					if ( sprite.IsTileSprite )
+					{
+						newsprite.TileOrigin.x = sprite.TileOrigin.x;
+						newsprite.TileOrigin.y = sprite.TileOrigin.y;
+						newsprite.IsTileSprite = true;
+					}
+					else
+					{
+						newsprite.previewIndex = sprite.previewIndex;
+					}
+					newsprite.SetImageFile( sprite.imageFile );
+					newsprite.SetClassName( sprite.className );
+					newsprite.SetConstructorText( sprite.constructorText );
+					newsprite.Bounds.x = sprite.Bounds.x;
+					newsprite.Bounds.y = sprite.Bounds.y;
+					newsprite.Bounds.width = sprite.Bounds.width;
+					newsprite.Bounds.height = sprite.Bounds.height;
+					newsprite.Anchor.x = sprite.Anchor.x;
+					newsprite.Anchor.y = sprite.Anchor.y;
+					newsprite.previewBitmap = new Bitmap( sprite.previewBitmap.bitmapData.clone() );
+					
+					for each( var prop:PropertyType in sprite.properties )
+					{
+						newsprite.properties.addItem(new PropertyType(prop.Type,prop.Name,prop.Value));
+					}
+					
+					group.children.addItem( newsprite );
+					HistoryStack.BeginOperation( new OperationAddSpriteEntry( newsprite, group ) );
+						
+					App.getApp().spriteData.itemUpdated( group );
+				}
+			}
+			
+			private function contextMenuItem_delete(evt:ContextMenuEvent):void
+			{
+				if ( SpriteListTree.selectedItem != null && SpriteListTree.selectedItem != App.getApp().spriteData[0])
+				{
+					var selected:SpriteEntry = SpriteListTree.selectedItem as SpriteEntry;
+					var group:SpriteEntry = findParentEntry( App.getApp().spriteData[0], selected );
+				
+					// Must be done before we removeImageRef.
+					HistoryStack.BeginOperation( new OperationDeleteSpriteEntry( selected, group ) );
+					
+					ImageBank.RemoveImageRef( selected.imageFile );
+					
+					var currentState:EditorState = FlxG.state as EditorState;
+					if ( currentState )
+					{
+						currentState.RemoveSpriteGroupReferences( selected );
+					}
+					group.children.removeItemAt( group.children.getItemIndex( selected ) );
+					App.getApp().spriteData.itemUpdated(selected);
+					
+				}
+			}
+			
+			private function contextMenuItem_changeSprites(evt:ContextMenuEvent):void
+			{
+				if ( SpriteListTree.selectedItem != null && SpriteListTree.selectedItem.isSprite() )
+				{
+					var editor:EditorState = FlxG.state as EditorState;
+					var spriteEditor:EditorTypeSprites = editor.getCurrentEditor(App.getApp()) as EditorTypeSprites;
+					if ( spriteEditor )
+					{
+						spriteEditor.ChangeSelectionToSprite(SpriteListTree.selectedItem as SpriteEntry);
+					}
+				}
+			}
+			
+			public function init():void
+			{
+				var cmi:ContextMenuItem = new ContextMenuItem("Rename");
+				cmi.addEventListener(ContextMenuEvent.MENU_ITEM_SELECT, contextMenuItem_renameSelect);
+
+				spritesContextMenu = new ContextMenu();
+				spritesContextMenu.hideBuiltInItems();
+				spritesContextMenu.customItems = [cmi];
+				
+				editSpriteMenuItem = cmi = new ContextMenuItem("Edit Sprite");
+				cmi.addEventListener(ContextMenuEvent.MENU_ITEM_SELECT, contextMenuItem_editSprite);
+				spritesContextMenu.customItems.push(cmi);
+				
+				cmi = new ContextMenuItem("Add Folder");
+				cmi.addEventListener(ContextMenuEvent.MENU_ITEM_SELECT, contextMenuItem_addFolder);
+				spritesContextMenu.customItems.push(cmi);
+				
+				cmi = new ContextMenuItem("Add Anim Sprite");
+				cmi.addEventListener(ContextMenuEvent.MENU_ITEM_SELECT, contextMenuItem_addAnimSprite);
+				spritesContextMenu.customItems.push(cmi);
+				
+				cmi = new ContextMenuItem("Add Multiple Anim Sprites");
+				cmi.addEventListener(ContextMenuEvent.MENU_ITEM_SELECT, contextMenuItem_addMultipleAnimSprites);
+				spritesContextMenu.customItems.push(cmi);
+				
+				cmi = new ContextMenuItem("Add Spritesheet");
+				cmi.addEventListener(ContextMenuEvent.MENU_ITEM_SELECT, contextMenuItem_addTileSprite);
+				spritesContextMenu.customItems.push(cmi);
+				
+				cmi = new ContextMenuItem("Duplicate Sprite");
+				cmi.addEventListener(ContextMenuEvent.MENU_ITEM_SELECT, contextMenuItem_duplicate);
+				spritesContextMenu.customItems.push(cmi);
+				
+				cmi = new ContextMenuItem("Change Selected Sprites In Layer To This Entry");
+				cmi.addEventListener(ContextMenuEvent.MENU_ITEM_SELECT, contextMenuItem_changeSprites);
+				spritesContextMenu.customItems.push(cmi);
+				
+				cmi = new ContextMenuItem("Delete");
+				cmi.addEventListener(ContextMenuEvent.MENU_ITEM_SELECT, contextMenuItem_delete);
+				spritesContextMenu.customItems.push(cmi);
+				
+				
+				
+				
+				spritesContextMenu.addEventListener(ContextMenuEvent.MENU_SELECT, contextMenu_menuSelect);
+				SpriteListTree.contextMenu = spritesContextMenu;
+				
+				SaveSeparately.selected = Global.SaveSpritesSeparetely;
+				
+			}
+			
+			private function treeDoubleClick(event:ListEvent):void
+			{
+				contextMenuItem_editSprite(null);
+			}
+			
+		]]>
+    </mx:Script>
+	
+	<mx:Number id="lastSpriteRollOverIndex" />
+	
+	<mx:VBox width="100%" verticalGap="0" height="100%" minHeight="100" >
+		<comUI:MyTree id="SpriteListTree" borderSides="top bottom" width="100%" height="100%"
+			itemRenderer="com.UI.SpriteTreeItemRenderer" labelField="DisplayName" itemRollOver="lastSpriteRollOverIndex = event.rowIndex" 
+			dragEnabled="true" dropEnabled="true" dragMoveEnabled="true" doubleClickEnabled="true" itemDoubleClick="treeDoubleClick(event)"
+			dragOver="onDragOver(event)" dragEnter="onDragEnter(event)" dragComplete="onSpriteDragComplete(event)" />
+		<mx:CheckBox id="SaveSeparately" label="Save sprites separately" change="Global.SaveSpritesSeparetely=SaveSeparately.selected" />
+	</mx:VBox>
+
+</mx:VBox>

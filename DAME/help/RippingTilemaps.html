@@ -1,0 +1,28 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+	<head>
+		<META http-equiv="Content-Type" content="text/html; charset=UTF-8">
+		<title>DAME - Ripping Tilemaps</title>
+		<style type="text/css">
+			h1 {color:#0000CC;}
+			h2 {color:#000099;}
+			h3 {color:#000066;}
+			pc {color:#AA0000;}
+			dpc {color:#0000AA;}
+		</style>
+	</head>
+	<body>
+		<p align=right><a href="index.html">Return to help contents...</a></p>
+		<h1>Ripping tilemaps in DAME</h1>
+		<p>DAME has a powerful feature allowing you to scan in an image and build a tileset from it and a tilemap based on all of the unique tiles found.</p>
+		<p>First you must import a screenshot to rip the tilemaps from. It's important to have as high definition an image as you can find, and as clean as you can - i.e. one with few sprites and as few layers inside. This may mean cleaning up the image in paint software beforehand. If you rip from an image it's possible it may have had many layers with parallax scrolling and sprites. As you're trying to convert this into just 1 tileset it can lead to duplicate tiles, or tiles that shouldn't be tiles.</p>
+		<p>You can get to the window by bringing up the context menu within a Group in the Layers Tab and selecting <em>Add->Rip Tilemap</em>:</p>
+		<img src="RipTilemap.jpg" alt="The Rip Tilemaps window"/>
+		<p>To initiate first make sure the tile dimensions are correct - it can take a long time to rip a tilemap so getting it wrong can be costly - and then click <em>Load Image</em>. If you do make a mistake click <em>Regenerate Tileset</em> to start again after correcting the dimensions. The ripping process will be complete when the progress displays 100%.</p>
+		<p>Next you may need to reorder or remove some tiles. Right click on any tile to mark it to be erased - this will mean that when the tilemap is actually generated the tileset will not have that tile in and any tiles in the tilemap that would have used this tile will now use tile 0 instead. Finally left click to select the tile you wish to use for tile 0 and, after setting up the main layer properties, click OK to complete the tilemap creation.</p>
+		
+		<center class="copyright"> 
+		</center>
+	</body>
+</html>
+<!-- -->

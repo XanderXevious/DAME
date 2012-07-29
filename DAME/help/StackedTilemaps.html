@@ -1,0 +1,48 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+	<head>
+		<META http-equiv="Content-Type" content="text/html; charset=UTF-8">
+		<title>DAME - Stacked Tilemaps</title>
+		<style type="text/css">
+			h1 {color:#0000CC;}
+			h2 {color:#000099;}
+			h3 {color:#000066;}
+			pc {color:#AA0000;}
+			dpc {color:#0000AA;}
+		</style>
+	</head>
+	<body>
+		<p align=right><a href="index.html">Return to help contents...</a></p>
+		<h1>Editing stacked tilemaps in DAME</h1>
+		<p>In DAME you can set up tilemaps to be stacked, allowing you to place tiles in the z axis, when normal maps only deal with x and y.</p>
+		<table border="0">
+		<ol>
+			<li><a href="#settingup">Setting Up</a> </li>
+			<li><a href="#editing">Editing</a></li>
+		</ol>
+		</table>
+		
+		<p/>
+		<h2><a name="settingup">1. Setting Up</a></h2>
+		<p></p>
+		<p>In order to set up a tilemap to be stacked you first need to enable it in the Layer Properties window for the tilemap. Make sure you click the <em>Has Height</em> checkbox to enable it and specify a <em>Stack Height</em> value. Stack Height controls the number of pixels each tile will be offset as it moves up the stack.</p>
+		<p>While it is not necessary for stacking, the <em>Base Tile Height</em> value is useful given that most stacked tilemaps tend to be 2.5d tilemaps, i.e. representations of a 3d object in 2d space. This controls the spacing of tiles vertically within each stack, and is relevant even if you are not stacking tiles. By correctly manipulating both this and the Stack Height value you can get a good layout for stacking.</p>
+		
+		<h2><a name="editing">2. Editing</a></h2>
+		<p>There are two ways to edit stacked tilemaps, with various advantages and disadvantages depending on what you want to do with your tilemap:</p>
+		<ol>
+			<li>Default stacking.</li>
+			<li>Infinite tile stacking.</li>
+		</ol>
+		<p>1. Default stacking</p>
+		<p>In the default stacking mode you can only place tiles on top of existing tiles. If you hold down the Z key while placing down tiles you will be able to place a tile on the stack above the current tile. The box indicating the current tile will split to indicate the base tile and the current stacked tile. When it is split any left click or right click will modify that tile rather than the base tile. You can also use the [ and ] keys to move down and up the tile stack respectively. When you right click, if the current tile is the top-most tile in the stack the cursor will move down the stack, otherwise it will stay in place.</p>
+		<p>2. Infinite tile stacking.</p>
+		<p>In infinite tile stacking mode you can freely place tiles in the z axis wherever you wish, regardless of whether a tile is below it or not. To enable it go to the Edit Menu and select <em>Allow Infinite Tile Stacking</em>. In this mode, if you move the mouse while holding down Z you will be able to freely slide the current stack location up and down. You can then place down a tile wherever the cursor is. Because infinite tile stacks can be placed as high as you wish, the tile cursor will be located to where the current tile in the stack is rather than the base tile.</p>
+		<p></p>
+		<p>An important point to note about stacked tiles is that they are designed to work only when the draw index is greater than 0. In other words there needs to be a blank tile otherwise the tile stacks will not draw or behave correctly.</p>
+		
+		<center class="copyright"> 
+		</center>
+	</body>
+</html>
+<!-- -->

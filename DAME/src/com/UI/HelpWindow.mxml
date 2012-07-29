@@ -1,0 +1,56 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<comUI:PopupWindow xmlns:mx="http://www.adobe.com/2006/mxml" xmlns:comUI="com.UI.*"
+    width="400" height="400" title="Help"
+	resizable="true" showGripper="true" showStatusBar="false" maximizable="false" minimizable="false">
+    <mx:Script>
+        <![CDATA[
+			import com.Utils.Global;
+			
+            private function ok():void
+			{
+				ForceClose();
+            }
+
+            override protected function init():void
+			{
+				html.location = App.currentDir + "/help/index.html";
+				titleName = "Help";
+				AllowMinimizeToStatusBar();
+				
+				super.init();
+            }
+			
+			override public function ChangeVisibility( show:Boolean):void
+			{
+				
+			}
+			
+			override public function hide():void
+			{
+				App.getApp().helpPopup = null;
+				if ( minimizedToStatusBar )
+				{
+					Global.MyStatusBar.RemoveMinimizedWindow(titleName);
+					minimizedToStatusBar = false;
+					visible = false;
+					PopupWindowManager.UnregisterPopup(this);	// In case it doesn't get the close event.
+				}
+				else
+				{
+					ForceClose();
+				}
+			}
+           
+        ]]>
+    </mx:Script>
+
+
+	<mx:VBox id="container" width="100%" horizontalAlign="center">
+		<mx:HBox horizontalAlign="center" width="100%" >
+			<mx:Button id="Back" label="Back" click="html.historyBack()" />
+			<mx:Button id="Fwd" label="Next" click="html.historyForward()" />
+			<mx:Button id="CloseBtn" label="Close" click="hide()" />
+		</mx:HBox>
+		<mx:HTML id="html" width="100%" height="100%" horizontalScrollPolicy="off" verticalScrollPolicy="off"/>
+	</mx:VBox>
+</comUI:PopupWindow>

@@ -1,0 +1,682 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<comUI:PopupWindow xmlns:mx="http://www.adobe.com/2006/mxml" xmlns:comUI="com.UI.*"
+    width="300" height="100%"
+	resizable="false" showGripper="false" showStatusBar="false" maximizable="false" minimizable="false"
+    horizontalAlign="left" title="Tile Matrix" horizontalScrollPolicy="off" enterFrame="Update()" >
+	
+	<mx:Script>
+		<![CDATA[
+			
+		import com.EditorState;
+		import com.Layers.LayerMap;
+		import com.Operations.HistoryStack;
+		import com.Operations.OperationModifyTileMatrix;
+		import com.Tiles.SpecialTileRowData;
+		import com.Tiles.TileConnectionList;
+		import com.Tiles.TileMatrixData;
+		import com.UI.TileConnectionGrid;
+		import com.UI.Tiles.TileGrid;
+		import com.UI.DraggableTileWrapper;
+		import com.Editor.EditorTypeTileMatrix;
+		import com.Utils.Global;
+		import com.Utils.Misc;
+		import flash.display.BitmapData;
+		import flash.events.Event;
+		import flash.filesystem.File;
+		import org.flixel.FlxG;
+		
+		public var tiles:TileMatrixGrid;
+		
+		private var originalWidth:uint;
+		
+		public var currentMatrixData:TileMatrixData = null;
+		
+		private var requestRedraw:Boolean = false;
+			
+		override protected function init():void
+		{
+			//initPos();
+			
+			tiles = new TileMatrixGrid(250, 250, WidthControl.value, HeightControl.value);
+			var uiref:DraggableTileWrapper = new DraggableTileWrapper;
+			TileBox.addChild(uiref);
+			uiref.width = 250;
+			uiref.height = 250;
+			tiles.ContainerObject = TileBox;
+			tiles.scaleToFit = true;
+			
+			uiref.setTileObject(tiles);
+			App.getApp().tileMatrix = tiles;
+			tiles.canAcceptDrop = true;
+			tiles.canBeginDrag = true;
+			tiles.OnPreDragDropCallback = OnMatrixChanged;
+			
+			width = container.width + 10;
+			height = container.height + titleBar.height + 50;
+			
+			originalWidth = width;
+			
+			titleName = "Tile Matrix";
+			AllowMinimizeToStatusBar();
+			
+			doubleClickTitleBarShrinks = true;
+			IgnoreClearTiles.selected = EditorTypeTileMatrix.IgnoreClearTiles;
+			IgnoreMapEdges.selected = EditorTypeTileMatrix.IgnoreMapEdges;
+			RandomizeMiddleTiles.selected = EditorTypeTileMatrix.RandomizeMiddleTiles;
+			AllowSpecialTiles.selected = EditorTypeTileMatrix.AllowSpecialTiles;
+			
+			
+			
+			super.init();
+			
+			if ( App.getApp().tileMatrices.length == 0 )
+			{
+				onEmptyPressed();
+				currentMatrixData = new TileMatrixData();
+				currentMatrixData.name = "matrix1";
+				// The matrix can be completely empty becaue it will be autosaved anyway.
+				App.getApp().tileMatrices.addItem(currentMatrixData);
+				setSavedMatrixData(currentMatrixData);
+				MatrixChooser.selectedIndex = 0;
+			}
+		}
+		
+		private function resizeMatrix():void
+		{
+			OnMatrixChanged();
+			tiles.Resize(WidthControl.value, HeightControl.value);
+			ForceRedraw();
+		}
+		
+		private function RandomizeMiddleTilesChanged():void
+		{
+			EditorTypeTileMatrix.RandomizeMiddleTiles = RandomizeMiddleTiles.selected;
+			ForceRedraw();
+		}
+		
+		private function IgnoreClearTilesChanged():void
+		{
+			EditorTypeTileMatrix.IgnoreClearTiles = IgnoreClearTiles.selected;
+			ForceRedraw();
+		}
+		
+		private function IgnoreMapEdgesChanged():void
+		{
+			EditorTypeTileMatrix.IgnoreMapEdges = IgnoreMapEdges.selected;
+			ForceRedraw();
+		}
+		
+		public function AllowSpecialTilesChanged():void
+		{
+			EditorTypeTileMatrix.AllowSpecialTiles = AllowSpecialTiles.selected;
+			if ( AllowSpecialTiles.selected )
+			{
+				SpecialTilesContainer.percentWidth = 100;
+				SpecialTilesContainer.percentHeight = 100;
+				SpecialTilesContainer.visible = true;
+				SpecialTilesContainer.enabled = true;
+				container.validateNow();
+				width = originalWidth + SpecialTilesContainer.width;
+			}
+			else
+			{
+				SpecialTilesContainer.width = 0;
+				SpecialTilesContainer.percentWidth = 0;
+				SpecialTilesContainer.percentHeight = 0;
+				SpecialTilesContainer.visible = false;
+				SpecialTilesContainer.enabled = false;
+				SpecialTilesContainer.validateNow();
+				container.validateNow();
+				width = originalWidth;
+			}
+			
+			ForceRedraw();
+		}
+		
+		private function Update():void
+		{
+			if ( tiles != null && !nativeWindow.closed && visible )
+			{
+				var newTitle:String = "Tile Matrix";
+				if ( tiles.highlightIndex != -1 )
+				{
+					var tileId:int = tiles.GetMetaDataAtIndex(tiles.highlightIndex) as int;
+					newTitle += " - " + tileId;
+				}
+				else if( AllowSpecialTiles.selected )
+				{
+					var rows:Array = SpecialTilesRows.getChildren();
+					var rowIndex:uint = rows.length;
+					var updatedTitle:Boolean = false;
+					while (rowIndex-- && !updatedTitle)
+					{
+						var newRow:SpecialTilesRow = rows[rowIndex];
+						if ( newRow.tiles && newRow.tiles.highlightIndex != -1 )
+						{
+							tileId = newRow.tiles.GetMetaDataAtIndex(newRow.tiles.highlightIndex) as int;
+							newTitle += " - " + tileId;
+							updatedTitle = true;
+						}
+					}
+				}
+				if ( newTitle != title )
+				{
+					title = newTitle;
+				}
+			}
+			
+			if ( requestRedraw )
+			{
+				// Wait for all the important UI to load before applying.
+				for each( newRow in SpecialTilesRows.getChildren() )
+				{
+					if ( newRow.tiles == null )
+					{
+						return;
+					}
+				}
+				requestRedraw = false;
+				ForceRedraw();
+			}
+		}
+		
+		private function ForceRedraw():void
+		{
+			if ( requestRedraw )
+			{
+				return;
+			}
+			var editorState:EditorState = FlxG.state as EditorState;
+			var tileMatrixEditor:EditorTypeTileMatrix = editorState.getCurrentEditor(App.getApp()) as EditorTypeTileMatrix;
+			if ( tileMatrixEditor )
+			{
+				tileMatrixEditor.RedrawTiles();
+			}
+		}
+		
+		public function RecheckDimensions():void
+		{
+			WidthControl.value = tiles.ColumnCount;
+			HeightControl.value = tiles.RowCount;
+		}
+		
+		public function onCopyPressed():void
+		{
+			var renamePopup:RenamePopup = App.CreatePopupWindow(RenamePopup, true, App.getApp()) as RenamePopup;
+			if ( renamePopup )
+			{
+				renamePopup.txt = "matrix" + (App.getApp().tileMatrices.length + 1);
+				renamePopup.opener = this;
+				renamePopup.okPressedCallback = copyMatrix;
+			}
+		}
+		
+		private function copyMatrix(popup:RenamePopup):void
+		{
+			// Firstly, save the current matrix
+			if ( currentMatrixData != null )
+			{
+				setSavedMatrixData(currentMatrixData);
+			}
+			HistoryStack.BeginOperation( new OperationModifyTileMatrix(App.getApp().tileMatrices.length, true, false, false) );
+			var newMatrix:TileMatrixData = new TileMatrixData();
+			newMatrix.name = popup.txt;
+			setSavedMatrixData(newMatrix);
+			App.getApp().tileMatrices.addItem(newMatrix);
+			MatrixChooser.selectedIndex = App.getApp().tileMatrices.length - 1;
+		}
+		
+		public function onRenamePressed():void
+		{
+			var matrix:TileMatrixData = MatrixChooser.selectedItem as TileMatrixData;
+			if ( matrix )
+			{
+				var renamePopup:RenamePopup = App.CreatePopupWindow(RenamePopup, true, App.getApp()) as RenamePopup;
+				if ( renamePopup )
+				{
+					renamePopup.txt = matrix.name;
+					renamePopup.opener = this;
+					renamePopup.okPressedCallback = renameMatrix;
+				}
+			}
+		}
+		
+		private function renameMatrix(popup:RenamePopup):void
+		{
+			var matrix:TileMatrixData = MatrixChooser.selectedItem as TileMatrixData;
+			if ( matrix )
+			{
+				matrix.name = popup.txt;
+				MatrixChooser.selectedIndex = App.getApp().tileMatrices.getItemIndex(matrix);
+			}
+		}
+		
+		public function onEmptyPressed():void
+		{
+			for ( var i:uint = 0; i < tiles.ColumnCount * tiles.RowCount; i++ )
+			{
+				tiles.SetTileIdForIndex(i, 0, new BitmapData(1,1) );
+			}
+			
+			var specialRows:Array = SpecialTilesRows.getChildren();
+			for ( i = 0; i < specialRows.length; i++ )
+			{
+				var rowData:SpecialTileRowData = new SpecialTileRowData();
+				var grid:TileConnectionGrid = specialRows[i].tiles;
+				for ( var j:uint = 0; j < grid.Connections.tiles.length; j++ )
+				{
+					grid.SetTileIdForIndex(j, 0, new BitmapData(1,1) );
+				}
+			}
+		}
+		
+		public function setSavedMatrixData(matrix:TileMatrixData, makeCurrentMatrix:Boolean = true ):void
+		{	
+			if ( makeCurrentMatrix )
+			{
+				currentMatrixData = matrix;
+			}
+			matrix.numColumns = tiles.ColumnCount;
+			matrix.numRows = tiles.RowCount;
+			matrix.tileIds.length = 0;
+			for ( var i:uint = 0; i < matrix.numColumns * matrix.numRows; i++ )
+			{
+				matrix.tileIds.push( tiles.GetMetaDataAtIndex(i) );
+			}
+			matrix.IgnoreClearTiles = IgnoreClearTiles.selected;
+			matrix.IgnoreMapEdges = IgnoreMapEdges.selected;
+			matrix.RandomizeMiddleTiles = RandomizeMiddleTiles.selected;
+			matrix.AllowSpecialTiles = AllowSpecialTiles.selected;
+			matrix.SpecialTileRows.length = 0;
+			var specialRows:Array = SpecialTilesRows.getChildren();
+			matrix.HasConnectionData = true;
+			var currentLayer:LayerMap = App.getApp().CurrentLayer as LayerMap;
+			if ( tiles.tilesetLayer )
+			{
+				matrix.tilesetLayer = tiles.tilesetLayer;
+				matrix.tilesetImageFile = tiles.tilesetImageFile;
+			}
+			else if ( currentLayer )
+			{
+				matrix.tilesetImageFile = tiles.tilesetImageFile = currentLayer.imageFileObj;
+			}
+			else
+			{
+				matrix.tilesetImageFile = tiles.tilesetImageFile;
+			}
+			
+			for ( i = 0; i < specialRows.length; i++ )
+			{
+				var rowData:SpecialTileRowData = new SpecialTileRowData();
+				var grid:TileConnectionGrid = specialRows[i].tiles;
+				if ( grid )
+				{
+					rowData.set = grid.Connections;
+					for ( var j:uint = 0; j < grid.Connections.tiles.length; j++ )
+					{
+						rowData.tiles.push(grid.GetMetaDataAtIndex(j));
+					}
+					matrix.SpecialTileRows.push(rowData);
+				}
+			}
+		}
+		
+		public function DeleteMatrix( index:uint):void
+		{
+			if ( index >= 0 )
+			{
+				App.getApp().tileMatrices.removeItemAt(index);
+				if ( App.getApp().tileMatrices.length == 0 )
+				{
+					onEmptyPressed();
+					currentMatrixData = new TileMatrixData();
+					currentMatrixData.name = "matrix1";
+					// The matrix can be completely empty becaue it will be autosaved anyway.
+					App.getApp().tileMatrices.addItem(currentMatrixData);
+					setSavedMatrixData(currentMatrixData);
+					MatrixChooser.selectedIndex = 0;
+				}
+				MatrixChooser.validateNow();
+				ChangeMatrix();
+			}			
+		}
+		
+		private function onDelPressed():void
+		{
+			if ( App.getApp().tileMatrices.length > 0 && MatrixChooser.selectedIndex >= 0)
+			{
+				HistoryStack.BeginOperation( new OperationModifyTileMatrix(MatrixChooser.selectedIndex, false, true, false) );
+				DeleteMatrix(MatrixChooser.selectedIndex);
+			}
+		}
+		
+		public function OnMatrixChanged():void
+		{
+			if ( App.getApp().tileMatrices.length > 0 && MatrixChooser.selectedIndex >= 0)
+			{
+				HistoryStack.BeginOperation( new OperationModifyTileMatrix(MatrixChooser.selectedIndex, false, false, true) );
+			}
+		}
+		
+		public function BindTiles():void
+		{
+			var currentMapLayer:LayerMap = App.getApp().CurrentLayer as LayerMap;
+			if ( currentMapLayer )
+			{
+				tiles.tilesetLayer = currentMapLayer;
+				tiles.tilesetImageFile = currentMapLayer.imageFileObj;
+				RedrawForCurrentLayer(currentMapLayer);
+			}
+		}
+		
+		public function Reset():void
+		{
+			if( tiles )
+				tiles.tilesetLayer = null;
+		}
+		
+		public function RedrawForCurrentLayer( layer:LayerMap ):void
+		{
+			var redrawLayer:LayerMap = layer;
+			
+			if ( tiles.tilesetLayer != null )
+			{
+				// Only redraw for this layer if the image file matches.
+				if ( !Misc.FilesMatch( tiles.tilesetLayer.imageFileObj, layer.imageFileObj ) )
+				{
+					redrawLayer = tiles.tilesetLayer;
+					BindToLayer.visible = BindToLayer.enabled = true;
+					BindToLayer.percentHeight = 100;
+				}
+			}
+			if ( redrawLayer == layer && BindToLayer.visible)
+			{
+				BindToLayer.visible = BindToLayer.enabled = false;
+				BindToLayer.height = 0;
+			}
+			
+			if ( redrawLayer.map.GetPixelData() != null )
+			{
+				tiles.ReplaceAllTilesFromTilemap(redrawLayer.map);
+						
+				var specialRows:Array = SpecialTilesRows.getChildren();
+				for ( var n:uint = 0; n < specialRows.length; n++ )
+				{
+					var grid:TileConnectionGrid = specialRows[n].tiles;
+					if ( grid )
+					{
+						grid.ReplaceAllTilesFromTilemap(redrawLayer.map,false);
+					}
+				}
+			}
+		}
+		
+		public function UpdateMatrixDataTileset( layer:LayerMap ):void
+		{
+			tiles.tilesetImageFile = layer.imageFileObj;
+			if ( currentMatrixData )
+			{
+				// Only apply this to the data if the matrix in the data is identical to the visual one.
+				for ( var i:uint = 0; i < currentMatrixData.numColumns * currentMatrixData.numRows; i++ )
+				{
+					if ( currentMatrixData.tileIds[i] != tiles.GetMetaDataAtIndex(i) )
+					{
+						return;
+					}
+				}
+				currentMatrixData.tilesetImageFile = layer.imageFileObj;
+			}
+		}
+		
+		public function ChangeMatrix():void
+		{
+			var newMatrix:TileMatrixData = MatrixChooser.selectedItem as TileMatrixData;
+			if ( newMatrix )
+			{
+				if ( currentMatrixData != null && currentMatrixData != newMatrix )
+				{
+					setSavedMatrixData(currentMatrixData);
+				}
+				currentMatrixData = newMatrix;
+				
+				tiles.Resize(newMatrix.numColumns, newMatrix.numRows);
+				
+				for ( var i:uint = 0; i < newMatrix.numColumns * newMatrix.numRows; i++ )
+				{
+					tiles.SetTileIdForIndex(i, newMatrix.tileIds[i], new BitmapData(1, 1));
+				}
+				
+				tiles.tilesetImageFile = newMatrix.tilesetImageFile;
+				tiles.tilesetLayer = newMatrix.tilesetLayer;
+				
+				EditorTypeTileMatrix.AllowSpecialTiles = AllowSpecialTiles.selected = newMatrix.AllowSpecialTiles;
+				EditorTypeTileMatrix.IgnoreClearTiles = IgnoreClearTiles.selected = newMatrix.IgnoreClearTiles;
+				EditorTypeTileMatrix.IgnoreMapEdges = IgnoreMapEdges.selected = newMatrix.IgnoreMapEdges;
+				EditorTypeTileMatrix.RandomizeMiddleTiles = RandomizeMiddleTiles.selected = newMatrix.RandomizeMiddleTiles;
+				
+				// This makes it backwards compatible for the version where connections weren't saved in the list.
+				if ( newMatrix.HasConnectionData )
+				{
+					SpecialTilesRows.removeAllChildren();
+				}
+				
+				for ( i = 0; i < newMatrix.SpecialTileRows.length; i++ )
+				{
+					var rowData:SpecialTileRowData = newMatrix.SpecialTileRows[i];
+					var setIndex:int = TileConnectionList.tileConnectionLists.getItemIndex(rowData.set);
+					// For now, don't add it if the set no longer exists.
+					if ( setIndex != -1 )
+					{
+						var newRow:SpecialTilesRow = new SpecialTilesRow();
+						newRow.RowRemoved = OnSpecialTilesRemoved;
+						newRow.SetRenamed = OnSpecialSetRenamed;
+						newRow.SetRemoved = OnSpecialSetRemoved;
+						newRow.initTileConnectionsIndex = setIndex;
+						newRow.initTileIds = [];
+						for each( var tileId:uint in rowData.tiles )
+						{
+							newRow.initTileIds.push( tileId );
+						}
+						SpecialTilesRows.addChild(newRow);
+					}
+				}
+				RecheckDimensions();
+				requestRedraw = true;
+				
+				AllowSpecialTilesChanged();
+				
+				var editor:EditorState = FlxG.state as EditorState;
+				editor.UpdateCurrentTileList(App.getApp().CurrentLayer);
+			}
+		}
+		
+		public function AddNewSpecialTilesRow():void
+		{
+			var newRow:SpecialTilesRow = new SpecialTilesRow();
+			newRow.RowRemoved = OnSpecialTilesRemoved;
+			newRow.SetRenamed = OnSpecialSetRenamed;
+			newRow.SetRemoved = OnSpecialSetRemoved;
+			SpecialTilesRows.addChild(newRow);
+		}
+		
+		public function AddNewSpecialTilesSet():void
+		{			
+			var renamePopup:RenamePopup = App.CreatePopupWindow(RenamePopup, true, App.getApp()) as RenamePopup;
+			if ( renamePopup )
+			{
+				renamePopup.txt = "set " + TileConnectionList.tileConnectionLists.length;
+				renamePopup.opener = this;
+				renamePopup.okPressedCallback = SpecialSetAdded;
+			}
+		}
+		
+		private function SpecialSetAdded(popup:RenamePopup):void
+		{
+			TileConnectionList.tileConnectionLists.addItemAt(new TileConnectionList(popup.txt),0);
+		}
+		
+		public function OnSpecialTilesRemoved( row:SpecialTilesRow ):void
+		{
+			OnMatrixChanged();
+			SpecialTilesRows.removeChild(row);
+		}
+		
+		public function OnSpecialSetRemoved( row:SpecialTilesRow, connectionSet:TileConnectionList ):void
+		{
+			if ( connectionSet )
+			{
+				for each( var newRow:SpecialTilesRow in SpecialTilesRows.getChildren() )
+				{
+					if ( newRow.tiles.Connections == connectionSet )
+					{
+						SpecialTilesRows.removeChild(newRow);
+					}
+				}
+			
+				var index:int = TileConnectionList.tileConnectionLists.getItemIndex( connectionSet );
+				if ( index != -1 )
+				{
+					TileConnectionList.tileConnectionLists.removeItemAt( index );
+				}
+			}
+		}
+		
+		public function OnSpecialSetRenamed( row:SpecialTilesRow, connectionSet:TileConnectionList ):void
+		{
+			for each( var newRow:SpecialTilesRow in SpecialTilesRows.getChildren() )
+			{
+				newRow.UpdateComboBox( connectionSet );
+			}
+		}
+		
+		private function GetShiftedTile( id:int, insert:Boolean, thisTile:int ):int
+		{
+			if ( thisTile > id )
+			{
+				if ( insert )
+				{
+					thisTile++;
+				}
+				else
+				{
+					thisTile--;
+				}
+			}
+			else if ( !insert && thisTile == id )
+			{
+				thisTile = 0;
+			}
+			return thisTile;
+		}
+		
+		public function ShiftTileIds( id:int, insert:Boolean ):void
+		{
+			var app:App = App.getApp();
+			var currentLayer:LayerMap = app.CurrentLayer as LayerMap;
+			if ( !currentLayer )
+			{
+				return;
+			}
+			var editorState:EditorState = FlxG.state as EditorState;
+			// If we modify tiles while the tile matrix is open, the assumption is that this tileset
+			// matches this matrix.
+			if ( Misc.FilesMatch(currentLayer.imageFileObj, tiles.tilesetImageFile) )
+			{
+				tiles.ShiftTileIds(id, insert);
+				var specialRows:Array = SpecialTilesRows.getChildren();
+				for ( var i:uint = 0; i < specialRows.length; i++ )
+				{
+					var rowData:SpecialTileRowData = new SpecialTileRowData();
+					var grid:TileConnectionGrid = specialRows[i].tiles;
+					for ( var j:uint = 0; j < grid.Connections.tiles.length; j++ )
+					{
+						var tile:int = GetShiftedTile(id, insert, grid.GetMetaDataAtIndex(j) as int);
+						grid.SetMetaDataAtIndex(j, tile as Object);
+					}
+				}
+			}
+			
+			// Now go through all the matrices and shift any that match this tileset.
+			for ( i = 0; i < app.tileMatrices.length; i++ )
+			{
+				var matrix:TileMatrixData = app.tileMatrices[i];
+				if ( Misc.FilesMatch(currentLayer.imageFileObj, matrix.tilesetImageFile ) )
+				{
+					j = matrix.tileIds.length;
+					while ( j-- )
+					{
+						matrix.tileIds[j] = GetShiftedTile(id, insert, matrix.tileIds[j]);
+					}
+					
+					for ( j = 0; j < matrix.SpecialTileRows.length; j++ )
+					{
+						rowData = matrix.SpecialTileRows[j];
+						for ( var k:uint = 0; k < rowData.tiles.length; k++ )
+						{
+							rowData.tiles[k] = GetShiftedTile(id, insert, rowData.tiles[k]);
+						}
+					}
+				}
+			}
+		}
+			
+		]]>
+	</mx:Script>
+
+	<mx:HBox id="container" paddingBottom="0">
+		<mx:Spacer width="5" />
+		<mx:VBox>
+			<mx:Spacer height="5" />
+			<mx:HBox width="100%" horizontalGap="3">
+				<mx:Label text="Select:"/>
+				<mx:ComboBox id="MatrixChooser" width="130" dataProvider="{App.getApp().tileMatrices}" labelField="name" change="ChangeMatrix()" />
+				<mx:Button id="CopyMatrix" icon="@Embed('../../../assets/copyIcon.png')" click="onCopyPressed()" width="18" toolTip="New Copy of Matrix" />
+				<mx:Button id="RenameMatrix" label="R" click="onRenamePressed()" width="18" toolTip="Rename Matrix" />
+				<mx:Button id="EmptyMatrix" label="E" click="onEmptyPressed()" width="18" toolTip="Empty Matrix" />
+				<mx:Button id="DelMatrix" label="-" click="onDelPressed()" width="18" toolTip="Remove Matrix" />
+			</mx:HBox>
+			<mx:Box id="TileBox" width="250" height="250" borderStyle="solid" horizontalScrollPolicy = "off" verticalScrollPolicy="off">
+			</mx:Box>
+			<mx:Button id="BindToLayer" label="Bind To Selected Tilemap." click="BindTiles()" enabled="false" height="0" visible="false" toolTip="This matrix is bound to a different tileset. Click to bind it to the tileset for the current selected tilemap. This ensures that when you add or remove tiles to the tileset the tiles in the matrix will automatically be updated." />
+			<mx:Label text="Drag tiles from Tiles panel into cells." />
+			<mx:HBox width="100%">
+				<mx:Label text="Width"/>
+				<mx:NumericStepper id="WidthControl" minimum="1" maximum="8" stepSize="1" value="3" change="resizeMatrix()" />
+				<mx:Spacer width="30" />
+				<mx:Label text="Height"/>
+				<mx:NumericStepper id="HeightControl" minimum="1" maximum="8" stepSize="1" value="3" change="resizeMatrix()" />
+			</mx:HBox>
+			<mx:Form verticalGap="0" paddingBottom="0" paddingTop="0">
+				<mx:FormItem label="Randomize middle tiles.">
+					<mx:CheckBox id="RandomizeMiddleTiles" selected="true" change="RandomizeMiddleTilesChanged()" />
+				</mx:FormItem>
+				<mx:FormItem label="Ignore clear tiles.">
+					<mx:CheckBox id="IgnoreClearTiles" selected="false" change="IgnoreClearTilesChanged()" />
+				</mx:FormItem>
+				<mx:FormItem label="Ignore map edges.">
+					<mx:CheckBox id="IgnoreMapEdges" selected="false" change="IgnoreMapEdgesChanged()" />
+				</mx:FormItem>
+				<mx:FormItem label="Allow special tile connections.">
+					<mx:CheckBox id="AllowSpecialTiles" selected="false" change="AllowSpecialTilesChanged()" />
+				</mx:FormItem>
+			</mx:Form>
+		</mx:VBox>
+		<mx:VBox id="SpecialTilesContainer" width="0" height="0" visible="false" enabled="false" >
+			<mx:HBox>
+				<mx:Label text="Connection set:"/>
+				<mx:Spacer width="60"/>
+				<mx:Label text="Tiles:"/>
+			</mx:HBox>
+			<mx:VBox id="SpecialTilesRows" height="360" width="285">
+				<comUI:SpecialTilesRow RowRemoved="OnSpecialTilesRemoved" SetRenamed="OnSpecialSetRenamed" SetRemoved="OnSpecialSetRemoved" />
+				<comUI:SpecialTilesRow RowRemoved="OnSpecialTilesRemoved" SetRenamed="OnSpecialSetRenamed" SetRemoved="OnSpecialSetRemoved" />
+			</mx:VBox>
+			<mx:HBox>
+				<mx:Button label="Add new row..." click="AddNewSpecialTilesRow()" />
+				<mx:Button label="Add new set..." click="AddNewSpecialTilesSet()" />
+				<mx:Button label="Reset defaults..." click="TileConnectionList.AddDefaults()" />
+			</mx:HBox>
+		</mx:VBox>
+	</mx:HBox>
+	
+</comUI:PopupWindow>

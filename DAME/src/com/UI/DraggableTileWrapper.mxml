@@ -1,0 +1,167 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<mx:UIComponent xmlns:mx="http://www.adobe.com/2006/mxml" 
+	dragEnter="dragEnterHandler(event);" dragDrop="dragDropHandler(event);" 
+	dragOver="dragOverHandler(event);" dragExit="dragExitHandler(event);" 
+	mouseDown="mouseDownHandler(event);" mouseMove="mouseMove(event);">
+	
+	<mx:Script>
+        <![CDATA[
+
+		import com.Editor.EditorTypeTileMatrix;
+		import com.EditorState;
+		import com.UI.Tiles.TileList;
+		import flash.display.Bitmap;
+		import flash.display.BitmapData;
+		import mx.controls.Image;
+        import mx.core.DragSource;
+        import mx.managers.DragManager;
+        import mx.events.*;
+		import org.flixel.FlxG;
+		
+		private var _tile:TileList = null;
+		
+		private var startedDrag:Boolean = false;
+		private var lookingForDrag:Boolean = false;
+		
+		public function setTileObject( tile:TileList ):void
+		{
+			if ( _tile )
+			{
+				removeChild(_tile);
+			}
+			_tile = tile;
+			addChild(tile);
+		}
+
+        // Initializes the drag and drop operation.
+        private function mouseDownHandler(event:MouseEvent):void
+		{
+			lookingForDrag = true;
+        }
+		
+		private function mouseMove(event:MouseEvent):void
+		{
+			if ( lookingForDrag && !startedDrag )
+			{
+				lookingForDrag = false;
+				// Get the drag initiator component from the event object.
+				var dragInitiator:DraggableTileWrapper = this;
+
+				if ( _tile == null || !_tile.canBeginDrag )
+				{
+					return;
+				}
+				
+				var index:int = _tile.GetTileIndexAtCursor();
+				if ( index == -1 )
+				{
+					return;
+				}
+				var bitmap:BitmapData = _tile.GetBitmapDataAtIndex(index);
+				var tileId:uint = _tile.GetMetaDataAtIndex(index) as uint;
+				
+				if ( bitmap == null )
+				{
+					return;
+				}
+				
+				// Get the color of the drag initiator component.
+
+				// Create a DragSource object.
+				var ds:DragSource = new DragSource();
+				var tileData:Object = new Object();
+				tileData.image = bitmap;
+				tileData.tileId = tileId;
+
+				// Add the data to the object.
+				ds.addData(tileData, 'tileData');
+
+				// Call the DragManager doDrag() method to start the drag. 
+				var imageProxy:Image = new Image();
+				imageProxy.source = new Bitmap(bitmap);
+				imageProxy.width = bitmap.width;
+				imageProxy.height = bitmap.height;
+				DragManager.doDrag(dragInitiator, ds, event, imageProxy, mouseX - (bitmap.width/2), mouseY - (bitmap.height/2),0.8 );
+
+			}
+		}
+
+        // Called when the user moves the drag proxy onto the drop target.
+        private function dragEnterHandler(event:DragEvent):void
+		{
+
+            // Accept the drag only if the user is dragging data 
+            // identified by the 'tileId' format value.
+            if (event.dragSource.hasFormat('tileData'))
+			{
+
+                // Get the drop target component from the event object.
+                var dropTarget:DraggableTileWrapper = DraggableTileWrapper(event.currentTarget);
+				if ( dropTarget._tile != null && dropTarget._tile.canAcceptDrop )
+				{
+					// Accept the drop.
+					DragManager.acceptDragDrop(dropTarget);
+					dropTarget._tile.isDraggingOver = true;
+					dropTarget._tile.xmouse = mouseX;// event.localX;
+					dropTarget._tile.ymouse = mouseY;// event.localY;
+					startedDrag = true;
+				}
+            }
+        }
+		
+		private function dragOverHandler(event:DragEvent):void
+		{
+			var dropTarget:DraggableTileWrapper = DraggableTileWrapper(event.currentTarget);
+			if ( dropTarget._tile != null && dropTarget._tile.canAcceptDrop )
+			{
+				dropTarget._tile.xmouse = event.localX;
+				dropTarget._tile.ymouse = event.localY;
+			}
+		}
+		
+		private function dragExitHandler(event:DragEvent):void
+		{
+			var dropTarget:DraggableTileWrapper = DraggableTileWrapper(event.currentTarget);
+			if ( dropTarget._tile != null && dropTarget._tile.canAcceptDrop )
+			{
+				dropTarget._tile.isDraggingOver = false;
+			}
+			startedDrag = false;
+			lookingForDrag = false;
+		}
+                
+        // Called if the target accepts the dragged object and the user 
+        // releases the mouse button while over the Canvas container. 
+        private function dragDropHandler(event:DragEvent):void
+		{
+            // Get the data identified by the color format 
+            // from the drag source.
+            var data:Object = event.dragSource.dataForFormat('tileData');
+            // Set the canvas color.
+            //myCanvas.setStyle("backgroundColor", data);
+			var dropTarget:DraggableTileWrapper = DraggableTileWrapper(event.currentTarget);
+			if ( dropTarget._tile != null && dropTarget._tile.canAcceptDrop )
+			{
+				dropTarget._tile.OnPreDragDrop();
+				dropTarget._tile.SetTileUnderCursor(data.image as BitmapData, data.tileId );
+				dropTarget._tile.isDraggingOver = false;
+				dropTarget._tile.OnDragDrop();
+				ForceRedraw();
+			}
+			startedDrag = false;
+			lookingForDrag = false;
+        }    
+		
+		private function ForceRedraw():void
+		{
+			var editorState:EditorState = FlxG.state as EditorState;
+			var tileMatrixEditor:EditorTypeTileMatrix = editorState.getCurrentEditor(App.getApp()) as EditorTypeTileMatrix;
+			if ( tileMatrixEditor )
+			{
+				tileMatrixEditor.RedrawTiles();
+			}
+		}
+        ]]>
+    </mx:Script>
+
+</mx:UIComponent>

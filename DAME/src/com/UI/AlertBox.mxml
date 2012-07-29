@@ -1,0 +1,210 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<comUI:PopupWindow xmlns:mx="http://www.adobe.com/2006/mxml" xmlns:comUI="com.UI.*"
+    width="100%" height="100%" maxWidth="400" maxHeight="200" currentState="default"
+	resizable="false" showGripper="false" showStatusBar="false" maximizable="false" minimizable="false"
+    title="Alert">
+
+    <mx:Script>
+        <![CDATA[
+import com.Utils.Global;
+import flash.events.Event;
+import mx.controls.Button;
+import mx.events.CloseEvent;
+import mx.managers.FocusManager;
+			
+			public static const YES:uint = 0x01;
+			public static const NO:uint = 0x02;
+			public static const OK:uint = 0x04;
+			public static const CANCEL:uint = 0x08;
+			
+			public var CustomData:Object = null;
+			
+			private var ShowAgainId:String = "";
+			
+			public static function Show( message:String, title:String = "", buttonFlags:uint = OK, parent:Object = null, closeHandler:Function = null, defaultButton:uint = OK, displayShowAgainPrompt:Boolean = false, showAgainId:String = "", customData:Object = null):void
+			{
+				/*if ( displayShowAgainPrompt )
+				{
+					if ( Global.RememberedAlerts[showAgainId] )
+					{
+						var buttonAnswer:uint = Global.RememberedAlerts[showAgainId];
+						if ( buttonAnswer )
+						{
+							endAlert(buttnAnswer);
+							return;
+						}
+					}
+				}*/
+				var newAlert:AlertBox = App.CreatePopupWindow(AlertBox, true, parent) as AlertBox;
+				if ( newAlert )
+				{
+					newAlert.CustomData = customData;
+					if ( buttonFlags == 0 )
+					{
+						buttonFlags = OK;
+					}
+					if ( defaultButton == 0)
+					{
+						defaultButton = OK;
+					}
+					newAlert.SetupAlert( message, title, buttonFlags, closeHandler, defaultButton, displayShowAgainPrompt, showAgainId );
+				}
+			}
+			
+			private var buttonFlags:uint = OK;
+			private var closeFunction:Function = null;
+           
+            private function ok():void
+			{
+				ForceClose();
+            }
+			
+			private function SetupAlert( messageText:String, titleText:String, flags:uint, closeHandler:Function, defaultButton:uint, displayShowAgainPrompt:Boolean, showAgainId:String ):void
+			{
+				title = titleText;
+				MessageLabel.text = messageText;
+				
+				buttonFlags = flags;
+				closeFunction = closeHandler;
+				
+				var button:Button;
+				if ( flags & YES )
+				{
+					button = new Button();
+					button.label = "YES";
+					buttonsBox.addChild(button);
+					button.addEventListener("click", pressedButton, false, 0, true);
+					if ( defaultButton == YES )
+					{
+						focusManager.defaultButton = button;
+					}
+				}
+				if ( flags & NO )
+				{
+					button = new Button();
+					button.label = "NO";
+					buttonsBox.addChild(button);
+					button.addEventListener("click", pressedButton, false, 0, true);
+					if ( defaultButton == NO )
+					{
+						focusManager.defaultButton = button;
+					}
+				}
+				if ( flags & OK )
+				{
+					button = new Button();
+					button.label = "OK";
+					buttonsBox.addChild(button);
+					button.addEventListener("click", pressedButton, false, 0, true);
+					if ( defaultButton == OK )
+					{
+						focusManager.defaultButton = button;
+					}
+				}
+				if ( flags & CANCEL )
+				{
+					button = new Button();
+					button.label = "CANCEL";
+					buttonsBox.addChild(button);
+					button.addEventListener("click", pressedButton, false, 0, true);
+					if ( defaultButton == CANCEL )
+					{
+						focusManager.defaultButton = button;
+					}
+				}
+				
+				if ( displayShowAgainPrompt )
+				{
+					ShowAgainId = showAgainId;
+					currentState = "showAgain";
+				}
+				
+				validateNow();
+				
+				width = container.width + 20;
+				height = container.height + titleBar.height + 20;
+				
+				CenterWindow();
+			}
+			
+			private function endAlert(answer:uint ):void
+			{
+				if ( closeFunction != null )
+				{
+					if ( CustomData )
+					{
+						closeFunction( new CloseEvent( "AlertClosed", false, false, answer), CustomData );
+					}
+					else
+					{
+						closeFunction( new CloseEvent( "AlertClosed", false, false, answer) );
+					}
+				}
+			}
+			
+			private function pressedButton(event:Event):void
+			{
+				if ( closeFunction != null )
+				{
+					var detail:uint = 0;
+					var button:Button = event.target as Button;
+					if ( button.label == "YES" )
+					{
+						detail = YES;
+					}
+					else if ( button.label == "NO" )
+					{
+						detail = NO;
+					}
+					else if ( button.label == "OK" )
+					{
+						detail = OK;
+					}
+					else if ( button.label == "CANCEL" )
+					{
+						detail = CANCEL;
+					}
+					if ( currentState == "showAgain" && !ShowAgain.selected )
+					{
+						//Global.RememberedAlerts[ShowAgainId] = detail;
+						if ( ShowAgainId == "OverwriteImage" )
+						{
+							Global.ShowOverwritingImageAlert = false;
+						}
+						else if ( ShowAgainId == "LeaveTileMatrix" )
+						{
+							Global.KeepTileMatrixOnExitAnswer = detail;
+						}
+					}
+					endAlert(detail);
+				}
+				ForceClose();
+			}
+           
+            override protected function init():void
+			{				
+				width = container.width + 20;
+				height = container.height + titleBar.height + 20;
+				
+				ShowTitleBarIcons = false;
+				
+				super.init();
+            }
+           
+        ]]>
+    </mx:Script>
+
+	<comUI:states>
+		<mx:State name="showAgain">
+		</mx:State>
+		<mx:State name="default">
+			<mx:RemoveChild target="{ShowAgain}" />
+		</mx:State>
+	</comUI:states>
+		
+	<mx:VBox id="container" horizontalAlign="center" width="100%">
+		<mx:Text id="MessageLabel" maxWidth="400" />
+		<mx:HBox id="buttonsBox"/>
+		<mx:CheckBox id="ShowAgain" label="Show this alert next time?" selected="true"/>
+	</mx:VBox>
+</comUI:PopupWindow>

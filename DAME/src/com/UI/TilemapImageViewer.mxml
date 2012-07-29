@@ -1,0 +1,314 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<comUI:PopupWindow xmlns:mx="http://www.adobe.com/2006/mxml" title="Resize Image"
+	xmlns:comUI="com.UI.*" 
+	resizable="true" showGripper="true" showStatusBar="false" maximizable="true" minimizable="false"
+    width="100%" height="100%" horizontalScrollPolicy="off" verticalScrollPolicy="off" 
+	 defaultButton="{btnCancel}">
+
+    <mx:Script>
+        <![CDATA[
+			import com.Editor.EditorType;
+			import com.Editor.EditorTypeSprites;
+			import com.EditorState;
+			import com.Layers.LayerEntry;
+			import com.Layers.LayerGroup;
+			import com.Layers.LayerMap;
+			import com.Tiles.FlxTilemapExt;
+			import com.Tiles.SpriteEntry;
+			import com.UI.Tiles.TileList;
+			import com.Utils.CustomEvent;
+			import com.Utils.DebugDraw;
+			import com.Utils.Global;
+			import com.Utils.Misc;
+			import flash.display.Bitmap;
+			import flash.display.BitmapData;
+			import flash.events.Event;
+			import flash.geom.Point;
+			import flash.geom.Rectangle;
+			import mx.core.UIComponent;
+			import com.Tiles.ImageBank;
+			import flash.ui.ContextMenu;
+			import org.flixel.FlxG;
+			
+			[Bindable]
+			[Embed(source = '../../../assets/alphaBackground.png')] private var Img_background:Class;
+
+			public var opener:Object;
+			private var currentFile:File = null;
+			public var currentFileName:String = "";
+
+			public var okPressedCallback:Function;
+			
+			public var previewBitmap:Bitmap = null;
+			public var layer:LayerMap = null;
+			public var sprite:SpriteEntry = null;
+			
+			private var tiles:TileList;
+			
+			private var widthDiff:uint;
+			private var heightDiff:uint;
+			
+			
+			private function recalcPreview():void
+			{
+				var tileCount:uint = layer ? layer.map.tileCount : sprite.numFrames;
+				tiles.ColumnCount = Math.ceil( tileCount / RowControl.value );
+				
+				tiles.clearTiles();
+				var widthAdd:int = PlacementX.text == "BOTH" ? HorizSpacing.value * 2 : HorizSpacing.value;
+				var heightAdd:int = PlacementY.text == "BOTH" ? VertSpacing.value * 2 : VertSpacing.value;
+				var xStart:int = ( PlacementX.text == "LEFT" || PlacementX.text == "BOTH" ) ? -HorizSpacing.value : 0;
+				var yStart:int = ( PlacementY.text == "ABOVE" || PlacementY.text == "BOTH" ) ? -VertSpacing.value : 0;
+				
+				for ( var i:uint = 0; i < tileCount; i++ )
+				{
+					var newBitmap:BitmapData = layer ? layer.map.GetTileBitmap(i) : Misc.GetTileBitmap(sprite.bitmap.bitmapData, i, sprite.previewBitmap.width, sprite.previewBitmap.height);
+					var newWidth:int = newBitmap.width;
+					var newHeight:int = newBitmap.height;
+					if ( widthAdd )
+					{
+						newWidth = Math.max(newWidth + widthAdd, 1);
+					}
+					if ( heightAdd )
+					{
+						newHeight = Math.max(newHeight + heightAdd, 1);
+					}
+					if ( newWidth != newBitmap.width || newHeight != newBitmap.height )
+					{
+						tiles.TileWidth = newWidth;
+						tiles.TileHeight = newHeight;
+						var tempBitmap:BitmapData = new BitmapData(newWidth, newHeight, true, 0x00000000);
+						tempBitmap.copyPixels(newBitmap, new Rectangle(xStart, yStart, newWidth, newHeight), new Point);
+						newBitmap = tempBitmap;
+					}
+					tiles.pushTile(newBitmap, i);
+				}
+			}
+			
+			private function getFinalBmp():BitmapData
+			{
+				var finalBmp:BitmapData = new BitmapData(tiles.TileWidth * tiles.ColumnCount,tiles.TileHeight * tiles.NumRowsDrawn,true,0x00000000);
+				
+				var tileIndex:uint = 0;
+				var outputPos:Point = new Point(0, 0);
+				for ( var y:uint = 0; y < tiles.NumRowsDrawn; y++ )
+				{
+					for ( var x:uint = 0; x < tiles.ColumnCount; x++ )
+					{
+						var tileBmp:BitmapData = tiles.GetBitmapDataAtIndex(tileIndex);
+						if ( tileBmp == null )
+							break;
+						finalBmp.copyPixels(tileBmp, tileBmp.rect, outputPos);
+						outputPos.x += tileBmp.width;
+						tileIndex++;
+					}
+					outputPos.x = 0;
+					outputPos.y += tiles.TileHeight;
+				}
+				return finalBmp;
+			}
+			
+            private function ok(save:Boolean):void
+			{
+				var finalBmp:BitmapData = getFinalBmp();
+				
+				var app:App = App.getApp();
+				var editor:EditorState = FlxG.state as EditorState;
+				
+				if ( layer )
+				{
+					var changed:Boolean = save;
+					var bmp:BitmapData = layer.map.GetPixelData();
+					
+					if ( finalBmp.height != bmp.height || finalBmp.width != bmp.width )
+					{
+						changed = true;
+						for each( var group:LayerGroup in App.getApp().layerGroups )
+						{
+							for each( var testLayer:LayerEntry in group.children )
+							{
+								var testMapLayer:LayerMap = testLayer as LayerMap;
+								
+								if ( testMapLayer != null && Misc.FilesMatch(layer.imageFileObj, testMapLayer.imageFileObj ) )
+								{
+									var xRatio:Number = tiles.TileWidth / testMapLayer.tileWidth;
+									var yRatio:Number = tiles.TileHeight / testMapLayer.tileHeight;
+									testMapLayer.map.changeMapGraphic(finalBmp, tiles.TileWidth, tiles.TileHeight);
+									testMapLayer.tileWidth = tiles.TileWidth;
+									testMapLayer.tileHeight = tiles.TileHeight;
+									testMapLayer.map.tileSpacingX *= xRatio;
+									testMapLayer.map.tileSpacingY *= yRatio;
+								}
+							}
+						}
+						DebugDraw.singleton.HasCachedShape = false;	// force a refresh
+					}
+					
+					if( changed )
+					{
+						ImageBank.MarkImageAsChanged(layer.imageFileObj, new Bitmap(finalBmp), save);
+						
+						if ( app.myTileList.CustomData == app.CurrentLayer )
+						{
+							editor.UpdateCurrentTileList(app.CurrentLayer as LayerMap);
+							
+							if ( app.brushesWindow && app.brushesWindow.visible )
+							{
+								app.brushesWindow.recalcPreview();
+							}
+						}
+					}
+				}
+				else if ( sprite )
+				{
+					if ( finalBmp.height != sprite.bitmap.height || finalBmp.width != sprite.bitmap.width )
+					{
+						changed = true;
+					}
+					if ( changed || save )
+					{
+						sprite.previewBitmap.bitmapData = Misc.GetTileBitmap(sprite.bitmap.bitmapData, sprite.previewIndex, tiles.TileWidth, tiles.TileHeight);
+						ImageBank.MarkImageAsChanged(sprite.imageFile, new Bitmap(finalBmp), save);
+						if ( app.myTileList.CustomData == sprite )
+						{
+							EditorType.updateTileListForSprite(sprite, app.myTileList.HasEmptyFirstTile, app.myTileList.SelectionChanged, app.myTileList.modifyTilesCallback);
+						}
+					}
+				}
+				
+				if ( okPressedCallback != null )
+				{
+					okPressedCallback(this);
+				}
+				ForceClose();
+            }
+        
+			// Resize the tilebox when we resize the popup window.
+			private function resizeMoveHandler(event:Event):void
+			{
+				TileFrame.width = width - widthDiff;
+				TileFrame.height = height - heightDiff;
+				TileBox.width = tiles.width;
+				TileBox.height = tiles.height;
+			}
+			
+			public function tilesRedrawn(event:CustomEvent):void
+			{
+				TileBox.width = tiles.gfx.width;
+				TileBox.height = tiles.gfx.height;
+				WidthValue.text = "Width:" + tiles.NumColumnsDrawn * tiles.TileWidth;
+				HeightValue.text = "Height:" + tiles.NumRowsDrawn * tiles.TileHeight;
+			}
+
+            override protected function init():void
+			{
+				nativeWindow.addEventListener(Event.RESIZE, resizeMoveHandler);
+				var uiref:UIComponent = new UIComponent;
+				TileBox.addChild(uiref);
+				tiles = new TileList();
+				uiref.addChild(tiles);
+				tiles.adjustSizeForScrollBars = false;
+				
+				
+				if ( layer )
+				{
+					tiles.TileWidth = layer.map.tileWidth;
+					tiles.TileHeight = layer.map.tileHeight;
+					tiles.ColumnCount = layer.map.GetPixelData().width / layer.map.tileWidth;
+					uiref.width = layer.map.GetPixelData().width;
+					uiref.height = layer.map.GetPixelData().height;
+					
+					var numTilesPerRow:uint = tiles.ColumnCount == 0 ? layer.map.tileCount : Math.min( tiles.ColumnCount, layer.map.tileCount );
+					var numRows:uint = tiles.ColumnCount == 0 ? 1 : Math.ceil( layer.map.tileCount / numTilesPerRow );
+				}
+				else if ( sprite )
+				{
+					tiles.TileWidth = sprite.previewBitmap.bitmapData.width;
+					tiles.TileHeight = sprite.previewBitmap.bitmapData.height;
+					tiles.ColumnCount = sprite.bitmap.width / tiles.TileWidth;
+					uiref.width = sprite.bitmap.width;
+					uiref.height = sprite.bitmap.height;
+					
+					numTilesPerRow = tiles.ColumnCount == 0 ? sprite.numFrames : Math.min( tiles.ColumnCount, sprite.numFrames );
+					numRows = tiles.ColumnCount == 0 ? 1 : Math.ceil(sprite.numFrames / numTilesPerRow );
+				}
+				uiref.setStyle("horizontalScrollPolicy","off");
+				uiref.setStyle("verticalScrollPolicy", "off");
+				tiles.ContainerObject = TileFrame;
+				tiles.MakeAutoScroll( uiref );
+				
+				RowControl.value = numRows;
+				
+				tiles.addEventListener(TileList.EVENT_TILES_DRAWN, tilesRedrawn, false, 0, true);
+				
+				recalcPreview();
+				
+				//positionChildren();
+				
+				tiles.contextMenu = null;
+				
+				validateNow();
+				
+				width = container.width + 20;
+				height = container.height + titleBar.height + 20;
+				
+				widthDiff = width - TileFrame.width;
+				heightDiff = height - TileFrame.height;
+				
+				
+				super.init();
+            }
+			
+
+        ]]>
+    </mx:Script>
+
+	<mx:Box id="container">
+		<mx:Box id="TileFrame" width="300" height="300" horizontalScrollPolicy="off" verticalScrollPolicy="off" borderStyle="solid">
+			<comUI:ImageRepeatCanvas id="TileBox" width="100%" height="100%" horizontalScrollPolicy="off" verticalScrollPolicy="off" 
+				borderStyle="solid" backgroundAlpha="0" repeatDirection="both" repeatImage="{Img_background}" />
+		</mx:Box>
+		
+		<mx:HBox width="100%" horizontalAlign="center">
+			<mx:Label text="Number of Rows"/>
+			<mx:NumericStepper id="RowControl" minimum="1" maximum="999" stepSize="1" value="1" change="recalcPreview()" />
+			<mx:Label id="WidthValue" text="Width:"/>
+			<mx:Label id="HeightValue" text="Height:"/>
+		</mx:HBox>
+		
+		
+		<mx:HBox>
+			<mx:Label text="Change Horizontal Spacing:"/>
+			<mx:ComboBox id="PlacementX" change="recalcPreview()" >
+				<mx:dataProvider>
+				  <mx:Array>
+					 <mx:String>BOTH</mx:String>
+					 <mx:String>LEFT</mx:String>
+					 <mx:String>RIGHT</mx:String>
+				   </mx:Array>
+			   </mx:dataProvider>
+			</mx:ComboBox>
+			<mx:NumericStepper id="HorizSpacing" minimum="-100" maximum="100" stepSize="1" value="0" change="recalcPreview()" />
+		</mx:HBox>
+		
+		<mx:HBox>
+			<mx:Label text="Change Vertical Spacing:"/>
+			<mx:ComboBox id="PlacementY" change="recalcPreview()" >
+				<mx:dataProvider>
+				  <mx:Array>
+					 <mx:String>BOTH</mx:String>
+					 <mx:String>ABOVE</mx:String>
+					 <mx:String>BELOW</mx:String>
+				   </mx:Array>
+			   </mx:dataProvider>
+			</mx:ComboBox>
+			<mx:NumericStepper id="VertSpacing" minimum="-100" maximum="100" stepSize="1" value="0" change="recalcPreview()" />
+		</mx:HBox>
+		
+		<mx:HBox horizontalAlign="center" width="100%">
+			<mx:Button id="btnOK" label="OK" click="ok(false)" />
+			<mx:Button id="btnSave" label="Save" click="ok(true)" />
+			<mx:Button id="btnCancel" label="Cancel" click="ForceClose()" />
+		</mx:HBox>
+	</mx:Box>
+</comUI:PopupWindow>

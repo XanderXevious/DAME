@@ -1,0 +1,1322 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<comUI:PopupWindow xmlns:mx="http://www.adobe.com/2006/mxml" xmlns:comUI="com.UI.*"
+    width="100%" height="100%"
+	resizable="false" showGripper="false" showStatusBar="false" maximizable="false" minimizable="false"
+	defaultButton="{btnOK}" horizontalScrollPolicy="off" verticalScrollPolicy="off" enterFrame="Update()"
+    title="Assign Sprite Data">
+
+    <mx:Script>
+        <![CDATA[
+			import adobe.utils.CustomActions;
+			import com.EditorState;
+			import com.Game.SpriteFrames.SpriteFrameShapes;
+			import com.Game.SpriteFrames.SpriteShapeData;
+			import com.Game.SpriteFrames.SpriteShapeList;
+			import com.Properties.PropertyBase;
+			import com.Properties.PropertyRef;
+			import com.Properties.PropertyType;
+			import com.Tiles.SpriteEntry;
+			import com.Tiles.TileAnim;
+			import com.UI.PropertyGridRenderer;
+			import com.UI.*;
+			import com.UI.Tiles.TileGrid;
+			import com.Utils.Global;
+			import com.Utils.Misc;
+			import flash.display.Bitmap;
+			import flash.display.BitmapData;
+			import flash.display.Shape;
+			import flash.events.Event;
+			import flash.events.FileListEvent;
+			import flash.events.MouseEvent;
+			import flash.filesystem.File;
+			import flash.net.FileFilter;
+			import mx.collections.ArrayCollection;
+			import mx.controls.dataGridClasses.DataGridColumn;
+			import mx.core.ClassFactory;
+			import mx.core.UIComponent;
+			import mx.events.DataGridEvent;
+			import mx.formatters.NumberFormatter;
+			import com.Tiles.ImageBank;
+			import flash.ui.ContextMenu;
+			import org.flixel.FlxG;
+
+            [Bindable]
+            public var txt:String;
+			public var opener:Object;
+			private var currentFile:File = null;
+			public var currentFileName:String = "";
+
+			public var okPressedCallback:Function;
+			
+			public var bitmap:Bitmap = null;
+			public var previewBitmap:Bitmap = null;
+			
+			public var Entry:SpriteEntry = null;
+			
+			private var properties:ArrayCollection = new ArrayCollection();
+			private var deletedProps:Vector.<PropertyType> = new Vector.<PropertyType>();
+			
+			public var loadMultiple:Boolean = false;
+			public var multipleImages:Array = [];
+			private var queuedLoads:uint = 0;
+			
+			private var fileChooser:File;
+			
+			// lines for the points/boxes on the main preview.
+			private var linesBitmapdata:BitmapData = null;
+			private var linesBitmap:Bitmap = null;
+			
+			// for the shapes on the frame data preview.
+			private var shapesBitmapdata:BitmapData = null;
+			private var shapesBitmap:Bitmap = null;
+			
+			[Bindable] private var tabsDP:ArrayCollection;
+			
+			private var tiles:TileGrid = null;
+			
+			private var frameShapes:SpriteFrameShapes = null;
+			private var currentFrameShape:SpriteShapeData = null;
+			private var isDraggingShape:Boolean = false;
+			private var dragHandleX:int = 0;
+			private var dragHandleY:int = 0;
+			private var clickDistX:int = 0;
+			private var clickDistY:int = 0;
+			private var isSizingShape:Boolean = false;
+			private var selectionFade:Number = 1;
+			private var selectionFadeDir:Number = 1;
+			private var copiedFrameList:SpriteShapeList = null;
+			
+			private function load():void 
+			{
+				if ( ImagePath.text.length )
+				{
+					fileChooser = new File( ImagePath.text );
+				}
+				else
+				{
+					fileChooser = new File(Global.CurrentImageFile.url);
+				}
+				var imageFilter:FileFilter = new FileFilter("Images", "*.bmp;*.jpg;*.jpeg;*.png");
+				
+				if ( loadMultiple )
+				{
+					fileChooser.browseForOpenMultiple("Load Multiple Images", [imageFilter] );
+					fileChooser.addEventListener(FileListEvent.SELECT_MULTIPLE, loadFilesSelected, false, 0, true);
+				}
+				else
+				{
+					fileChooser.browseForOpen("Load Image", [imageFilter] );
+					fileChooser.addEventListener(Event.SELECT, loadFileSelected, false, 0, true);
+				}
+				solveFileChooserModality(fileChooser);
+				
+			}
+			
+			private function loadFileSelected(event:Event):void
+			{
+				var newFile:File = event.target as File;
+				if ( newFile != null )
+				{
+					if ( Entry && Misc.FilesMatch(newFile, currentFile) )
+					{
+						return;	// Same file so do nothing.
+					}
+				}
+
+				newFile.removeEventListener(Event.SELECT, loadFileSelected);
+				
+				ImageBank.LoadImage( newFile, imageLoaded );
+			}
+			
+			private function imageLoaded( data:Bitmap, file:File ):void
+			{
+				ImagePath.text = file.nativePath;
+				ImageBank.RemoveImageRef( currentFile );
+				currentFile = file;
+				currentFileName = currentFile.nativePath;
+				
+				bitmap = new Bitmap( data.bitmapData );
+				
+				var guess:uint = Math.min( data.bitmapData.width, data.bitmapData.height );
+				WidthInput.value = guess;
+				HeightInput.value = guess;
+				
+				BoundsWidth.value = guess;
+				BoundsHeight.value = guess;
+				
+				recalcPreview();
+				
+				Global.CurrentImageFile = new File(currentFile.url);
+			}
+			
+			private function loadFilesSelected(event:FileListEvent):void
+			{
+				multipleImages = [];
+				for (var i:uint = 0; i < event.files.length; i++) 
+				{
+					// The first image will serve as the preview
+					if ( i == 0 )
+					{
+						var newFile:File = event.files[i] as File;
+						if ( Entry && Misc.FilesMatch(currentFile, newFile) )
+						{
+							continue;	// Same file so do nothing.
+						}
+						currentFile = newFile;
+						ImageBank.LoadImage( currentFile, imageLoaded );
+					}
+					else
+					{
+						//var fixedPath:String =  Misc.FixMacFilePaths(event.files[i].nativePath);
+						multipleImages.push( { file:event.files[i], entry:null } );
+					}
+				}
+				fileChooser.removeEventListener(Event.SELECT, loadFilesSelected);
+			}
+			
+			private function updateAnchorCenter():void
+			{
+				recalcPreview(true);
+			}
+			
+			private function recalcPreview( updateUI:Boolean = true ):void
+			{
+				if ( bitmap == null )
+				{
+					return;
+				}
+				
+				WidthInput.value = Math.min( WidthInput.value, bitmap.width );
+				HeightInput.value = Math.min( HeightInput.value, bitmap.height );
+				
+				BoundsX.value = Math.min( BoundsX.value, WidthInput.value-1 );
+				BoundsY.value = Math.min( BoundsY.value, HeightInput.value-1 );
+				BoundsWidth.value = Math.min( BoundsWidth.value, WidthInput.value - BoundsX.value );
+				BoundsHeight.value = Math.min( BoundsHeight.value, HeightInput.value - BoundsY.value );
+				
+				if ( CenterAnchor.selected )
+				{
+					AnchorX.value = BoundsX.value + BoundsWidth.value / 2;
+					AnchorY.value = BoundsY.value + BoundsHeight.value / 2;
+				}
+				AnchorPosUI.enabled = !CenterAnchor.selected;
+				
+				AnchorX.value = Math.min( AnchorX.value, WidthInput.value );
+				AnchorY.value = Math.min( AnchorY.value, HeightInput.value );
+				
+				
+				var numRows:uint = Math.floor( bitmap.height / HeightInput.value );
+				var numColumns:uint = Math.floor( bitmap.width / WidthInput.value );
+				var maxIndex:uint = ( numColumns * numRows ) - 1;
+				PreviewIndex.value = Math.min( PreviewIndex.value, maxIndex );
+				
+				var currentRow:uint = PreviewIndex.value / numColumns;
+				var currentColumn:uint = PreviewIndex.value % numColumns;
+				
+				var sourceRect:Rectangle = new Rectangle( currentColumn * WidthInput.value, currentRow * HeightInput.value, 1, 1);
+				var flashPoint:Point = new Point(0, 0);
+				
+				sourceRect.width = WidthInput.value;
+				sourceRect.height = HeightInput.value;
+				
+				previewBitmap = new Bitmap( new BitmapData(WidthInput.value, HeightInput.value,true,0xffffff) );
+				
+				previewBitmap.bitmapData.copyPixels( bitmap.bitmapData, sourceRect, flashPoint );
+				
+				if ( updateUI )
+				{
+					SpritePreview.data = previewBitmap.bitmapData;
+					
+					// Draw extra info.
+					var scaleX:Number = SpritePreview.drawnBitmap.width / WidthInput.value;
+					var scaleY:Number = SpritePreview.drawnBitmap.height / HeightInput.value;
+					var shape:Shape = new Shape();
+					shape.graphics.lineStyle(1, 0xff0000, 0.7);
+					// Draw the bounding box.
+					shape.graphics.drawRect(BoundsX.value * scaleX, BoundsY.value * scaleY, (BoundsWidth.value * scaleX), (BoundsHeight.value * scaleY));
+					// draw the anchor as a cross.
+					shape.graphics.moveTo((AnchorX.value * scaleX)-10, AnchorY.value * scaleY);
+					shape.graphics.lineTo((AnchorX.value * scaleX)+10, AnchorY.value * scaleY);
+					shape.graphics.moveTo(AnchorX.value * scaleX, (AnchorY.value * scaleY)-10);
+					shape.graphics.lineTo(AnchorX.value * scaleX, (AnchorY.value * scaleY) + 10);
+					
+					if ( linesBitmapdata == null || linesBitmapdata.width != SpritePreview.drawnBitmap.width+1 || linesBitmapdata.height != SpritePreview.drawnBitmap.height+1 )
+					{
+						linesBitmapdata = new BitmapData( SpritePreview.drawnBitmap.width + 1, SpritePreview.drawnBitmap.height + 1, true, 0x00000000);
+						
+					}
+					if ( linesBitmap == null )
+					{
+						linesBitmap = new Bitmap( linesBitmapdata );
+						SpritePreview.AddChild(linesBitmap);
+					}
+					else
+					{
+						linesBitmap.bitmapData = linesBitmapdata;
+					}
+					
+					linesBitmapdata.lock();
+					linesBitmapdata.fillRect(linesBitmapdata.rect, 0x00000000);
+					linesBitmapdata.draw(shape);
+					linesBitmapdata.unlock();
+					
+				}
+			}
+			
+			private function addProperty():void
+			{
+				SpriteDataPropsGrid.displayMenu();
+			}
+			
+			private function removeProperty():void
+			{
+				if ( SpriteDataPropsGrid.selectedItem != null )
+				{
+					for each( var prop:PropertyType in properties )
+					{
+						if ( prop == SpriteDataPropsGrid.selectedItem )
+						{
+							properties.removeItemAt( properties.getItemIndex( prop ) );
+							var propRef:PropertyRef = prop as PropertyRef;
+							if ( propRef )
+							{
+								deletedProps.push(propRef.refProperty);
+							}
+							return;
+						}
+					}
+				}
+			}
+
+            private function ok():void
+			{
+				if ( SpritePreview.data != null )
+				{
+					if ( Entry )
+					{
+						Entry.name = Name.text;
+					}
+					else
+					{
+						Entry = new SpriteEntry( Name.text );
+					}
+					Entry.SetImageFile( currentFile );
+					Entry.SetBitmap( bitmap);
+					Entry.SetPreviewBitmap( previewBitmap);
+					Entry.SetPreviewIndex( PreviewIndex.value );
+					Entry.SetClassName( ClassName.text );
+					Entry.SetConstructorText( ConstructorText.text );
+					Entry.SetCreationText( CreationText.text );
+					Entry.Exports = Exports.selected;
+					Entry.CanScale = Scales.selected;
+					Entry.CanRotate = Rotates.selected;
+					Entry.IsSurfaceObject = SurfaceObject.selected;
+					var numRows:uint = Math.ceil( Entry.bitmap.height / previewBitmap.height );
+					var numColumns:uint = Math.ceil( Entry.bitmap.width / previewBitmap.width );
+					Entry.numFrames = numColumns * numRows;
+					
+					Entry.Anchor.x = AnchorX.value;
+					Entry.Anchor.y = AnchorY.value;
+					Entry.CenterAnchor = CenterAnchor.selected;
+					Entry.Bounds.x = BoundsX.value;
+					Entry.Bounds.y = BoundsY.value;
+					Entry.Bounds.width = BoundsWidth.value;
+					Entry.Bounds.height = BoundsHeight.value;
+					
+					for each ( var fakeProp:PropertyType in properties )
+					{
+						var propRef:PropertyRef = fakeProp as PropertyRef
+						if ( propRef )
+						{
+							var prop:PropertyType = propRef.refProperty;
+							prop.Name = fakeProp.Name;
+							prop.Value = fakeProp.Value;
+							prop.Hidden = fakeProp.Hidden;
+						}
+						else
+						{
+							prop = new PropertyType(fakeProp.Type, fakeProp.Name, fakeProp.Value, fakeProp.GetTypeObj() );
+							prop.Hidden = fakeProp.Hidden;
+							Entry.properties.addItem( prop );
+						}
+					}
+					for each ( prop in deletedProps )
+					{
+						Entry.properties.removeItemAt( Entry.properties.getItemIndex( prop ) );
+						// Set this flag so any avatars that have a ref to this will know to delete that entry.
+						prop.Deleted = true;
+					}
+					
+					if ( AnimRows != null )
+					{
+						var rows:Array = AnimRows.getChildren();
+						if ( rows.length )
+						{
+							var tileAnims:Vector.<TileAnim> = new Vector.<TileAnim>;
+							for (var rowIndex:uint = 0; rowIndex < rows.length; rowIndex++ )
+							{
+								var row:AnimTilesRow = rows[rowIndex];
+								if ( row.tiles )
+								{
+									var tileAnim:TileAnim = new TileAnim;
+									tileAnim.fps = row.FPS.value;
+									tileAnim.name = row.Name.text;
+									tileAnim.looped = row.Looped.selected;
+									var numTiles:uint = row.tiles.GetDataLength();
+									for ( i = 0; i < numTiles; i++ )
+									{
+										var tileId:int = row.tiles.GetMetaDataAtIndex(i) as int;
+										tileAnim.tiles.push(tileId);
+									}
+									tileAnims.push(tileAnim);
+								}
+							}
+							Entry.anims = tileAnims;
+						}
+					}
+					
+					if ( frameShapes )
+					{
+						Entry.shapes = frameShapes;
+					}
+					
+					if ( loadMultiple )
+					{
+						var i:uint = multipleImages.length;
+						multipleImages.push( { file:currentFile , entry:Entry } );						
+						while(i--)
+						{
+							queuedLoads++;
+							ImageBank.LoadImage( multipleImages[i].file, multipleImageLoaded, null, multipleImageLoadFailed );
+						}
+					}
+					
+					if ( queuedLoads == 0 )
+					{
+						finishOk()
+					}
+				}
+				ImageBank.RemoveImageRef( currentFile );
+				ForceClose();
+				if ( opener is UIComponent )
+				{
+					opener.setFocus();
+				}
+            }
+			
+			private function multipleImageLoadFailed( file:File ):void
+			{
+				queuedLoads--;
+				if ( queuedLoads == 0)
+				{
+					finishOk();
+				}
+			}
+			
+			private function multipleImageLoaded( data:Bitmap, file:File ):void
+			{
+				for ( var i:uint = 0; i < multipleImages.length; i++ )
+				{
+					if ( Misc.FilesMatch(file, multipleImages[i].file) )
+					{
+						// Backup old values
+						var savedWidth:uint = WidthInput.value;
+						var savedHeight:uint = HeightInput.value;
+						var savedBoundsX:uint = BoundsX.value;
+						var savedBoundsY:uint = BoundsY.value;
+						var savedBoundsWidth:uint = BoundsWidth.value;
+						var savedBoundsHeight:uint = BoundsHeight.value;
+						var savedAnchorX:uint = AnchorX.value;
+						var savedAnchorY:uint = AnchorY.value;
+						var savedPreviewIndex:uint = PreviewIndex.value;
+						
+						bitmap = previewBitmap = data;
+						recalcPreview(false);
+						var newEntry:SpriteEntry = new SpriteEntry( Name.text + "_" + i + "_" )
+							.SetImageFile( file )
+							.SetBitmap( data )
+							.SetPreviewBitmap( previewBitmap)
+							.SetPreviewIndex( PreviewIndex.value )
+							.SetClassName( ClassName.text + "_" + i + "_" )
+							.SetConstructorText( ConstructorText.text )
+							.SetCreationText( CreationText.text );
+						newEntry.Exports = Exports.selected;
+						newEntry.Anchor.x = AnchorX.value;
+						newEntry.Anchor.y = AnchorY.value;
+						newEntry.CenterAnchor = CenterAnchor.selected;
+						newEntry.Bounds.x = BoundsX.value;
+						newEntry.Bounds.y = BoundsY.value;
+						newEntry.Bounds.width = BoundsWidth.value;
+						newEntry.Bounds.height = BoundsHeight.value;
+						newEntry.CanScale = Scales.selected;
+						newEntry.CanRotate = Rotates.selected;
+						newEntry.IsSurfaceObject = SurfaceObject.selected;
+						var numRows:uint = Math.ceil(newEntry.bitmap.height / previewBitmap.height );
+						var numColumns:uint = Math.ceil( newEntry.bitmap.width / previewBitmap.width );
+						newEntry.numFrames = numColumns * numRows;
+						
+						// Since this only happens when creating entries from scratch there is no need
+						// to worry about PropertyRef or removed properties.
+						for each ( var fakeProp:PropertyType in properties )
+						{
+							newEntry.properties.addItem(new PropertyType(fakeProp.Type, fakeProp.Name, fakeProp.Value));
+						}
+						
+						multipleImages[i].entry = newEntry;
+						
+						// Restore old values.
+						WidthInput.value = savedWidth;
+						HeightInput.value = savedHeight;
+						BoundsX.value = savedBoundsX
+						BoundsY.value = savedBoundsY
+						BoundsWidth.value = savedBoundsWidth;
+						BoundsHeight.value = savedBoundsHeight;
+						AnchorX.value = savedAnchorX;
+						AnchorY.value = savedAnchorY;
+						PreviewIndex.value = savedPreviewIndex;
+						
+						ImageBank.RemoveImageRef( file );
+					}
+				}
+				queuedLoads--;
+				if ( queuedLoads == 0)
+				{
+					finishOk();
+				}
+			}
+			
+			private function finishOk():void
+			{
+				App.getApp().spriteData.itemUpdated(Entry);
+					
+				var currentState:EditorState = FlxG.state as EditorState;
+				if ( currentState )
+				{
+					currentState.RefreshSpriteGraphicsAndProperties( Entry );
+				}
+				if ( okPressedCallback != null)
+				{
+					okPressedCallback(this);
+				}
+			}
+			
+			private function cancel():void
+			{
+				ImageBank.RemoveImageRef( currentFile );
+			
+				ForceClose();
+				if ( opener is UIComponent )
+					opener.setFocus();
+			}
+			
+			private function onHelpClick():void
+			{
+				navigateToURL(new URLRequest(App.currentDir + "/help/exporters.html#keywords"));
+			}
+
+            override protected function init():void
+			{
+				if ( loadMultiple )
+				{
+					title = "Load Multiple Sprites"
+				}
+				
+                Name.setFocus();
+				
+				properties.removeAll();
+				
+				if ( Entry )
+				{
+					currentFile = Entry.imageFile;
+					ImagePath.text = currentFileName = currentFile.nativePath;
+					//if ( currentFileName.length )
+					{
+						//currentFile = new File(currentFileName);
+						// Load it so we have an image ref to the file.
+						ImageBank.LoadImage( currentFile );
+					}
+					previewBitmap = Entry.previewBitmap;
+					bitmap = Entry.bitmap;
+					WidthInput.value = previewBitmap!=null ? previewBitmap.width : 1;
+					HeightInput.value = previewBitmap != null ? previewBitmap.height : 1;
+					PreviewIndex.value = Entry.previewIndex;
+					Name.text = Entry.name;
+					ClassName.text = Entry.className;
+					ConstructorText.text = Entry.constructorText;
+					CreationText.text = Entry.creationText;
+					AnchorX.value = Entry.Anchor.x;
+					AnchorY.value = Entry.Anchor.y;
+					CenterAnchor.selected = Entry.CenterAnchor;
+					BoundsX.value = Entry.Bounds.x;
+					BoundsY.value = Entry.Bounds.y;
+					BoundsWidth.value = Entry.Bounds.width;
+					BoundsHeight.value = Entry.Bounds.height;
+					Exports.selected = Entry.Exports;
+					Rotates.selected = Entry.CanRotate;
+					Scales.selected = Entry.CanScale;
+					SurfaceObject.selected = Entry.IsSurfaceObject;
+					
+					
+					for each ( var prop:PropertyType in Entry.properties )
+					{
+						var fakeProp:PropertyRef = new PropertyRef( prop.Type, prop.Name, prop.Value, prop.GetTypeObj() );
+						fakeProp.refProperty = prop;
+						fakeProp.Hidden = prop.Hidden;
+						properties.addItem( fakeProp );
+					}
+				}
+				
+				SpriteDataPropsGrid.dataProvider = properties;
+				SpriteDataPropsGrid.EnableHiddenColumn = true;
+				
+
+				recalcPreview();
+				
+				width = container.width + 20;
+				height = container.height + titleBar.height + 20;
+				
+				ShowTitleBarIcons = false;
+				
+				tiles = new TileGrid(320, TilePreview.height-15, 10, 1);
+				var uiref:DraggableTileWrapper = new DraggableTileWrapper;
+				TilePreview.addChild(uiref);
+				uiref.width = TilePreview.width;
+				uiref.height = TilePreview.height;
+				uiref.setTileObject(tiles);
+				tiles.autoResizeParents = true;
+				tiles.canAcceptDrop = false;
+				tiles.canBeginDrag = true;
+				tiles.smoothDraw = true;
+				tiles.maintainTotalHeight = true;
+				
+				if ( Entry )
+				{
+					// Start fresh to make it easier.
+					AnimRows.removeAllChildren();
+					
+					for each( var anim:TileAnim in Entry.anims )
+					{
+						var newRow:AnimTilesRow = new AnimTilesRow();
+						newRow.tileAnim = anim;
+						newRow.tilemap = null;
+						newRow.RowRemoved = OnAnimRemoved;
+						/*if ( previewBitmap )
+						{
+							newRow.initTilemapHeight = previewBitmap.height;
+							newRow.initTilemapWidth = previewBitmap.width;
+						}*/
+						AnimRows.addChild(newRow);
+					}
+					
+					frameShapes = Entry.shapes;
+				}
+				
+				tabsDP = new ArrayCollection();
+				tabsDP.addItem( { label: "Main Settings" });
+				tabsDP.addItem( { label: "Animations" } );
+				tabsDP.addItem( { label: "Frame Data" } );
+				multi.initTabs(tabsDP, mainView);
+				
+				super.init();
+            }
+			
+			private function TabsChanged():void
+			{
+				if ( mainView.selectedChild == MainSettings )
+				{
+				}
+				else if ( mainView.selectedChild == AnimationsGroup )
+				{
+					updateTileList();
+					TilePreviewWrapper_Anims.addChildAt(TilePreview, 0);
+					tiles.AddHBar(hbarAnims, TilePreviewWrapper_Anims);
+					tiles.ContainerObject = TilePreview;
+					tiles.canBeginDrag = true;
+					tiles.Selectable = false;
+					// Force a redraw
+					tiles.selectedIndex = -1;
+				}
+				else if ( mainView.selectedChild == PropertiesGroup )
+				{
+					TilePreviewWrapper_Props.addChildAt(TilePreview, 0);
+					tiles.AddHBar(hbarProps, TilePreviewWrapper_Props);
+					tiles.ContainerObject = TilePreview;
+					tiles.canBeginDrag = false;
+					tiles.Selectable = true;
+					// Force a redraw
+					tiles.selectedIndex = 0;
+					updateTileList();
+					tiles.SelectionChanged = TileSelectionChanged;
+				}
+			}
+			
+			private function updateTileList():void
+			{
+				var app:App = App.getApp();
+				tiles.clearTiles();
+				if ( bitmap && previewBitmap )
+				{
+					var wid:int = previewBitmap.width;
+					var ht:int = previewBitmap.height;
+					var numRows:uint = Math.floor( bitmap.height / ht );
+					var numColumns:uint = Math.floor( bitmap.width / wid );
+					numRows = Math.max(numRows, 1);
+					numColumns = Math.max(numColumns, 1 );
+					var maxIndex:uint = ( numColumns * numRows );
+					var flashPoint:Point = new Point(0, 0);
+					
+					tiles.TileWidth = wid;
+					tiles.TileHeight = ht;
+					tiles.ColumnCount = maxIndex;
+					
+					for ( var i:uint = 0; i < maxIndex; i++ )
+					{
+						var currentRow:uint = i / numColumns;
+						var currentColumn:uint = i % numColumns;
+						
+						var sourceRect:Rectangle = new Rectangle( currentColumn * wid, currentRow * ht, wid, ht);
+						var tile:BitmapData = new BitmapData(wid, ht, true, 0xffffff);
+						
+						tile.copyPixels( bitmap.bitmapData, sourceRect, flashPoint );
+						tiles.pushTile(tile, i);
+					}
+					//app.myTileList.selectedIndex = sprite.tilePreviewIndex + 1;
+					
+					if ( mainView.selectedChild == AnimationsGroup )
+					{
+						var rows:Array = AnimRows.getChildren();
+						var rowIndex:uint = rows.length;
+						while (rowIndex-- )
+						{
+							var newRow:AnimTilesRow = rows[rowIndex];
+							if ( newRow.tiles )
+							{
+								var ratio:Number = (newRow.tiles.height -15) / ht;
+								newRow.tiles.TileWidth = wid * ratio;
+								newRow.tiles.TileHeight = ht * ratio;
+								i = newRow.tiles.GetDataLength();
+								while ( i-- )
+								{
+									var tileId:int = newRow.tiles.GetMetaDataAtIndex(i) as int;
+									if ( tileId >= 0 && tileId < tiles.GetDataLength() )
+									{
+										newRow.tiles.ReplaceImageData( tileId, tiles.GetBitmapDataAtIndex( tileId ) );
+									}
+									else
+									{
+										newRow.tiles.ReplaceImageData( tileId, new BitmapData(wid, ht) );
+									}
+								}
+							}
+							else if (newRow)
+							{
+								newRow.initTilemapHeight = ht;
+								newRow.initTilemapWidth = wid;
+							}
+						}
+					}
+					else if ( mainView.selectedChild == PropertiesGroup )
+					{
+						if ( shapesBitmapdata == null || shapesBitmapdata.width != previewBitmap.width || shapesBitmapdata.height != previewBitmap.height+1 )
+						{
+							shapesBitmapdata = new BitmapData( previewBitmap.width + 1, previewBitmap.height + 1, true, 0x00000000);
+						}
+						TileSelectionChanged();
+						if ( shapesBitmap == null )
+						{
+							shapesBitmap = new Bitmap( shapesBitmapdata );
+							FramePreview.AddChild(shapesBitmap);
+						}
+						else
+						{
+							shapesBitmap.bitmapData = shapesBitmapdata;
+						}
+						
+					}
+				}
+			}
+			
+			private function UpdateFrameShapesPreview():void
+			{
+				var shape:Shape = new Shape();
+				shape.graphics.lineStyle(1, 0x000000, 1);
+				shape.graphics.drawRect(0, 0, previewBitmap.width, previewBitmap.height);
+				
+				var scaler:Number = 1;
+				
+				if( frameShapes )
+				{
+					var shapeList:SpriteShapeList = frameShapes.frames[tiles.selectedIndex];
+					if ( shapeList )
+					{
+						for ( var i:uint = 0; i < shapeList.shapes.length; i++ )
+						{
+							var item:SpriteShapeData = shapeList.shapes[i];
+							shape.graphics.lineStyle(2, 0xff0000, 0.8 * ( item == currentFrameShape ? selectionFade : 1 ));
+							if ( item.type == SpriteShapeData.SHAPE_POINT )
+							{
+								// draw the anchor as a cross.									
+								shape.graphics.moveTo((item.x * scaler) - 3, item.y * scaler);
+								shape.graphics.lineTo((item.x * scaler) + 3, item.y * scaler);
+								shape.graphics.moveTo(item.x * scaler, (item.y * scaler) - 3);
+								shape.graphics.lineTo(item.x * scaler, (item.y * scaler) + 3);
+							}
+							else if ( item.type == SpriteShapeData.SHAPE_CIRCLE )
+							{
+								shape.graphics.beginFill(0xff0000, 0.2 * ( item == currentFrameShape ? selectionFade : 1 ) );
+								shape.graphics.drawCircle(item.x * scaler, item.y * scaler, item.radius * scaler );
+								shape.graphics.endFill();
+							}
+							else if ( item.type == SpriteShapeData.SHAPE_BOX )
+							{
+								shape.graphics.beginFill(0xff0000, 0.2 * ( item == currentFrameShape ? selectionFade : 1 ) );
+								shape.graphics.drawRect(item.x * scaler, item.y * scaler, item.width * scaler, item.height * scaler );
+								shape.graphics.endFill();
+							}
+						}
+					}
+				}
+				
+				shapesBitmapdata.lock();
+				shapesBitmapdata.fillRect(shapesBitmapdata.rect, 0x00000000);
+				shapesBitmapdata.draw(shape);
+				shapesBitmapdata.unlock();
+			}
+			
+			private function TileSelectionChanged():void
+			{
+				var bmp:BitmapData = tiles.GetBitmapDataAtIndex( tiles.selectedIndex ) ;
+				if ( bmp )
+				{
+					var previewBmp:BitmapData = bmp.clone();
+					FramePreview.data = previewBmp;
+					currentFrameShape = null;
+					UpdateShapeDetails();
+					UpdateFrameShapesPreview();
+					CopyAllShapes.enabled = frameShapes && frameShapes.frames[tiles.selectedIndex] && frameShapes.frames[tiles.selectedIndex].shapes.length > 0;
+				}
+			}
+			
+			private function UpdateShapeDetails():void
+			{
+				var numShapes:int = 0;
+				if ( frameShapes && frameShapes.frames[tiles.selectedIndex] )
+					numShapes = frameShapes.frames[tiles.selectedIndex].shapes.length;
+				if( numShapes == 0 )
+					NumShapes.text = "No shapes";
+				else if ( numShapes == 1 )
+					NumShapes.text = "1 shape";
+				else
+					NumShapes.text = numShapes + " shapes"; 
+				if ( currentFrameShape )
+				{
+					FrameNameEdit.text = currentFrameShape.name;
+					if ( currentFrameShape.type == SpriteShapeData.SHAPE_BOX )
+					{
+						ShapeType.text = "Box";
+					}
+					else if ( currentFrameShape.type == SpriteShapeData.SHAPE_CIRCLE )
+					{
+						ShapeType.text = "Circle";
+					}
+					else if ( currentFrameShape.type == SpriteShapeData.SHAPE_POINT )
+					{
+						ShapeType.text = "Point";
+					}
+					else if ( currentFrameShape.type == SpriteShapeData.SHAPE_LINE )
+					{
+						ShapeType.text = "Line";
+					}
+					ShapePos.text = currentFrameShape.x + " , " + currentFrameShape.y;
+					DeleteShape.enabled = true;
+				}
+				else
+				{
+					ShapeType.text = "";
+					ShapePos.text = "";
+					FrameNameEdit.text = "";
+					DeleteShape.enabled = false;
+				}
+			}
+			
+			private function OnAnimRemoved( row:AnimTilesRow ):void
+			{
+				AnimRows.removeChild(row);
+			}
+			
+			private function AddNewAnim():void
+			{
+				var newRow:AnimTilesRow = new AnimTilesRow();
+				newRow.RowRemoved = OnAnimRemoved;
+				if ( previewBitmap )
+				{
+					newRow.initTilemapHeight = previewBitmap.height;
+					newRow.initTilemapWidth = previewBitmap.width;
+				}
+				AnimRows.addChild(newRow);
+			}
+			
+			private function frameMouseDown(event:MouseEvent):void
+			{
+				if ( frameShapes == null )
+				{
+					frameShapes = new SpriteFrameShapes;
+				}
+				var x:int = event.localX;
+				var y:int = event.localY;
+				if ( x < 0 || x >= previewBitmap.width || y < 0 || y >= previewBitmap.height )
+				{
+					currentFrameShape = null;
+					UpdateShapeDetails();
+					return;
+				}
+				clickDistX = clickDistY = 0;
+				switch( FrameShapeTypes[FrameShapeTypeButtons.selectedIndex] )
+				{
+					case FrameShapePoints:
+					isDraggingShape = true;
+					currentFrameShape = frameShapes.AddPoint(tiles.selectedIndex, x, y);
+					break;
+					
+					case FrameShapeCircles:
+					isSizingShape = true;
+					currentFrameShape = frameShapes.AddCircle(tiles.selectedIndex, x, y, 2);
+					break;
+					
+					case FrameShapeBoxes:
+					isSizingShape = true;
+					dragHandleX = 1;
+					dragHandleY = 1;
+					currentFrameShape = frameShapes.AddBox(tiles.selectedIndex, x, y, 2, 2);
+					break;
+					
+					case FrameShapeEditModeSelect:
+					{
+						var shapeList:SpriteShapeList = frameShapes.frames[tiles.selectedIndex];
+						if ( shapeList )
+						{
+							var onPt:Boolean = false;
+							var wantsDrag:Boolean = false;
+							var bestShape:SpriteShapeData = null;
+							var bestClickDistX:int = 9999;
+							var bestClickDistY:int = 9999;
+							for ( var i:uint = 0; i < shapeList.shapes.length; i++ )
+							{
+								var item:SpriteShapeData = shapeList.shapes[i];
+								var xDiff:int = Math.abs( x - item.x );
+								var yDiff:int = Math.abs( y - item.y );
+								var distFromCentre:Number = Math.sqrt( xDiff * xDiff + yDiff * yDiff );
+								if ( item.type == SpriteShapeData.SHAPE_POINT )
+								{
+									if ( distFromCentre <= 2 )
+									{
+										bestShape = item;
+										wantsDrag = true;
+										bestClickDistX = x - item.x;
+										bestClickDistY = y - item.y;
+									}
+								}
+								else if ( item.type == SpriteShapeData.SHAPE_CIRCLE )
+								{
+									if ( distFromCentre >= item.radius - 2 && distFromCentre <= item.radius + 2)
+									{
+										bestShape = item;
+										wantsDrag = false;
+									}
+									else if ( distFromCentre < item.radius && 
+										( !bestShape || currentFrameShape == item) )
+									{
+										bestShape = item;
+										wantsDrag = true;
+										bestClickDistX = x - item.x;
+										bestClickDistY = y - item.y;
+									}
+								}
+								else if ( item.type == SpriteShapeData.SHAPE_BOX )
+								{
+									var xDiff2:int = Math.abs( x - ( item.x + item.width ) );
+									var yDiff2:int = Math.abs( y - ( item.y + item.height ) );
+									
+									if ( (xDiff <= 2 || xDiff2 <= 2) && (yDiff <= 2 || yDiff2 <= 2 ) )
+									{
+										if ( xDiff <= 2 )
+											dragHandleX = 0;
+										else
+											dragHandleX = 1;
+										if ( yDiff <= 2 )
+											dragHandleY = 0;
+										else
+											dragHandleY = 1;
+										bestShape = item;
+										wantsDrag = false;
+									}
+									else if( !bestShape || currentFrameShape == item )
+									{
+										if ( x >= item.x && x <= item.x + item.width &&
+											y >= item.y && y <= item.y + item.height )
+										{
+											bestShape = item;
+											wantsDrag = true;
+											bestClickDistX = x - item.x;
+											bestClickDistY = y - item.y;
+										}
+									}
+								}
+								
+								// If clicked on the shape already selected then choose that.
+								if ( bestShape && currentFrameShape == bestShape )
+									break;
+							}
+							currentFrameShape = bestShape;
+							if( currentFrameShape )
+							{
+								isDraggingShape = wantsDrag;
+								if ( wantsDrag )
+								{
+									clickDistX = bestClickDistX;
+									clickDistY = bestClickDistY;
+								}
+								isSizingShape = !isDraggingShape;
+							}
+							else
+							{
+								isDraggingShape = isSizingShape = false;
+							}
+						}
+					}
+					break;
+				}
+				UpdateShapeDetails();
+				UpdateFrameShapesPreview();
+				CopyAllShapes.enabled = frameShapes.frames[tiles.selectedIndex] && frameShapes.frames[tiles.selectedIndex].shapes.length > 0;
+			}
+			
+			private function frameMouseMove(event:MouseEvent):void
+			{
+				
+				FramePos.text = event.localX + " , " + event.localY;
+				if ( currentFrameShape )
+				{
+					var x:int = event.localX;
+					var y:int = event.localY;
+					x = Misc.clamp( x, 0, previewBitmap.width - 1 );
+					y = Misc.clamp( y, 0, previewBitmap.height - 1 );
+
+					if ( isDraggingShape )
+					{
+						currentFrameShape.x = x - clickDistX;
+						currentFrameShape.y = y - clickDistY;
+						UpdateFrameShapesPreview();
+						UpdateShapeDetails();
+					}
+					else if ( isSizingShape )
+					{
+						switch( currentFrameShape.type )
+						{						
+							case SpriteShapeData.SHAPE_CIRCLE:
+							var xDiff:int = x - currentFrameShape.x;
+							var yDiff:int = y - currentFrameShape.y;
+							currentFrameShape.radius = Math.sqrt( xDiff*xDiff + yDiff*yDiff);
+							break;
+							
+							case SpriteShapeData.SHAPE_BOX:
+							if ( dragHandleX == 0 )
+							{
+								var right:int = currentFrameShape.x + currentFrameShape.width;
+								currentFrameShape.x = x;
+								currentFrameShape.width = right - currentFrameShape.x;
+								if ( currentFrameShape.width < 1 )
+								{
+									currentFrameShape.x = right - 1;
+									currentFrameShape.width = 1;
+									dragHandleX = 1;
+								}
+							}
+							else
+							{
+								currentFrameShape.width = x - currentFrameShape.x;
+								if ( currentFrameShape.width < 1 )
+								{
+									currentFrameShape.width = 1;
+									dragHandleX = 0;
+								}
+							}
+							if ( dragHandleY == 0 )
+							{
+								var bottom:int = currentFrameShape.y + currentFrameShape.height;
+								currentFrameShape.y = y;
+								currentFrameShape.height = bottom - currentFrameShape.y;
+								if ( currentFrameShape.height < 1 )
+								{
+									currentFrameShape.y = bottom - 1;
+									currentFrameShape.height = 1;
+									dragHandleY = 1;
+								}
+							}
+							else
+							{
+								currentFrameShape.height = y - currentFrameShape.y;
+								if ( currentFrameShape.height < 1 )
+								{
+									currentFrameShape.height = 1;
+									dragHandleY = 0;
+								}
+							}
+							break;
+						}
+						UpdateShapeDetails();
+						UpdateFrameShapesPreview();
+					}
+				}
+			}
+			
+			private function frameMouseUp(event:MouseEvent):void
+			{
+				isDraggingShape = false;
+				isSizingShape = false;
+			}
+			
+			private function changeFrameNameText():void
+			{
+				if ( currentFrameShape )
+				{
+					currentFrameShape.name = FrameNameEdit.text;
+				}
+			}
+			
+			private function Update():void
+			{
+				if ( mainView.selectedChild == PropertiesGroup )
+				{
+					if ( currentFrameShape && frameShapes )
+					{
+						selectionFade += FlxG.elapsed * selectionFadeDir;
+						if ( selectionFade < 0.2 || selectionFade > 1 )
+						{
+							selectionFadeDir = -selectionFadeDir;
+							selectionFade = Misc.clamp( selectionFade, 0.2, 1 );
+						}
+						UpdateFrameShapesPreview();
+					}
+				}
+			}
+			
+			private function DeleteShapeClick():void
+			{
+				var shapeList:SpriteShapeList = frameShapes.frames[tiles.selectedIndex];
+				if ( shapeList )
+				{
+					var index:int = shapeList.shapes.indexOf(currentFrameShape);
+					if ( index != -1 )
+					{
+						shapeList.shapes.splice(index, 1);
+					}
+				}
+				currentFrameShape = null;
+				UpdateShapeDetails();
+				UpdateFrameShapesPreview();
+				CopyAllShapes.enabled = frameShapes && frameShapes.frames[tiles.selectedIndex] && frameShapes.frames[tiles.selectedIndex].shapes.length > 0;
+			}
+			
+			private function ZoomInClick():void
+			{
+				var newScale:Number = FramePreview.scaleX * 2;
+				if( previewBitmap.width * newScale <= FramePreviewWrapper.width )
+				{
+					FramePreview.scaleX = FramePreview.scaleY = newScale;
+				}
+				UpdateFrameShapesPreview();
+			}
+			
+			private function ZoomOutClick():void
+			{
+				var newScale:Number = FramePreview.scaleX / 2;
+				if ( newScale >= 1 )
+				{
+					FramePreview.scaleX = FramePreview.scaleY = newScale;
+				}
+				UpdateFrameShapesPreview();
+			}
+			
+			private function CopyShapesClick():void
+			{
+				copiedFrameList = frameShapes.frames[ tiles.selectedIndex ];
+				PasteShapes.enabled = true;
+			}
+			
+			private function PasteShapesClick():void
+			{
+				if ( frameShapes && copiedFrameList && copiedFrameList.shapes.length )
+				{
+					for ( var i:uint = 0; i < copiedFrameList.shapes.length; i++ )
+					{
+						var sourceShape:SpriteShapeData = copiedFrameList.shapes[i];
+						var newShape:SpriteShapeData = frameShapes.AddPoint(tiles.selectedIndex, sourceShape.x, sourceShape.y);
+						newShape.type = sourceShape.type;
+						newShape.width = sourceShape.width;
+						newShape.height = sourceShape.height;
+						newShape.radius = sourceShape.radius;
+						newShape.name = sourceShape.name;
+					}
+					UpdateFrameShapesPreview();
+				}
+			}
+
+        ]]>
+    </mx:Script>
+
+	<mx:Box id="container">
+		<comUI:MultiRowTabs id="multi" rowHeight="18" tabsPerRow="3" horizontalScrollPolicy="off"/>
+		<mx:ViewStack id="mainView" change="TabsChanged();" width="100%" height="580" paddingTop="0" paddingBottom="0" horizontalScrollPolicy="off" creationPolicy="all">
+			<mx:VBox id="MainSettings">
+				<mx:Form width="100%">
+					<!-- Add space before the first label so everything gets nicely aligned. Apparently labelWidth doesn't work properly -->
+					<mx:FormItem label="       Name">
+						<mx:TextInput id="Name" width="100%" />
+					</mx:FormItem>
+					<mx:FormItem label="Class">
+						<mx:TextInput id="ClassName" width="100%" />
+					</mx:FormItem>
+					<mx:FormItem label="Image">
+						<mx:HBox width="100%">
+							<mx:TextInput id="ImagePath" width="460" editable="false" />
+							<mx:Button id="BrowseButton" label="..." click="load()" />
+						</mx:HBox>
+					</mx:FormItem>
+					<mx:HBox>
+						<mx:VBox>
+							<mx:Label text="Preview " width="70" textAlign="right" />
+							<mx:Spacer height="50" />
+							<mx:Label text="Index:"/>
+							<mx:NumericStepper id="PreviewIndex" stepSize="1" value="0" minimum="0" maximum="99" change="recalcPreview()" />
+						</mx:VBox>
+						<mx:Box width="300" height="150" borderStyle="solid" horizontalScrollPolicy="off" verticalScrollPolicy="off">
+							<comUI:SpriteRenderer id="SpritePreview" width="100%" height="100%" minWidth="32" minHeight="32" />
+						</mx:Box>
+						<mx:VBox >
+							<mx:HBox>
+								<mx:Label text="Width"/>
+								<mx:NumericStepper id="WidthInput" stepSize="1" value="1" minimum="1" maximum="5000" change="recalcPreview()" />
+								<mx:Label text="Height"/>
+								<mx:NumericStepper id="HeightInput" stepSize="1" value="1" minimum="1" maximum="5000" change="recalcPreview()" />
+							</mx:HBox>
+							<mx:Label text="Bounds:"/>
+							<mx:HBox>
+								<mx:Label text="X"/>
+								<mx:NumericStepper id="BoundsX" stepSize="1" value="0" minimum="0" maximum="5000" change="recalcPreview()" />
+								<mx:Spacer width="10"/>
+								<mx:Label text="Width"/>
+								<mx:NumericStepper id="BoundsWidth" stepSize="1" value="1" minimum="1" maximum="5000" change="recalcPreview()" />
+							</mx:HBox>
+							<mx:HBox>
+								<mx:Label text="Y"/>
+								<mx:NumericStepper id="BoundsY" stepSize="1" value="0" minimum="0" maximum="5000" change="recalcPreview()" />
+								<mx:Spacer width="10"/>
+								<mx:Label text="Height"/>
+								<mx:NumericStepper id="BoundsHeight" stepSize="1" value="1" minimum="1" maximum="5000" change="recalcPreview()" />
+							</mx:HBox>
+							<mx:HBox>
+								<mx:Label text="Anchor:"/>
+								<mx:CheckBox label="Centered" id="CenterAnchor" toolTip="Tick to keep the anchor centered." change="updateAnchorCenter()" />
+							</mx:HBox>
+							<mx:HBox id="AnchorPosUI">
+								<mx:Label text="X"/>
+								<mx:NumericStepper id="AnchorX" stepSize="1" value="0" minimum="0" maximum="5000" change="recalcPreview()" />
+								<mx:Spacer width="25"/>
+								<mx:Label text="Y"/>
+								<mx:NumericStepper id="AnchorY" stepSize="1" value="0" minimum="0" maximum="5000" change="recalcPreview()" />
+							</mx:HBox>
+						</mx:VBox>
+					</mx:HBox>
+					<mx:LinkButton id="keywordHelp" label="Constructor text can use %xpos% format for keywords. Click here for info on full list of keywords..." click="onHelpClick()" />
+					<mx:HBox>
+						<mx:Text text="Constructor Text" width="70" textAlign="left" height="32"/>
+						<mx:TextArea id="ConstructorText" width="520" height="40" toolTip="If the exporter uses constructor text then any calls to create new objects of this type can be replaced with the text here. Use keywords specified in the exporters help page if needed." />
+					</mx:HBox>
+					<mx:HBox>
+						<mx:Text text="Creation Text" width="70" textAlign="left" height="32"/>
+						<mx:TextArea id="CreationText" width="520" height="40" toolTip="If set then this will override the text you pass as the defaultCreationText completely. Use keywords specified in the exporters help page if needed." />
+					</mx:HBox>
+					<mx:HBox>
+						<mx:CheckBox label="Exports" id="Exports" selected="true" toolTip="Select to allow this sprite to be exported. Deselect and it will be ignored during exporting." />
+						<mx:CheckBox label="Can Rotate" id="Rotates" selected="true" toolTip="If selected then it is possible to rotate this sprite." />
+						<mx:CheckBox label="Can Scale" id="Scales" selected="true" toolTip="If selected then it is possible to scale this sprite." />
+						<mx:CheckBox label="Is Surface Object" id="SurfaceObject" selected="false" toolTip="A Surface Object will align with an isometric tile as though it was a tile itself. If unchecked then it is more likely a character or non isometric object." />
+					</mx:HBox>
+					<mx:HBox width="100%">
+						<mx:VBox>
+							<mx:Button id="btnAddProp" toolTip="Add Property" icon="@Embed(source='../../../assets/addPropertyIcon_off.png')" click="addProperty()" />
+							<mx:Button id="btnRemoveProp" toolTip="Remove Property" icon="@Embed(source='../../../assets/deletePropertyIcon_off.png')" click="removeProperty()" />
+						</mx:VBox>
+						<comUI:PropertyGrid id="SpriteDataPropsGrid" />
+					</mx:HBox>
+				</mx:Form>
+			</mx:VBox>
+			<mx:VBox id="AnimationsGroup" width="100%">
+				<mx:Box id="TilePreviewWrapper_Anims" width="580" borderStyle="solid" horizontalScrollPolicy="off" verticalScrollPolicy="off" paddingBottom="0" verticalGap="0">
+					<mx:Box id="TilePreview" width="100%" height="60" horizontalScrollPolicy="off" verticalScrollPolicy="off" paddingBottom="0" verticalGap="0"/>
+					<mx:HScrollBar visible="true" id="hbarAnims" bottom="0" width="580" repeatDelay="1000" repeatInterval="500"
+							minScrollPosition="0" maxScrollPosition="1000" lineScrollSize="50" pageScrollSize="100"/>
+				</mx:Box>
+				<mx:Label text="Animations:"/>
+				<mx:VBox id="AnimRows" width="100%" height="400" />
+				<mx:Button label="Add new anim" click="AddNewAnim()" />
+			</mx:VBox>
+			<mx:VBox id="PropertiesGroup" width="100%">
+				<mx:Box id="TilePreviewWrapper_Props" width="580" borderStyle="solid" horizontalScrollPolicy="off" verticalScrollPolicy="off" paddingBottom="0" verticalGap="0">
+					<mx:HScrollBar visible="true" id="hbarProps" bottom="0" width="580" repeatDelay="1000" repeatInterval="500"
+							minScrollPosition="0" maxScrollPosition="1000" lineScrollSize="50" pageScrollSize="100"/>
+				</mx:Box>
+				<mx:Label text="Left click to place/select new shapes."/>
+				<mx:HBox>
+					<mx:Box id="FramePreviewWrapper" width="400" height="400" borderStyle="solid" horizontalScrollPolicy="auto" verticalScrollPolicy="auto"
+						mouseDown="frameMouseDown(event)" mouseMove="frameMouseMove(event)" mouseUp="frameMouseUp(event)">
+						<comUI:SpriteRenderer id="FramePreview" width="100%" height="100%" minWidth="32" minHeight="32" autoScale="false"  />
+					</mx:Box>
+					<mx:VBox>
+						<mx:Label id="NumShapes" text="No shapes" />
+						<mx:Form>
+							<mx:FormItem label="Name:">
+								<mx:TextInput id="FrameNameEdit" width="150" change="changeFrameNameText()" />
+							</mx:FormItem>
+							<mx:FormItem label="Type:">
+								<mx:Label id="ShapeType" text="" />
+							</mx:FormItem>
+							<mx:FormItem label="Pos:">
+								<mx:Label id="ShapePos" text="" />
+							</mx:FormItem>
+						</mx:Form>
+						<mx:Button enabled="false" id="DeleteShape" label="Delete" click="DeleteShapeClick()"/>
+						<mx:HBox>
+							<mx:Button id="CopyAllShapes" enabled="false" label="Copy All" click="CopyShapesClick()"/>
+							<mx:Button id="PasteShapes" enabled="false" label="Paste" click="PasteShapesClick()"/>
+						</mx:HBox>
+						<mx:HBox>
+							<mx:Button id="ZoomFrameOut" label="-" click="ZoomOutClick()" toolTip="Zoom Out" />
+							<mx:Button id="ZoomFrameIn" label="+" click="ZoomInClick()" toolTip="Zoom In" />
+						</mx:HBox>
+						
+						<mx:Label id="FramePos" text=""/>
+					</mx:VBox>
+					
+				</mx:HBox>
+				<mx:HBox>
+					<mx:ToggleButtonBar id="FrameShapeTypeButtons">
+						<mx:Array id="FrameShapeTypes">
+							<mx:String id="FrameShapePoints">Add Points</mx:String>
+							<mx:String id="FrameShapeBoxes">Add Boxes</mx:String>
+							<mx:String id="FrameShapeCircles">Add Circles</mx:String>
+							<mx:String id="FrameShapeEditModeSelect">Select Shapes</mx:String>
+						</mx:Array>
+					</mx:ToggleButtonBar>
+				</mx:HBox>
+			</mx:VBox>
+		</mx:ViewStack>
+		
+		<mx:HBox horizontalAlign="center" width="100%">
+			<mx:Button id="btnOK" label="OK" click="ok()" />
+			<mx:Button id="btnCancel" label="Cancel" click="cancel()" />
+		</mx:HBox>
+		<mx:Spacer height="10"/>
+	</mx:Box>
+</comUI:PopupWindow>

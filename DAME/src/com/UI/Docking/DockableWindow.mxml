@@ -1,0 +1,272 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<comUI:PopupWindow xmlns:mx="http://www.adobe.com/2006/mxml" xmlns:comUI="com.UI.*"
+    width="100%" height="100%" close="cleanUpDocks()" horizontalScrollPolicy="auto" verticalScrollPolicy="auto"
+	resizable="true" showGripper="true" showStatusBar="false" maximizable="false" minimizable="false"
+    title="">
+
+    <mx:Script>
+        <![CDATA[
+			import com.UI.Docking.DockablePage;
+			import com.UI.Docking.DockableTabNav;
+			import com.UI.Docking.DockInfo;
+			import com.UI.Docking.DockManager;
+			import com.UI.MultiRowTabs;
+			import com.Utils.Global;
+			import flash.display.DisplayObject;
+			import flash.events.Event;
+			import flash.events.EventDispatcher;
+			import flash.events.MouseEvent;
+			import flash.events.NativeWindowBoundsEvent;
+			import flash.geom.Point;
+			import mx.core.Container;
+			//import mx.containers.HDividedBox;
+			//import mx.containers.VDividedBox;
+			import com.UI.ExtendedDividedBox;
+           
+			private var m_currentDock:DockInfo = null;
+			
+			private var doneInit:Boolean = false;
+			private var scaleToFit:Boolean = false;
+           
+            override protected function init():void
+			{
+				if ( Closing )
+					return;
+					
+				//width = container.width + 20;
+				//height = container.height + titleBar.height + 20;
+				
+				titleName = title;
+				doubleClickTitleBarShrinks = true;
+				if ( !doneInit )
+				{
+					AllowMinimizeToStatusBar();
+					super.init();
+				
+					nativeWindow.addEventListener(NativeWindowBoundsEvent.MOVING, updateLocation);
+					nativeWindow.stage.addEventListener(MouseEvent.MOUSE_UP, mouseUp);
+					nativeWindow.stage.addEventListener(Event.ENTER_FRAME, updateTitle );
+					
+					doneInit = true;
+				}
+				if ( scaleToFit )
+				{
+					ScaleWindowToFit();
+				}
+            }
+			
+			public function ScaleWindowToFit():void
+			{
+				if ( doneInit )
+				{
+					width = container.width + 20;
+					height = container.height + titleBar.height + 20;
+					scaleToFit = false;
+				}
+				else
+				{
+					scaleToFit = true;
+				}
+			}
+			
+			public function Resize():void
+			{
+				// Needs this when setting the position for some reason.
+				init();
+			}
+			
+			private function mouseUp(event:MouseEvent):void
+			{
+				windowToMouseStartPos = null;
+				if ( !m_currentDock )
+					return;
+				if ( m_currentDock.m_location == DockablePage.AREA )
+				{
+					cleanUpDocks();
+					return;
+				}
+				if ( container.numChildren  )
+				{
+					var page:DockablePage = container.getChildAt(0) as DockablePage;
+					if ( page )
+					{
+						container.removeChild( page );
+						var dockContents:Container = m_currentDock.m_dock.GetContents() as Container;
+						var siblingDock:DockablePage;
+						
+						if ( m_currentDock.m_location == DockablePage.CENTER )
+						{
+							var tabNav:DockableTabNav = null;
+							if ( dockContents.numChildren )
+							{
+								if ( dockContents is DockableTabNav )
+								{
+									tabNav = dockContents as DockableTabNav;
+								}
+								else
+								{
+									var child:Container = dockContents.getChildAt(0) as Container;
+									if( child is DockableTabNav )
+									{
+										tabNav = child as DockableTabNav;
+									}
+								}
+							}
+							if( tabNav == null )
+							{
+								// We need to add the current contents to the new tab navigater.
+								m_currentDock.m_dock.removeChild(dockContents);
+								tabNav = new DockableTabNav();
+								tabNav.percentWidth = 100;
+								tabNav.percentHeight = 100;
+								m_currentDock.m_dock.addChild(tabNav);
+								
+								tabNav.AddTabPage( dockContents );
+							}
+							page.label = title;
+							tabNav.AddTabPage( page.GetContents() as Container );
+						}
+						else
+						{
+							// The items inside the divider must be dockable pages.
+							m_currentDock.m_dock.removeChild( dockContents );
+							
+							if ( dockContents is DockablePage )
+							{
+								siblingDock = dockContents as DockablePage;
+							}
+							else
+							{
+								siblingDock = new DockablePage;
+								m_currentDock.m_dock.MoveContentsInto(siblingDock, dockContents);
+							}
+							
+							if ( m_currentDock.m_location == DockablePage.TOP || m_currentDock.m_location == DockablePage.BOTTOM )
+							{
+								var vDivider:ExtendedDividedBox = new ExtendedDividedBox;
+								vDivider.direction = "vertical";
+								vDivider.percentWidth = 100;
+								vDivider.percentHeight = 100;
+								vDivider.liveDragging = true;
+								
+								m_currentDock.m_dock.addChildAt( vDivider, 0 );
+								if ( m_currentDock.m_location == DockablePage.TOP )
+								{
+									vDivider.addChildAt( page, 0 );
+									vDivider.addChildAt( siblingDock, 1 );
+								}
+								else if ( m_currentDock.m_location == DockablePage.BOTTOM )
+								{
+									vDivider.addChildAt( siblingDock, 0 );
+									vDivider.addChildAt( page, 1 );
+								}
+							}
+							else if ( m_currentDock.m_location == DockablePage.LEFT || m_currentDock.m_location == DockablePage.RIGHT )
+							{
+								var hDivider:ExtendedDividedBox = new ExtendedDividedBox;
+								hDivider.direction = "horizontal";
+								hDivider.percentWidth = 100;
+								hDivider.percentHeight = 100;
+								hDivider.liveDragging = true;
+								
+								m_currentDock.m_dock.addChildAt( hDivider, 0 );
+								if ( m_currentDock.m_location == DockablePage.LEFT )
+								{
+									hDivider.addChildAt( page, 0 );
+									hDivider.addChildAt( siblingDock, 1 );
+								}
+								else if ( m_currentDock.m_location == DockablePage.RIGHT )
+								{
+									hDivider.addChildAt( siblingDock, 0 );
+									hDivider.addChildAt( page, 1 );
+								}
+							}
+						}
+						m_currentDock.m_dock.AdjustTitle();
+						m_currentDock.m_dock.invalidateDisplayList();
+					}
+				}
+				ForceClose();
+			}
+			
+			private function cleanUpDocks():void
+			{
+				if ( m_currentDock )
+				{
+					m_currentDock.m_dock.ChangeDockVisibility(false, m_currentDock.m_location);
+					m_currentDock = null;
+				}
+			}
+			
+			private var windowToMouseStartPos:Point = null;
+			
+			public function SetupDrag( mouseX:int, mouseY:int ):void
+			{
+				//trace( mouseX + " , " + mouseY );
+				// Really nasty hack that doesn't fix things 100% anyway.
+				// when I start drag automatically on a new window the mouse position that is returned can be off.
+				windowToMouseStartPos = new Point( nativeWindow.x - mouseX, nativeWindow.y - mouseY );
+			}
+			
+			protected function updateLocation(event:NativeWindowBoundsEvent=null):void
+			{				
+				if ( Closing || !doneInit )
+					return;
+				
+				alpha = 1;
+				
+				//var screenMouse:Point = new Point( event.afterBounds.left + nativeWindow.stage.mouseX, event.afterBounds.top + nativeWindow.stage.mouseY );
+				//trace( screenMouse.x + " , " + screenMouse.y + " -> " + nativeWindow.stage.mouseX + " , " + nativeWindow.stage.mouseY);
+				if ( !windowToMouseStartPos )
+				{
+					var local:Point = localToGlobal(new Point(App.getApp().stage.mouseX, App.getApp().stage.mouseY ));
+					var screenMouse:Point = nativeWindow.globalToScreen(local);
+				}
+				else
+				{
+					screenMouse = new Point(nativeWindow.x - windowToMouseStartPos.x, nativeWindow.y - windowToMouseStartPos.y );
+				}
+				/*var pos3:Point = localToGlobal( new Point(mouseX, mouseY) );
+				var pos4:Point = nativeWindow.globalToScreen(pos3);
+				trace("a: " + local.x + " , " + local.y + "    b: " + screenMouse.x + " , " + screenMouse.y + "   c: " + pos3.x + " , " + pos3.y+ "   d: " + pos4.x + " , " + pos4.y );*/
+				var myDock:DockablePage = null;
+				if ( container.numChildren )
+				{
+					myDock = container.getChildAt(0) as DockablePage;
+				}
+				var newDock:DockInfo = Global.dockManager.FindDockAtLocation( screenMouse.x, screenMouse.y, myDock );
+				
+				if ( m_currentDock && (newDock == null || newDock.m_dock != m_currentDock.m_dock || newDock.m_location == DockablePage.AREA) )
+				{
+					m_currentDock.m_dock.ChangeDockVisibility(false, m_currentDock.m_location);
+				}
+				if ( newDock )
+				{
+					newDock.m_dock.ChangeDockVisibility(true, newDock.m_location);
+					if( newDock.m_location != DockablePage.AREA)
+						alpha = 0.5;
+				}
+				m_currentDock = newDock;
+			}
+			
+			private function updateTitle(event:Event):void
+			{
+				if ( Closing || container.numChildren == 0 )
+					return;
+				var page:DockablePage = container.getChildAt(0) as DockablePage;
+				if ( page )
+				{
+					if ( page.title != title )
+					{
+						title = page.title;
+					}
+				}
+			}
+           
+        ]]>
+    </mx:Script>
+
+	
+	<mx:VBox id="container" horizontalAlign="center" width="100%" height="100%" >
+	</mx:VBox>
+</comUI:PopupWindow>

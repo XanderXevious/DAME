@@ -1,0 +1,1214 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+	<head>
+		<META http-equiv="Content-Type" content="text/html; charset=UTF-8">
+		<title>DAME Exporter syntax</title>
+		<style type="text/css">
+			h1 {color:#0000CC;}
+			h2 {color:#000099;}
+			h3 {color:#000066;}
+			pc {color:#AA0000;}
+			dpc {color:#0000AA;}
+		</style>
+	</head>
+	<body>
+		<p align=right><a href="index.html">Return to help contents...</a></p>
+		<h1>Writing an exporter</h1>
+		Exporters for DAME are written in Lua and use a set of special DAME functions and keywords to allow you to output your exported data in a variety of ways. DAME comes with some standard exporters but you can modify those or write your own. It is advised that you create your own exporters and place them within a custom exporter directory on your computer rather than modifying the standard ones. This will prevent them from being overwritten if you ever update DAME in the future.
+		Exporters for DAME are written in Lua and use a set of special DAME functions and keywords to allow you to output your exported data in a variety of ways. DAME comes with some standard exporters but you can modify those or write your own. It is advised that you create your own exporters and place them within a custom exporter directory on your computer rather than modifying the standard ones. This will prevent them from being overwritten if you ever update DAME in the future.
+		<p>You don't need any extra software to run Lua. Just a text editor to write the file and the knowledge of the language. You can change the file and press Export without ever needing to restart DAME and it will warn you when Lua has encountered an error in your script. To learn more about Lua I recommend the following links:</p>
+		<ul>
+		<li><a href='http://lua-users.org/wiki/TutorialDirectory'>Lua-users wiki tutorials.</a></li>
+		<li><a href='http://www.lua.org/manual/5.1/'>Lua 5.1 reference manual.</a></li>
+		</ul>
+		<p>To write an exporter you must first create .lua file in your exporter directory prefixed with whatever name you wish for the exporter. The exporter directory can be anywhere. To specify it, go to the File menu and select 'Specify Custom Exporters Path'.</p>
+		<h1>Settings</h1>
+		<p>When you click on the file menu to export you are presented with a window that contains many input controls. With Lua you are able to add additional inputs onto the window. Any values in the window, whether standard inputs of additional inputs, will be remembed as long as you click OK or Export and then shut down DAME normally.</p>
+		<p>First you need to create a settings file in your exporters directory. The name must be the same as the exporter with _settings.lua following it. I.e. if your exporter is called myExporter.lua then the settings file will be myExporter_settings.lua</p>
+		<p>Within the settings file place calls to DAME functions that will create the components on the window one by one. The functions share some common parameters. There is an id parameter that the actual exporter file can reference. Within the exporter the id will have VALUE_ prefixed to it in the variable name. So you can access the data for any settings you add in the lua file just by using as3.tolua(VALUE_<setting_id>), where setting_id is whatever you passed in for the id parameter of the Add function in the list below. Any enabled parameters will allow you to disable the text input part of the control if desired. Also any tooltips are optional and that parameter can be left out of the function call if desired.</p>
+		<table border="0">
+		<tr>
+			<td width="10"/>
+			<td>
+			<b>DAME.AddBrowsePath(label:String, id:String, enabled:Boolean, tooltip:String = null )</b>
+			<p>Adds a text input and a button that will bring up a file brower.</p>
+
+			<b>DAME.AddHtmlText( text:String )</b>
+			<p>Adds a non-editable text field that can contain htmltext.</p>
+			
+			<b>DAME.AddTextInput( label:String, defaultText:String, id:String, enabled:Boolean, tooltip:String = null )</b>
+			<p>Adds a text input that has default text the first time it is displayed.</p>
+			
+			<b>DAME.AddMultiLineTextInput( label:String, defaultText:String, id:String, height:int, enabled:Boolean, tooltip:String = null )</b>
+			<p>Adds a text input that has default text the first time it is displayed and can handle multiple lines of text. The height is the height in pixels of the text box.</p>
+
+			<b>DAME.AddNumberInput( label:String, defaultValue:Number, id:String, minValue:Number, maxValue:Number, stepValue:Number, tooltip:String = null)</b>
+			<p>Adds a number input control with a default value. It will only accept inputs between ( and including) minValue and maxValue. stepValue specifies the amount it will increment accept values by within the range.</p>
+
+			<b>DAME.AddCheckbox( text:String, id:String, tickedByDefault:Boolean, tooltip:String = null )</b>
+			<p>Adds a check box. You must specify whether the first display of this will have the box ticked or not.</p>
+			
+			<b>DAME.AddDropDown( label:String, id:String, values:Array, defaultValue:String, tooltip:String );</b>
+			<p>Adds a drop down box. Pass in an array using newArray = as3.class.Array.new(), followed by newArray versions.push("EntryString") for each entry in the drop down box.</p>
+			</td>
+		</tr>
+		</table>
+		
+		<h1>Functions</h1>
+		Due to the overhead in passing data between Lua and actionscript it is advisable to use as few calls as possible between the two. Whenever you need to convert some DAME data to something that Lua can understand you need to call as3.tolua(data). This could be for text strings or any numerical values stored by DAME. However, you can safely hold onto data, such as a layer object, as long as you don't try to read directly from it.
+		<p>To minimise the overhead you have access to a small number of flexible functions within the DAME interface that will allow you to parse data using formatted text and function parameters. While it will take time to learn all the syntax it makes it very easy to create the output you want without having to write lots of nested loops.</p>
+		<table border="0">
+		<tr>
+			<td width="10"/>
+			<td>
+			<b>DAME.GetGroups( )</b>
+			<p>Returns an array of groups containing the layers in the order of least visible first.</p>
+			
+			<b>DAME.SetFloatPrecision( precision:Number )</b>
+			<p>Set the number of decimal places to be displayed after any floating-point numbers in your output text.</p>
+			
+			<b>DAME.SetExportSpritesPos( type:String)</b>
+			<p>Override the default sprite position specified in the Exporter window. Pass in "Top Left", "Center", "Anchor" or "Bounds Top Left". This will be the location used whenever the parser finds the <pc>%</pc>xpos<pc>%</pc> or <pc>%</pc>ypos<pc>%</pc> keywords.</p>
+			
+			<b>DAME.SetStringWrapper( start:String, end:String )</b>
+			<p>Sets the text strings to be used to enclose certain text strings in any output. Currently this will only be referenced by properties when the data is a string type.</p>
+			
+			<b>DAME.ResetCounters()</b>
+			<p>Resets all internal counters to 0.</p>
+			
+			<b>DAME.SetExportHiddenProperties( exportThem:Boolean )</b>
+			<p>By default this is false and hidden properties are not exported if they are not visible in the item being exported. Call this function to override this and allow all properties to be exported.</p>
+			
+			<b>DAME.ConvertMapToText( mapLayer:MapLayer, rowPrefix:String, rowSuffix:String, columnPrefix:String, columnSeparator:String, columnSuffix:String, keywords:String = null, ignoreHiddenTiles:Boolean = false, groupBlocks:Boolean = false, stackKeywords:String = null, stackSeparator:String = ","):String</b>
+			<p>This will take a map layer ( returned from GetGroups ) and, using the formatting arguments you pass in, will return a text string containing all of the data in the map. You can use this to generate code, xml or many different types of output by changing the parameters. If you pass in a string for the keywords then you can choose the contents of the data for each tile. By default it will just be the tileId. Setting ignoreHiddenTiles to true will only add tile entries where the tile is visible.</p>
+			<p>By setting groupBlocks to true you can output the data using a basic form of compression. It will only output one entry for each consecutive group of tiles in a block. You can use the optional <pc>%</pc>blockCount<pc>%</pc> keyword in this case to output the number of tiles in each group as it is output.</p>
+			<p>If the tilemap has stacked tiles (tiles piled on top of each other in the z axis) then you can output text for each stack, embedded per base tile, using the stackKeywords. StackSeparator will be used to separate each tile within the stack.</p>
+			
+			<b><a name="CreateTileDataText">DAME.CreateTileDataText</a>( mapLayer:Object, keywords:String, tileframeKeywords:String, animFrameSeparator:String):String</b>
+			<p>This generates the text for the properties and animations for each tile in the tile list for this map. Keywords is the text that will be used for each tile. TileFrameKeywords will be used for each frame of an anim, and the text of animFrameSeparator will separate each frame if the <pc>%</pc>separator<pc>%</pc> keyword is used. See <a href="#tileDataTextKeywords">here</a> for all of the keywords specific to this function. Also see <a href="#properties">Properties</a> for keywords relating to properties.</p>
+			
+			<b>DAME.CreateTextForSprites( layer:SpriteLayer, defaultCreationText:String, defaultClass:String, bmpfontText:String = "", baseDirectory:String = null ):String</b>
+			<p>This returns a text string containing output for every sprite in the sprite layer. Pass in a text string for the defaultCreationText parameter which will be pasted in the output text as it iterates through each sprite. If you put any text in the creationText part of a sprite entry in the database then that will be used instead. Any keywords you place in the creation text will be replaced with the information relavant to that sprite. E.g. For each sprite any occurances of <pc>%</pc>xpos<pc>%</pc> will be replaced by the actual x position of the sprite. The defaultClass parameter is there to allow you to specify the default class to use whenever you use the <pc>%</pc>class<pc>%</pc> keyword, as well as for any logical statements which rely on the class type.</p>
+			<p>bmpFontText is an optional parameter used for parsing bitmap fonts if they are included. As this is image based there is a baseDirectory parameter as well.</p>
+			
+			<b>DAME.CreateTextForShapes( layer:ShapeLayer, circleText:String, rectangleText:String, textText:String ):String</b>
+			<p>This returns a text string containing output for every shape object in the shape layer. Pass in text strings for the different types of shape objects (circles, rectangles and text) and any keywords will be replaced with whatever valid contextual information about the current shape it finds. DAME will work out which text should be used for each shape.</p>
+			
+			<b>DAME.CreateTextForPaths( layer:PathLayer, polylineText:String, lineNodeText:String, curvesText:String, curveNodeText:String, nodeSeparator:String, pathEventsText:String=null):String</b>
+			<p>This returns a text string containing output for every path in the path layer. Pass in a text string for each different type of path and for the corresponding nodes within each path. You can also specify a nodeSeparator so you can place things like "," between each node in the output if you wish. pathEventsText is an optional string for dealing with paths that have path events.</p>
+			
+			<b>DAME.CreateTextForImageLayer( layer:ImageLayer, text:String, baseDirectory:String ):String</b>
+			<p>This returns a text string containing output for the current image layer. The text string can contain a small subset of keywords to parse. "baseDirectory" is used to calculate the relative path for the image file, if the <pc>%</pc>imagefilerelative<pc>%</pc> keyword is used.</p>
+			
+			<b>DAME.CreateTextForSpriteClasses( spriteText:String, tileSpriteText:String, groupText:String, separatorText:String, groupEndText:String, indentText:String, sprite:SpriteEntry = null, baseDirectory:String=""):String</b>
+			<p>If you wish you can also generate text for every sprite class within your current project. It will observe the hierarchical structure of your sprite database and allow you to place text for each group node as well as indentation. Pass in a sprite if you wish to parse one sprite and it's children only. Use baseDirectory if you need to get a relative path name for a sprite image file.</p>
+			
+			<b>DAME.GetTextForProperties( inputText:String, properties:Array, propertyTypeStrings:Object=null ):String</b>
+			<p>This returns a text string for all the properties in the current object. This is usually used for the layers themselves due to the fact that this function is implicitly called whenever you call one of the CreateTextForXXX functions. The keywords in inputText can be found <a href="#properties">here</a>. To use for a map layer pass in layer.properties. The propertyTypeStrings are only needed if you use <pc>%</pc>proptype<pc>%</pc> in your inputText. See <a href="#proptypes">DAME.SetCurrentPropTypes</a> for more info.</p>
+			
+			<b>DAME.GetTextForLinks( inputText:String, group:GroupLayer = null):String</b>
+			<p>This will parse the inputText and generate a copy of the parsed text for each object link in the map. The input text can only contain keywords for properties and the special keywords relevant to links. By default it will export all links in the entire project. You can optionally pass in a group so that only objects that are within the group will be parsed.</p>
+			
+			<b>DAME.GetRelativePath(basePath:String, dest:String):String</b>
+			<p>This will find the relative location of the destination path to the base path. I.e. if dest was in basePath/items/dest.txt then it would return items/dest.txt.</p>
+			
+			<b>DAME.WriteFile( filepath:String, data:String )</b>
+			<p>This will output the data string to a file, whether it already exists or not.</p>
+			
+			<b>DAME.GetProjectFile( )</b>
+			<p>Returns a string containing the full path and filename of the DAME project you are currently using.</p>
+			
+			<b>DAME.GetProjectName( )</b>
+			<p>Returns a string containing the shorthand name of the project without the .dam extenstion.</p>
+			
+			<b>DAME.GetProjectFileLocation( )</b>
+			<p>Returns the location of the current DAME project file.</p>
+
+			<b><a name="proptypes">DAME.SetCurrentPropTypes( propTypes:Object )</a></b>
+			<p>Specify the list of strings to use when exporting each property type. This will be the default if any functions that need propertyType data have the propertyType data emply.</p>
+			<p>PropTypes is an object containing entries for each type within DAME, whose values are strings that will be output to represent that type. Entries MUST be made for all types that will be encountered. They are String, Int, Float and Boolean and this is case sensitive. Below is an example of the data you would pass into the function:</p>
+				<i>local groupPropTypes = as3.toobject({ String="String", Int="int", Float="Number", Boolean="Boolean" })</i>
+			<p/>
+			</td>
+		</tr>
+		</table>
+		
+		<h1><a name="keywords">Keywords</a></h1>
+		DAME recognizes many special keywords in lua exporters and can interpret them to format your output in many ways. They are either wrapped up with a single percent symbol either side of the keyword like this <pc>%</pc>xpos<pc>%</pc> or with two percent symbols like this <dpc>%%</dpc>else<dpc>%%</dpc>. Generally speaking the double percents are used for logical control flow like if, else, end and loops, and the single percents are used in all other cases.
+		<h2>Common keywords</h2>
+		<p>These are the keywords most commonly used for objects and layers:</p>
+		<table border="0">
+			<tr>
+				<td><pc>%</pc>xpos<pc>%</pc></td>
+				<td>The x position of the object.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>ypos<pc>%</pc></td>
+				<td>The y position of the object.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>degrees<pc>%</pc></td>
+				<td>The angle of the object in degrees.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>radians<pc>%</pc></td>
+				<td>The angle of the object in radians.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>scalex<pc>%</pc></td>
+				<td>The horizontal scale of the object.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>scaley<pc>%</pc></td>
+				<td>The vertical scale of the object.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>width<pc>%</pc></td>
+				<td>The width of the object.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>height<pc>%</pc></td>
+				<td>The height of the object.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>class<pc>%</pc></td>
+				<td>The class name of the sprite in the sprite entry.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>flipped<pc>%</pc></td>
+				<td>Has the object been flipped horizontally.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>name<pc>%</pc></td>
+				<td>The name of the sprite in the sprite entry in quotes.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>spritename<pc>%</pc></td>
+				<td>The name of the sprite in the sprite entry (unquoted).</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>guid<pc>%</pc></td>
+				<td>The unique id of the object. This is a long string that is unique for all objects and is used internally in DAME. It looks something like this: 423768CE-A864-8411-1B3D-CA8F54673F86</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>anchorx<pc>%</pc></td>
+				<td>The x anchor position of the sprite.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>anchory<pc>%</pc></td>
+				<td>The y anchor position of the sprite.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>boundsx<pc>%</pc></td>
+				<td>The left position of the sprite's bounds.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>boundsy<pc>%</pc></td>
+				<td>The top position of the sprite's bounds.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>boundswidth<pc>%</pc></td>
+				<td>The width of the sprite's bounds.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>boundsheight<pc>%</pc></td>
+				<td>The height of the sprite's bounds.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>boundsright<pc>%</pc></td>
+				<td>The right position of the sprite's bounds.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>boundsbottom<pc>%</pc></td>
+				<td>The bottom position of the sprite's bounds.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>tilex<pc>%</pc></td>
+				<td>The left position of the tile sprite relative to the spritemap.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>tiley<pc>%</pc></td>
+				<td>The top position of the tile sprite relative to the spritemap.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>scrollx<pc>%</pc></td>
+				<td>The x scroll factor of the object.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>scrolly<pc>%</pc></td>
+				<td>The y scroll factor of the object.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>frame<pc>%</pc></td>
+				<td>The frame this sprite uses within the complete tile animation. This will either be the overriden one or the one in the sprite entry.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>tilewid<pc>%</pc></td>
+				<td>The width of the portion of the spritesheet used within the sprite, or the width of the sprite.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>tileht<pc>%</pc></td>
+				<td>The height of the portion of the spritesheet used within the sprite, or the height of the sprite.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>realx<pc>%</pc></td>
+				<td>The x position of the object aligned with a map, eg if the map is isometric.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>realy<pc>%</pc></td>
+				<td>The y position of the object aligned with a map, eg if the map is isometric.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>constructor<pc>%</pc>DEFAULT<pc>%</pc>constructorend<pc>%</pc></td>
+				<td>If the sprite's sprite entry has its own constructor text that will be used instead, otherwise whatever you put where DEFAULT is will be used. Keywords are allowed within the DEFAULT text.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>constructor:DEFAULT<pc>%</pc></td>
+				<td>If the sprite's sprite entry has its own constructor text that will be used instead, otherwise whatever you put where DEFAULT is will be used. Keywords must NOT be used within the DEFAULT text, though they can be present in the sprite entry's constructor, or else this keyword will not be found. If you wish to use keywords then use <pc>%</pc>constuctor<pc>%</pc> instead.</td>
+			</tr>
+		</table>
+		
+		<h2>Tilemap keywords</h2>
+		<p>These are the keywords used in the ConvertMapToText function:</p>
+		<table border="0">
+			<tr>
+				<td><pc>%</pc>xpos<pc>%</pc></td>
+				<td>The x position of the tile within the tilemap in units.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>ypos<pc>%</pc></td>
+				<td>The y position of the tile within the tilemap in units.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>zpos<pc>%</pc></td>
+				<td>The z position of the tile within the tilemap in units.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>pxpos<pc>%</pc></td>
+				<td>The x position of the tile within the tilemap in pixels.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>pypos<pc>%</pc></td>
+				<td>The y position of the tile within the tilemap in pixels.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>idx<pc>%</pc></td>
+				<td>The idx of the tile within the tile data list.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>tileId<pc>%</pc></td>
+				<td>The actual value of the tile.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>tilex<pc>%</pc></td>
+				<td>The left-most pixel of the start of this tile's representation within the tilemap.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>tiley<pc>%</pc></td>
+				<td>The top-most pixel of the start of this tile's representation within the tilemap.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>tilewid<pc>%</pc></td>
+				<td>The width of this tile in pixels.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>tileht<pc>%</pc></td>
+				<td>The height of this tile in pixels</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>tileendx<pc>%</pc></td>
+				<td>The right-most pixel of the end of this tile's representation within the tilemap.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>tileendy<pc>%</pc></td>
+				<td>The bottom-most pixel of the end of this tile's representation within the tilemap.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>blockCount<pc>%</pc></td>
+				<td>The number of tiles in this block of tiles when the groupBlocks parameter is true.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>stackText<pc>%</pc></td>
+				<td>This keyword will be replaced by anything generated by the stackKeywords parameter of the function.</td>
+			</tr>
+		</table>
+		<p>These keywords are used specifically for stacked tilemaps that have tile stacks. No other keywords will be valid when parsing stack keywords:</p>
+		<table border="0">
+			<tr>
+				<td><pc>%</pc>tileId<pc>%</pc></td>
+				<td>The actual value of the tile.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>zpos<pc>%</pc></td>
+				<td>The z position (height) of the tile within the tilemap in units.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>pzpos<pc>%</pc></td>
+				<td>The z position (height) of the tile within the tilemap in pixels.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>pypos<pc>%</pc></td>
+				<td>The y position of the tile within the tilemap in pixels. This is the actual y position, offset from <pc>%</pc>pypos<pc>%</pc> parsed for main tiles.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>tilex<pc>%</pc></td>
+				<td>The left-most pixel of the start of this tile's representation within the tilemap.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>tiley<pc>%</pc></td>
+				<td>The top-most pixel of the start of this tile's representation within the tilemap.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>tileendx<pc>%</pc></td>
+				<td>The right-most pixel of the end of this tile's representation within the tilemap.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>tileendy<pc>%</pc></td>
+				<td>The bottom-most pixel of the end of this tile's representation within the tilemap.</td>
+			</tr>
+		</table>
+		
+		<h2>Text object keywords</h2>
+		<table border="0">
+			<tr>
+				<td><pc>%</pc>text<pc>%</pc></td>
+				<td>The text string.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>color<pc>%</pc></td>
+				<td>The color of the text in hexadecimal (minus any prefixes - you need to add those yourself if you want them).</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>size<pc>%</pc></td>
+				<td>The size of the font.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>font<pc>%</pc></td>
+				<td>The name of the font.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>align<pc>%</pc></td>
+				<td>The alignment of the text (left, right, center).</td>
+			</tr>
+		</table>
+		
+		<h2>Bitmap text keywords</h2>
+		<table border="0">
+			<tr>
+				<td><pc>%</pc>text<pc>%</pc></td>
+				<td>The text string.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>lineSplitText<pc>%</pc></td>
+				<td>The text split up into the lines as displayed on the screen.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>align<pc>%</pc></td>
+				<td>The alignment of the text (left, right, center).</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>characterSet<pc>%</pc></td>
+				<td>The text used for the character set within the bitmap font source image.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>fontWidth<pc>%</pc></td>
+				<td>The width of each character.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>fontHeight<pc>%</pc></td>
+				<td>The height of each character.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>xSpacing<pc>%</pc></td>
+				<td>The number of pixels between each character in the text box.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>ySpacing<pc>%</pc></td>
+				<td>The number of pixels between each character in the text box.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>scale<pc>%</pc></td>
+				<td>The scale of the text.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>imagefile<pc>%</pc></td>
+				<td>The full path name of the font image.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>imagefilename<pc>%</pc></td>
+				<td>The short name of the font image.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>imagefilerelative<pc>%</pc></td>
+				<td>The filename of the font image relative to the baseDirectory path.</td>
+			</tr>
+		</table>
+		
+		<h2>Shape keywords</h2>
+		<table border="0">
+			<tr>
+				<td><pc>%</pc>radius<pc>%</pc></td>
+				<td>The radius of the circle.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>diameter<pc>%</pc></td>
+				<td>The diameter of the circle.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>shapeColor<pc>%</pc></td>
+				<td>The color of the shape in hex.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>alpha<pc>%</pc></td>
+				<td>The opacity of the shape.</td>
+			</tr>
+		</table>
+		
+		<h2>Paths</h2>
+		Paths can sometimes be instanced, which means that only one set of path data is shared for many paths. If this is the case then you can choose to store some data for the source path and other data for all the instances of that path.
+		<table border="0">
+			<tr>
+				<td><pc>%</pc>nodelist<pc>%</pc></td>
+				<td>Will print the node list text.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>nodecount<pc>%</pc></td>
+				<td>The number of nodes on the path.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>eventlist<pc>%</pc></td>
+				<td>Will print the event list text.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>eventcount<pc>%</pc></td>
+				<td>The number of events on the path.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>isclosed<pc>%</pc></td>
+				<td>Is the path closed or open.</td>
+			</tr>
+			<tr>
+				<td><dpc>%%</dpc>dopathsource<dpc>%%</dpc> ... <dpc>%%</dpc>endpathsource<dpc>%%</dpc></td>
+				<td>This will output the text enclosed only if it is an instanced path, otherwise an empty string will be output.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>storepathsource<pc>%</pc></td>
+				<td>This stores a string for the current path source object when this is an instanced path. See Setters and Getters.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>getpathsource<pc>%</pc></td>
+				<td>This returns the stored string for the path source when this is an instanced path. When a sprite calls <pc>%</pc>getparent<pc>%</pc> it will output this text. See Setters and Getters.</td>
+			</tr>
+			<tr>
+				<td><dpc>%%</dpc>if pathevents<dpc>%%</dpc> ... <dpc>%%</dpc>endifpathevents<dpc>%%</dpc></td>
+				<td>The enclosed text will be output if there are any path events on this path object.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>separator:<SEPARATOR TEXT><pc>%</pc></td>
+				<td>Whatever you put instead of <SEPARATOR TEXT> will be output if there is another event within the current path.</td>
+			</tr>
+		</table>
+		<h3>Path node lists</h3>
+		<table>
+			<tr>
+				<td><pc>%</pc>nodex<pc>%</pc></td>
+				<td>The x position of the node on the map.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>nodey<pc>%</pc></td>
+				<td>The y position of the node on the map.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>relativenodex<pc>%</pc></td>
+				<td>The x position of the node relative to the path object's top-left coordinates.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>relativenodey<pc>%</pc></td>
+				<td>The y position of the node relative to the path object's top-left coordinates.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>tan1x<pc>%</pc></td>
+				<td>The x position of the node's first handle relative to the node.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>tan1y<pc>%</pc></td>
+				<td>The y position of the node's first handle relative to the node.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>tan2x<pc>%</pc></td>
+				<td>The x position of the node's second handle relative to the node.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>tan2y<pc>%</pc></td>
+				<td>The y position of the node's second handle relative to the node.</td>
+			</tr>
+		</table>
+		<h3>Path events</h3>
+		<table>
+			<tr>
+				<td><pc>%</pc>xpos<pc>%</pc></td>
+				<td>The x position of the event on the map.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>ypos<pc>%</pc></td>
+				<td>The y position of the node on the map.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>segment<pc>%</pc></td>
+				<td>The segment the event lies within.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>percent<pc>%</pc></td>
+				<td>The percent (0-1) of the event within the segment.</td>
+			</tr>
+		</table>
+		
+		<h2>Image Layers</h2>
+		<p>By default, unlike other layers, image layers are not exported - this is because they are mainly intended as a reference layer - so if you wish to export you need to click "Export" in the Layer Properties panel. When exporting them using DAME.CreateTextForImageLayer only a small selection of keywords are recognised:</p>
+		<table border="0">
+			<tr>
+				<td><pc>%</pc>imagefile<pc>%</pc></td>
+				<td>The full path name of the image file.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>imagefilename<pc>%</pc></td>
+				<td>The filename of the image without any path info.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>imagefilerelative<pc>%</pc></td>
+				<td>The path of the image file relative to the BaseDirectory passed into the function.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>xpos<pc>%</pc></td>
+				<td>The x position of the left of the image.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>ypos<pc>%</pc></td>
+				<td>The y position of the top of the image..</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>alpha<pc>%</pc></td>
+				<td>The alpha/opacity of the image from 0 to 1.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>scrollx<pc>%</pc></td>
+				<td>The x scroll factor of the image layer.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>scrolly<pc>%</pc></td>
+				<td>The y scroll factor of the image layer.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>width<pc>%</pc></td>
+				<td>The width of the image.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>height<pc>%</pc></td>
+				<td>The height of the image.</td>
+			</tr>
+		</table>
+		
+		<h2>Links</h2>
+		<p>Links can exist between all the different object types you can place down in DAME. They have their own keywords, and also can handle properties. You have 2 choices in how to deal with the link data. The avatars for each link contain an id unique to that object (not a GUID), allowing you to populate an array, preferably associative as there is no guarantee that the indices will be consecutive, with this data. The ids will all start at 0 and count up. Secondly you can refer to them through the stored strings if this has been done for them. Link keywords can be called in different places and vary depending on where they're called.</p>
+		<strong>Keywords within DAME.GetTextForLinks. With the exception of <pc>%</pc>linkidx<pc>%</pc> all of these keywords are available to use anywhere:</strong>
+		<table border="0">
+			<tr>
+				<td><pc>%</pc>linkidx<pc>%</pc></td>
+				<td>The index of this link within the internal list of links.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>linkfromid<pc>%</pc></td>
+				<td>The id of the object that the link is coming from.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>linktoid<pc>%</pc></td>
+				<td>The id of the object that the link is going to.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>getlinkfromstr<pc>%</pc></td>
+				<td>The stored string for the object that the link is coming from. Be careful with this. Because 2 objects can be parsed at different times, depending on their order and your exporter, there is no guarantee that the string will exist when parsed.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>getlinktostr<pc>%</pc></td>
+				<td>The stored string for the object that the link is going to. Be careful with this. Because 2 objects can be parsed at different times, depending on their order and your exporter, there is no guarantee that the string will exist when parsed.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>linkid<pc>%</pc></td>
+				<td>Returns the link id of the object currently being parsed.</td>
+			</tr>
+		</table>
+		<strong>General use link keywords. These cannot be used in DAME.GetTextForLinks and are intended for outputting link text on a per object basis:</strong>
+		<table border="0">
+			<tr>
+				<td><dpc>%%</dpc>if link<dpc>%%</dpc></td>
+				<td>If there is a link either from or to this object then the script within the block between this and <dpc>%%</dpc>endiflink<dpc>%%</dpc> will be run.</td>
+			</tr>
+			<tr>
+				<td><dpc>%%</dpc>if linkto<dpc>%%</dpc></td>
+				<td>If there is a link to another object then the script within the block between this and <dpc>%%</dpc>endiflink<dpc>%%</dpc> will be run.</td>
+			</tr>
+			<tr>
+				<td><dpc>%%</dpc>if linkfrom<dpc>%%</dpc></td>
+				<td>If there is a link from another object then the script within the block between this and <dpc>%%</dpc>endiflink<dpc>%%</dpc> will be run.</td>
+			</tr>
+			<tr>
+				<td><dpc>%%</dpc>endiflink<dpc>%%</dpc></td>
+				<td>The terminator of an if link block.</td>
+			</tr>
+			<tr>
+				<td><dpc>%%</dpc>linksfromloop<dpc>%%</dpc></td>
+				<td>This will loop through all links from other objects to this and parse the script contained between this and <dpc>%%</dpc>linkloopend<dpc>%%</dpc></td>
+			</tr>
+			<tr>
+				<td><dpc>%%</dpc>linkstoloop<dpc>%%</dpc></td>
+				<td>This will loop through all links to other objects to this and parse the script contained between this and <dpc>%%</dpc>linkloopend<dpc>%%</dpc></td>
+			</tr>
+			<tr>
+				<td><dpc>%%</dpc>linkloopend<dpc>%%</dpc></td>
+				<td>This marks the end of a link loop block.</td>
+			</tr>
+		</table>
+		
+		<h3>Attachments</h3>
+		<p>Attachments between sprites and paths are handled with their own keywords</p>
+		<table border="0">
+			<tr>
+				<td><pc>%</pc>getchild<pc>%</pc></td>
+				<td>The stored string for the sprite that this path has attached. See Setters and Getters.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>getparent<pc>%</pc></td>
+				<td>The stored string for the path that this sprite is attached to. See Setters and Getters.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>attachedsegment<pc>%</pc></td>
+				<td>A sprite will be attached between point A and point B on a path. This will return the index (0-based) of the first point - A.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>attachedsegment_t<pc>%</pc></td>
+				<td>The value (0-1) representing the position of the sprite on the path relative to point A and point B.</td>
+			</tr>
+		</table>
+		
+		<h2><a name="properties">Properties</a></h2>
+		<p>All objects in a project can have custom properties from maps, to sprites to the sprite entries themselves. It is possible to parse the properties with a few simple keywords.</p>
+		<table border="0">
+			<tr>
+				<td><pc>%</pc>prop:NAME<pc>%</pc></td>
+				<td>Outputs the value of the property called NAME.</td>
+			</tr>
+			<tr>
+				<td><dpc>%%</dpc>if prop:NAME<dpc>%%</dpc> ... <dpc>%%</dpc>endprop<dpc>%%</dpc></td>
+				<td>If property NAME exists in this object then the enclosed text will be output.</td>
+			</tr>
+			<tr>
+				<td><dpc>%%</dpc>ifproplength<dpc>%%</dpc> ... <dpc>%%</dpc>endifproplength<dpc>%%</dpc></td>
+				<td>If the length of the properties list is greater than 0 then the text inside will be parsed.</td>
+			</tr>
+			<tr>
+				<td><dpc>%%</dpc>ifnoproplength<dpc>%%</dpc> ... <dpc>%%</dpc>endifproplength<dpc>%%</dpc></td>
+				<td>If the length of the properties list is 0 then the text inside will be parsed.</td>
+			</tr>
+			<tr>
+				<td><dpc>%%</dpc>proploop<dpc>%%</dpc> ... <dpc>%%</dpc>proploopend<dpc>%%</dpc></td>
+				<td>Loops through every property in this object and outputs the text enclosed.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>propname<pc>%</pc></td>
+				<td>Prints the name of the property in a proploop.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>propnamefriendly<pc>%</pc></td>
+				<td>Prints the name of the property without whitespace inside of a proploop.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>propvalue<pc>%</pc></td>
+				<td>Prints the value of the property inside a proploop.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>propvaluestring<pc>%</pc></td>
+				<td>Prints the value of the property inside a proploop. If the type is a string, it will be wrapped by whatever was passed to the SetStringWrapper function, by default ""</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>proptype<pc>%</pc></td>
+				<td>Prints the type of the property accoring to the data passed in for propertyTypeStrings in the GetTextForProperties.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>separator:<SEPARATOR TEXT><pc>%</pc></td>
+				<td>Whatever you put instead of <SEPARATOR TEXT> will be output if there is another property left to parse within the current property loop.</td>
+			</tr>
+		</table>
+		
+		<h2>Sprite Entries</h2>
+		<p>Data from the sprite database can also be exported using DAME.CreateTextForSpriteClasses. It has access to all the common keywords but uses some special keywords for the data it contains and to make the output clean when dealing with the sprite hierarchy.</p>
+		<table border="0">
+			<tr>
+				<td><pc>%</pc>indent<pc>%</pc></td>
+				<td>Outputs the indentText.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>imagefile<pc>%</pc></td>
+				<td>Outputs the full path of the sprite image file.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>imagefilename<pc>%</pc></td>
+				<td>The filename of the image without any path info.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>imagefilerelative<pc>%</pc></td>
+				<td>The path of the image file relative to the BaseDirectory passed into the function.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>istile<pc>%</pc></td>
+				<td>true if it is a tiled sprite (spritesheet), false if it isn't.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>constructortext<pc>%</pc></td>
+				<td>Outputs the constructor text for this sprite entry without any keyword replacement.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>creationtext<pc>%</pc></td>
+				<td>Outputs the creation text for this sprite entry without any keyword replacement. Note, that since the creationText is used in CreateTextForSprites, this could cause strange output if you place it in a call from within that function. However, it is included for completeness.</td>
+			</tr>
+		</table>
+		<h3>Sprite anims</h3>
+		<p>Sprites can specify animations. Here are the keywords relating to that when using CreateTextForSpriteClasses.</p>
+		<table border="0">
+			<tr>
+				<td><dpc>%%</dpc>if spriteanims<dpc>%%</dpc> ... <dpc>%%</dpc>endif spriteanims<dpc>%%</dpc></td>
+				<td>The enclosed text will be output if there are any animations for the current sprite class.</td>
+			</tr>
+			<tr>
+				<td><dpc>%%</dpc>spriteanimloop<dpc>%%</dpc> ... <dpc>%%</dpc>spriteanimloopend<dpc>%%</dpc></td>
+				<td>The enclosed text will be output once for each animation.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>animnum<pc>%</pc></td>
+				<td>The 0-based index of this anim.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>fps<pc>%</pc></td>
+				<td>The frames per second of this anim.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>animname<pc>%</pc></td>
+				<td>The name of this anim.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>numframes<pc>%</pc></td>
+				<td>The number of frames in the animation.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>looped<pc>%</pc></td>
+				<td>True if the animation is looped.</td>
+			</tr>
+			<tr>
+				<td><dpc>%%</dpc>animframeloop<dpc>%%</dpc> ... <dpc>%%</dpc>animframeloopend<dpc>%%</dpc></td>
+				<td>The enclosed text is output once for each frame of the animation.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>frame<pc>%</pc></td>
+				<td>The frame number within the animation, starting from 0.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>frame1<pc>%</pc></td>
+				<td>The frame number within the animation, starting from 1.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>tileid<pc>%</pc></td>
+				<td>The index of the tile within the spritesheet for this frame.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>separator:<SEPARATOR TEXT><pc>%</pc></td>
+				<td>Whatever you put instead of <SEPARATOR TEXT> will be output if there is another frame within the current animation.</td>
+			</tr>
+		</table>
+		<h3>Sprite shapes</h3>
+		<p>For each tile within an animated sprite you can specify point and shape metadata.</p>
+		<table border="0">
+			<tr>
+				<td><dpc>%%</dpc>if shapes<dpc>%%</dpc> ... <dpc>%%</dpc>endif shapes<dpc>%%</dpc></td>
+				<td>The enclosed text will be output if there are any shapes for the current sprite class.</td>
+			</tr>
+			<tr>
+				<td><dpc>%%</dpc>if spriteanimsorshapes<dpc>%%</dpc> ... <dpc>%%</dpc>endif spriteanimsorshapes<dpc>%%</dpc></td>
+				<td>The enclosed text will be output if there are any shapes OR animations for the current sprite class.</td>
+			</tr>
+			<tr>
+				<td><dpc>%%</dpc>spriteframeloop<dpc>%%</dpc> ... <dpc>%%</dpc>spriteframeend<dpc>%%</dpc></td>
+				<td>The enclosed text will be output once for each frame that has shapes within each sprite.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>frame<pc>%</pc></td>
+				<td>The tile index of this 'frame' within the sprite, starting from 0.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>frame1<pc>%</pc></td>
+				<td>The tile index of this 'frame' within the sprite, starting from 1.</td>
+			</tr>
+			<tr>
+				<td><dpc>%%</dpc>shapeloop<dpc>%%</dpc> ... <dpc>%%</dpc>shapeloopend<dpc>%%</dpc></td>
+				<td>The enclosed text will be output once for each shape within each frame.</td>
+			</tr>
+			<tr>
+				<td><dpc>%%</dpc>ifcircle<dpc>%%</dpc> ... <dpc>%%</dpc>endcircle<dpc>%%</dpc></td>
+				<td>The enclosed text will be output if the current shape is a circle.</td>
+			</tr>
+			<tr>
+				<td><dpc>%%</dpc>ifbox<dpc>%%</dpc> ... <dpc>%%</dpc>endbox<dpc>%%</dpc></td>
+				<td>The enclosed text will be output if the current shape is a circle.</td>
+			</tr>
+			<tr>
+				<td><dpc>%%</dpc>ifpoint<dpc>%%</dpc> ... <dpc>%%</dpc>endpoint<dpc>%%</dpc></td>
+				<td>The enclosed text will be output if the current shape is a circle.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>type<pc>%</pc></td>
+				<td>The type name of the shape in lowercase.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>TYPE<pc>%</pc></td>
+				<td>The type name of the shape in uppercase.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>shapenum<pc>%</pc></td>
+				<td>The 0-based index of the shape within this current frame.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>xpos<pc>%</pc></td>
+				<td>The x position of the shape.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>ypos<pc>%</pc></td>
+				<td>The y position of the shape.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>radius<pc>%</pc></td>
+				<td>The radius of the shape in pixels. Only useful if it's a circle.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>wid<pc>%</pc></td>
+				<td>The width of the shape in pixels. Only useful for boxes.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>ht<pc>%</pc></td>
+				<td>The height of the shape in pixels. Only useful for boxes.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>shapename<pc>%</pc></td>
+				<td>The name of the shape.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>separator:<SEPARATOR TEXT><pc>%</pc></td>
+				<td>Whatever you put instead of <SEPARATOR TEXT> will be output if there is another shape within the current frame.</td>
+			</tr>
+		</table>
+		
+		<h2><a name="tileDataTextKeywords">Tile Data Text Keywords</a></h2>
+		<p>These are the keywords available when calling <a href="#CreateTileDataText">DAME.CreateTileDataText</a></p>
+		<table border="0">
+			<tr>
+				<td><pc>%</pc>tileid<pc>%</pc></td>
+				<td>Outputs the id of the current tile.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>fps<pc>%</pc></td>
+				<td>The number of frames per second in the anim.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>name<pc>%</pc></td>
+				<td>The name of this anim.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>numframes<pc>%</pc></td>
+				<td>The number of frames in the animation.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>looped<pc>%</pc></td>
+				<td>True if the animation is looped.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>tileframes<pc>%</pc></td>
+				<td>This outputs the text generated for each frame of the animation.</td>
+			</tr>
+			<tr>
+				<td><dpc>%%</dpc>if tileanims<dpc>%%</dpc> ... <dpc>%%</dpc>endif tileanims<dpc>%%</dpc></td>
+				<td>This logical keyword is used to only output the contained text if tile anims exist for the layer.</td>
+			</tr>
+			<tr>
+				<td><dpc>%%</dpc>if tileanim<dpc>%%</dpc> ... <dpc>%%</dpc>endif tileanim<dpc>%%</dpc></td>
+				<td>This logical keyword is used for each tile being parsed to only output the contained text if there is an animation starting with the current tile.</td>
+			</tr>
+		</table>
+		<p>Each frame of a tile animation has its own set of keywords:</p>
+		<table border="0">
+			<tr>
+				<td><pc>%</pc>frame<pc>%</pc></td>
+				<td>The number of the current frame, starting from 0.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>frame1<pc>%</pc></td>
+				<td>The number of the current frame, starting from 1.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>tileid<pc>%</pc></td>
+				<td>The id of the tile in this frame.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>separator<pc>%</pc></td>
+				<td>Outputs the separator text specified by the animFrameSeparator parameter of the function.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>looped<pc>%</pc></td>
+				<td>Returns true or false, depending on if the anim loops or not.</td>
+			</tr>
+		</table>
+		
+		<h2>Setters and Getters</h2>
+		<p>It is possible to store and retrieve data within the internal loops that DAME performs over objects by placing special keywords in your input text. There are two types available: counters and getters/setters. DAME maintains both a global counter and a dynamic list of counters that you can create yourself. It also maintains a list of text strings for every object which it encounters. This can be useful if you wish to give your object a name and then access it later on with that name, and because the text string can be anything it need not be limited to variable name. It could be an index into an array or an id or anything. Finally there is a local memory that will just remember one string but is not necessarily tied to any specific object. Note that because of the ordering of the parser it is possible to place other keywords as values within the names so that the name can change.</p>
+		<table border="0">
+			<tr>
+				<td><pc>%</pc>counter<pc>%</pc></td>
+				<td>This will output the value for the global counter.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>counter++<pc>%</pc></td>
+				<td>The stored string for the path that this sprite is attached to.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>counter:NAME<pc>%</pc></td>
+				<td>Pass in anything for name. If this is the first time that value has been used in the counter it will return 0 and create a new counter, otherwise it will return the current value for the counter.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>counter++:NAME<pc>%</pc></td>
+				<td>Pass in the name for a counter you have previously created and it will add 1 to the counter's value. If the counter does not exist a new one will be created and set to 0.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>store:NAME<pc>%</pc></td>
+				<td>Pass in anything for NAME. This will store a text string in the local memory for later reference. It will also store this string along with the current object being parsed so that you can reference it later on, and is most useful when you are dealing with objects that know about other objects such as sprites attached to paths.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>get<pc>%</pc></td>
+				<td>This will retreive the last text string stored by a call to <pc>%</pc>store:NAME<pc>%</pc></td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>storepathsource<pc>%</pc></td>
+				<td>This stores a string for the current path source when this is an instanced path. See Paths.</td>
+			</tr>
+			<tr>
+				<td><pc>%</pc>getpathsource<pc>%</pc></td>
+				<td>This returns the stored string for the path source when this is an instanced path. See Paths.</td>
+			</tr>
+		</table>
+		
+		<h1>Logical Keywords</h1>
+		DAME allows for some simple decision making to take place within the text that you pass in to the parser so that different text can be output for different types of data. This is in no way a full language but is designed to help where it is most needed.
+		<h2>Common keywords</h2>
+		<p>These are the keywords most commonly used for objects and layers:</p>
+		<table border="0">
+			<tr>
+				<td><dpc>%%</dpc>if class=NAME<dpc>%%</dpc></td>
+				<td>Outputs the text enclosed between this and the next class related else, elseif or endif keyword only if the current sprite class is the one referenced by NAME.</td>
+			</tr>
+			<tr>
+				<td><dpc>%%</dpc>elseif class=NAME<dpc>%%</dpc></td>
+				<td>Outputs the text enclosed between this and the next class related else, elseif or endif keyword only if the current sprite class is the one referenced by NAME.</td>
+			</tr>
+			<tr>
+				<td><dpc>%%</dpc>elseifanyclass<dpc>%%</dpc></td>
+				<td>Outputs the text enclosed between this and the next class related else, elseif or endif keyword only if the current sprite class is the one referenced by NAME.</td>
+			</tr>
+			<tr>
+				<td><dpc>%%</dpc>endifclass<dpc>%%</dpc></td>
+				<td>Terminates the previous if, elseif or else block.</td>
+			</tr>
+			<tr>
+				<td><dpc>%%</dpc>if parent<dpc>%%</dpc> ... <dpc>%%</dpc>endifparent<dpc>%%</dpc></td>
+				<td>Outputs the text enclosed only if this sprite is attached to a path.</td>
+			</tr>
+			<tr>
+				<td><dpc>%%</dpc>if child<dpc>%%</dpc> ... <dpc>%%</dpc>endifchild<dpc>%%</dpc></td>
+				<td>Outputs the text enclosed only if this path has a sprite attached to it.</td>
+			</tr>
+			<tr>
+				<td><dpc>%%</dpc>ifpathinstance<dpc>%%</dpc></td>
+				<td>Outputs the text enclosed between this and the next pathinstance keyword only if the path is an instanced path.</td>
+			</tr>
+			<tr>
+				<td><dpc>%%</dpc>elseifnopathinstance<dpc>%%</dpc></td>
+				<td>Outputs the text enclosed between this and the next pathinstance keyword only if the path is an instanced path.</td>
+			</tr>
+			<tr>
+				<td><dpc>%%</dpc>endifpathinstance<dpc>%%</dpc></td>
+				<td>Terminates the previous pathinstance block.</td>
+			</tr>
+			<tr>
+				<td><dpc>%%</dpc>dopathsource<dpc>%%</dpc> ... <dpc>%%</dpc>endpathsource<dpc>%%</dpc></td>
+				<td>This will output the text enclosed only if it is an instanced path, otherwise an empty string will be output.</td>
+			</tr>
+			<tr>
+				<td><dpc>%%</dpc>if prop:NAME<dpc>%%</dpc></td>
+				<td>If property NAME exists in this object then it will output the text between this and the next <dpc>%%</dpc>endprop<dpc>%%</dpc>.</td>
+			</tr>
+			<tr>
+				<td><dpc>%%</dpc>endprop<dpc>%%</dpc></td>
+				<td>Terminates the previous <dpc>%%</dpc>if prop<dpc>%%</dpc> block.</td>
+			</tr>
+			<tr>
+				<td><dpc>%%</dpc>proploop<dpc>%%</dpc> ... <dpc>%%</dpc>proploopend<dpc>%%</dpc></td>
+				<td>Loops through every property in this object and outputs the enclosed text.</td>
+			</tr>
+			<tr>
+				<td><dpc>%%</dpc>if proplength<dpc>%%</dpc> ... <dpc>%%</dpc>endifproplength<dpc>%%</dpc></td>
+				<td>If there are properties for this item then the text enclosed is output.</td>
+			</tr>
+			<tr>
+				<td><dpc>%%</dpc>if spritesheet<dpc>%%</dpc> ... <dpc>%%</dpc>endif spritesheet<dpc>%%</dpc></td>
+				<td>Outputs the enclosed text if the object is a spritesheet object.</td>
+			</tr>
+			<tr>
+				<td><dpc>%%</dpc>if animsprite<dpc>%%</dpc> ... <dpc>%%</dpc>endif animsprite<dpc>%%</dpc></td>
+				<td>Outputs the enclosed text if the object is an animatable sprite object.</td>
+			</tr>
+		</table>
+		
+		<h1>Internal data</h1>
+		When writing an exporter there will be times when you need to deal with the data directly, such as when iterating through layers. Different objects have different internal variables and functions.
+		<table border="0">
+			<tr>
+				<td>group.name</td>
+				<td>Returns the name of the group.</td>
+			</tr>
+			<tr>
+				<td>layer.name</td>
+				<td>Returns the name of the layer.</td>
+			</tr>
+			<tr>
+				<td>layer.map</td>
+				<td>Returns the map for this layer if it exists, or nil if it doesn't (ie if it isn't a map layer). For flixel users it's worth noting that the map is a FlxTilemap and so you can work directly with the map data from that. See further down the list for some of the most common parameters.</td>
+			</tr>
+			<tr>
+				<td>group.children</td>
+				<td>An array containing all the child layers of this group.</td>
+			</tr>
+			<tr>
+				<td>group.FindMasterLayer()</td>
+				<td>Returns the master layer if present, or null.</td>
+			</tr>
+			<tr>
+				<td>layer.IsSpriteLayer()</td>
+				<td>Returns true if this layer is a sprite layer.</td>
+			</tr>
+			<tr>
+				<td>layer.IsShapeLayer()</td>
+				<td>Returns true if this layer is a shape layer.</td>
+			</tr>
+			<tr>
+				<td>layer.IsPathLayer()</td>
+				<td>Returns true if this layer is a path layer.</td>
+			</tr>
+			<tr>
+				<td>layer.IsMasterLayer()</td>
+				<td>Returns true if this layer is a path layer.</td>
+			</tr>
+			<tr>
+				<td>layer.xScroll</td>
+				<td>The horizontal scroll factor for this layer.</td>
+			</tr>
+			<tr>
+				<td>layer.yScroll</td>
+				<td>The vertical scroll factor for this layer.</td>
+			</tr>
+			<tr>
+				<td>layer.map.x</td>
+				<td>Returns the map for this layer if it exists, or nil if it doesn't (ie if it isn't a map layer). For flixel users it's worth noting that the map is a FlxTilemap and so you can work directly with the map data from that.</td>
+			</tr>
+			<tr>
+				<td>layer.map.y</td>
+				<td>Returns the map for this layer if it exists, or nil if it doesn't (ie if it isn't a map layer). For flixel users it's worth noting that the map is a FlxTilemap and so you can work directly with the map data from that.</td>
+			</tr>
+			<tr>
+				<td>layer.map.widthInTiles</td>
+				<td>The width of the map in tiles.</td>
+			</tr>
+			<tr>
+				<td>layer.map.heightInTiles</td>
+				<td>The height of the map in tiles.</td>
+			</tr>
+			<tr>
+				<td>layer.map.width</td>
+				<td>The width of the map in pixels.</td>
+			</tr>
+			<tr>
+				<td>layer.map.height</td>
+				<td>The height of the map in pixels.</td>
+			</tr>
+			<tr>
+				<td>layer.map.tileWidth</td>
+				<td>The width in pixels of each tile in the map.</td>
+			</tr>
+			<tr>
+				<td>layer.map.tileHeight</td>
+				<td>The height in pixels of each tile in the map.</td>
+			</tr>
+			<tr>
+				<td>layer.map.drawIndex</td>
+				<td>The index of the first drawn tile on the map.</td>
+			</tr>
+			<tr>
+				<td>layer.map.collideIndex</td>
+				<td>The index of the first collidable tile on the map.</td>
+			</tr>
+			
+			<tr>
+				<td>layer.map.tileSpacingX</td>
+				<td>The width of each tile for the collisions. Ie a 2.5d block may be drawn larger than the base tile spacing size.</td>
+			</tr>
+			<tr>
+				<td>layer.map.tileSpacingY</td>
+				<td>The base tile height of each tile for the collisions. Ie a 2.5d block may be drawn larger than the base tile spacing size.</td>
+			</tr>
+			<tr>
+				<td>layer.map.tileOffsetX</td>
+				<td>The number of pixels each row is offset by.</td>
+			</tr>
+			<tr>
+				<td>layer.map.tileOffsetY</td>
+				<td>The number of pixels each column is offset by.</td>
+			</tr>
+			<tr>
+				<td>layer.map.xStagger</td>
+				<td>How much every other row is offset by.</td>
+			</tr>
+			<tr>
+				<td>layer.map.tilesStartX</td>
+				<td>Where the rendering of the tiles actually starts from the left of the bitmap.</td>
+			</tr>
+			<tr>
+				<td>layer.map.tilesStartY</td>
+				<td>Where the rendering of the tiles actually starts from the top of the bitmap.</td>
+			</tr>
+			<tr>
+				<td>layer.map.stackHeight</td>
+				<td>When using stacked tiles this is the number of pixels each tile within the stack is offset by.</td>
+			</tr>
+			<tr>
+				<td>layer.map.numStackedTiles</td>
+				<td>The number of tiles within a tile stack.</td>
+			</tr>
+			<tr>
+				<td>layer.HasHits</td>
+				<td>true if the map layer should have hits.</td>
+			</tr>
+			<tr>
+				<td>layer.properties</td>
+				<td>The properties for this layer. Use DAME.GetTextForProperties to parse this data.</td>
+			</tr>
+		</table>
+		
+		<p></p>
+		<center class="copyright"> 
+		</center>
+	</body>
+</html>
+<!-- -->

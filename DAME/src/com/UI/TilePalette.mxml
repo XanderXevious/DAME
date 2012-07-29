@@ -1,0 +1,167 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<mx:VBox xmlns:mx="http://www.adobe.com/2006/mxml" xmlns:comUI="com.UI.*"
+	width="100%" height="100%" creationComplete="init()"
+    label="Tiles" enterFrame="Update()" horizontalScrollPolicy="off" verticalScrollPolicy="off" >
+	<mx:Script>
+		<![CDATA[
+		
+		import com.EditorState;
+		import com.UI.Docking.DockablePage;
+		import com.UI.Tiles.TileList;
+		import com.UI.DraggableTileWrapper;
+		import com.Editor.EditorTypeTileMatrix;
+		import com.Utils.Global;
+		import flash.display.NativeMenu;
+		import flash.display.NativeMenuItem;
+		import flash.events.Event;
+		import flash.events.MouseEvent;
+		import flash.geom.Point;
+		import flash.geom.Rectangle;
+		import org.flixel.FlxG;
+		
+		[Bindable]
+		[Embed(source = '../../../assets/alphaBackground.png')] private var Img_background:Class;
+		
+		public var tiles:TileList = null;
+		
+		public static var updateZoom:Boolean = false;
+		public static var savedZoomString:String = "100%";
+		
+		private var bgCheckeredMenuItem:NativeMenuItem;
+		private var bgBlankMenuItem:NativeMenuItem;
+		private var bgColourMenuItem:NativeMenuItem;
+			
+		protected function init():void
+		{
+			tiles = new TileList();
+			tiles.autoRearrange = true;
+			tiles.autoResizeParents = true;
+			var uiref:DraggableTileWrapper = new DraggableTileWrapper;
+			canvas.addChild(uiref);
+			//uiref.percentWidth = 100;
+			//uiref.percentHeight = 100;
+			uiref.width = 500;
+			uiref.height = 100;
+			uiref.setStyle("horizontalScrollPolicy","off");
+			uiref.setStyle("verticalScrollPolicy", "off");
+			contextMenu = tiles.contextMenu;
+			
+			var submenu:NativeMenu = new NativeMenu();
+			contextMenu.addSubmenu(submenu, "Background");
+			bgCheckeredMenuItem = new NativeMenuItem("Checkered");
+			submenu.addItem(bgCheckeredMenuItem);
+			bgCheckeredMenuItem.addEventListener(Event.SELECT, bgMenuItemHandler, false, 0, true);
+			bgCheckeredMenuItem.checked = Global.UseCheckeredTilePalette;
+			bgBlankMenuItem = new NativeMenuItem("Blank");
+			submenu.addItem(bgBlankMenuItem);
+			bgBlankMenuItem.addEventListener(Event.SELECT, bgMenuItemHandler, false, 0, true);
+			bgBlankMenuItem.checked = !Global.UseCheckeredTilePalette;
+			
+			bgColourMenuItem = new NativeMenuItem("Set Colour...");
+			bgColourMenuItem.addEventListener(Event.SELECT, bgMenuItemHandler, false, 0, true);
+			submenu.addItem(bgColourMenuItem);
+			
+			canvas.active = Global.UseCheckeredTilePalette;
+			
+			canvas.overrideColor = Global.TilePaletteBackgroundColour;
+			
+			tiles.contextMenu = null;
+			tiles.ContainerObject = this;
+			
+			
+			uiref.setTileObject(tiles);
+			tiles.MakeAutoScroll( uiref );
+			App.getApp().myTileList = tiles;
+			
+			
+			if ( updateZoom )
+			{
+				updateZoom = false;
+				tiles.setZoomPercent(savedZoomString);
+			}
+			
+			if ( Global.windowedApp && App.getApp().tileMatrixWindow )
+			{
+				tiles.canBeginDrag = App.getApp().tileMatrixWindow.Active;
+			}
+		}
+		
+		private function bgMenuItemHandler(event:Event):void
+		{			
+			if ( event.target == bgBlankMenuItem )
+			{
+				bgBlankMenuItem.checked = true;
+				bgCheckeredMenuItem.checked = false;
+				Global.UseCheckeredTilePalette = canvas.active = false;
+			}
+			else if ( event.target == bgCheckeredMenuItem )
+			{
+				bgBlankMenuItem.checked = false;
+				bgCheckeredMenuItem.checked = true;
+				Global.UseCheckeredTilePalette = canvas.active = true;
+			}
+			else if ( event.target == bgColourMenuItem )
+			{
+				bgBlankMenuItem.checked = true;
+				bgCheckeredMenuItem.checked = false;
+				Global.UseCheckeredTilePalette = canvas.active = false;
+				var pop1:* = App.CreatePopupWindow(advancedColorPicker, true);
+				if ( pop1 )
+				{
+					pop1.setColorRGB(Global.TilePaletteBackgroundColour);
+					pop1.addEventListener(MouseEvent.CLICK, setColor);
+		
+					function setColor():void
+					{
+						var color:uint = pop1.getColorRGB();
+						Global.TilePaletteBackgroundColour = canvas.overrideColor = color;
+					}
+				}
+			}
+		}
+		
+		public function SetZoom( zoomString:String ):void
+		{
+			if ( tiles )
+				tiles.setZoomPercent( zoomString );
+			else
+			{
+				updateZoom = true;
+				savedZoomString = zoomString;
+			}
+		}
+		
+		private function Update():void
+		{
+			if ( tiles == null )
+			{
+				return;
+			}
+			
+			var newTitle:String = "Tiles";
+			if ( tiles.highlightIndex != -1 )
+			{
+				newTitle += " - " + tiles.highlightIndex;
+			}
+			else if ( tiles.selectedIndex != -1 )
+			{
+				newTitle += " : " + tiles.selectedIndex;
+			}
+			if ( newTitle != label )
+			{
+				label = newTitle;
+				var dock:DockablePage = parent as DockablePage;
+				if ( dock )
+				{
+					dock.SetTile(label);
+				}
+			}
+		}
+		
+			
+		]]>
+	</mx:Script>
+	
+	<comUI:ImageRepeatCanvas backgroundAlpha="0" id="canvas" repeatDirection="both" repeatImage="{Img_background}" width="100%" height="100%" horizontalScrollPolicy="off" verticalScrollPolicy="off" />
+
+</mx:VBox>

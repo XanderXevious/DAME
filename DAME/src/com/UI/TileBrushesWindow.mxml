@@ -1,0 +1,468 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<comUI:PopupWindow xmlns:mx="http://www.adobe.com/2006/mxml" title="Tile Brushes"
+	xmlns:comUI="com.UI.*" 
+	resizable="false" showGripper="false" showStatusBar="false" maximizable="false" minimizable="false"
+    width="100%" height="100%" horizontalScrollPolicy="off" verticalScrollPolicy="off" >
+
+    <mx:Script>
+        <![CDATA[
+			import com.Editor.EditorTypeTiles;
+			import com.Editor.TileEditorLayerEntry;
+			import com.Editor.TileEditorRowEntry;
+			import com.Editor.TileEditorTileEntry;
+			import com.EditorState;
+			import com.Layers.LayerEntry;
+			import com.Layers.LayerGroup;
+			import com.Layers.LayerMap;
+			import com.Operations.HistoryStack;
+			import com.Operations.OperationModifyTileBrushes;
+			import com.Tiles.FlxTilemapExt;
+			import com.Utils.CustomEvent;
+			import com.Utils.Global;
+			import com.Utils.Misc;
+			import flash.display.Bitmap;
+			import flash.display.BitmapData;
+			import flash.display.Sprite;
+			import flash.events.Event;
+			import flash.geom.Matrix;
+			import flash.geom.Point;
+			import flash.geom.Rectangle;
+			import mx.collections.ArrayCollection;
+			import mx.core.UIComponent;
+			import com.Tiles.ImageBank;
+			import org.flixel.FlxG;
+			
+			[Bindable]
+			public static var brushes:ArrayCollection = new ArrayCollection();
+			
+			[Bindable]
+			[Embed(source = '../../../assets/alphaBackground.png')] private var Img_background:Class;
+
+			public var opener:Object;
+			private var currentFile:File = null;
+			public var currentFileName:String = "";
+
+			public var okPressedCallback:Function;
+			
+			public var previewBitmap:Bitmap = null;
+			
+			private var tiles:Sprite;
+			private var tilesBitmap:Bitmap;
+			
+			private var widthDiff:uint;
+			private var heightDiff:uint;
+			
+			// Shifts tileIds up or down by 1 based on the id inserted or removed.
+			public function ShiftTileIds( id:int, insert:Boolean ):void
+			{
+				var currentLayer:LayerMap = App.getApp().CurrentLayer as LayerMap;
+				if ( !currentLayer )
+				{
+					return;
+				}
+
+				var redraw:Boolean = false;
+				for ( var i:uint = 0; i < brushes.length; i++ )
+				{
+					var layerData:TileEditorLayerEntry = brushes[i].entry;
+					if ( Misc.FilesMatch( currentLayer.imageFileObj, layerData.imageFile ) )
+					{
+						for ( var row:uint = 0; row < layerData.rows.length; row++ )
+						{
+							var rowData:TileEditorRowEntry = layerData.rows[row];
+							for ( var col:uint = 0; col < rowData.tiles.length; col++ )
+							{
+								var tileData:TileEditorTileEntry = rowData.tiles[col];
+								if ( tileData.tileId > id )
+								{
+									if ( insert )
+									{
+										tileData.tileId++;
+									}
+									else
+									{
+										tileData.tileId--;
+									}
+									redraw = true;
+								}
+								else if ( !insert && tileData.tileId == id )
+								{
+									tileData.tileId = 0;
+									redraw = true;
+								}
+							}
+						}
+					}
+				}
+				if ( redraw && active )
+				{
+					recalcPreview();
+				}
+			}
+			
+			public function recalcPreview():void
+			{
+				tilesBitmap.bitmapData.fillRect(new Rectangle(0, 0, tilesBitmap.width, tilesBitmap.height), 0x00000000);
+				
+				if ( ListBrushes.selectedItem )
+				{
+					var layerEntry:TileEditorLayerEntry = ListBrushes.selectedItem.entry;
+					
+					var tileWidth:uint = 0;
+					var tileHeight:uint = 0;
+					var mapLayer:LayerMap = null;
+					
+					var tileOffsetX:Number = 0;
+					var tileOffsetY:Number = 0;
+					var tileSpacingX:Number = 0;
+					var tileSpacingY:Number = 0;
+					
+					var testMapLayer:LayerMap = App.getApp().CurrentLayer as LayerMap;
+					
+					if ( testMapLayer && Misc.FilesMatch( testMapLayer.imageFileObj, layerEntry.imageFile ) )
+					{
+						mapLayer = testMapLayer;
+					}
+					else
+					{
+						// Find the current tile dimensions for this tileset.
+						for each( var group:LayerGroup in App.getApp().layerGroups )
+						{
+							for each( var testLayer:LayerEntry in group.children )
+							{
+								testMapLayer = testLayer as LayerMap;
+								if ( testMapLayer && Misc.FilesMatch( testMapLayer.imageFileObj,layerEntry.imageFile ) )
+								{
+									mapLayer = testMapLayer;
+								}
+							}
+						}
+					}
+					
+					if ( mapLayer == null || layerEntry.rows.length == 0)
+					{
+						return;
+					}
+					
+					tileWidth = mapLayer.map.tileWidth;
+					tileHeight = mapLayer.map.tileHeight;
+					tileOffsetX = mapLayer.map.tileOffsetX / mapLayer.map.tileWidth;
+					tileOffsetY = mapLayer.map.tileOffsetY / mapLayer.map.tileHeight;
+					tileSpacingX = mapLayer.map.tileSpacingX / mapLayer.map.tileWidth;
+					tileSpacingY = mapLayer.map.tileSpacingY / mapLayer.map.tileHeight;
+					var tileStagger:Number = mapLayer.map.xStagger / mapLayer.map.tileWidth;
+					
+					var top:int = int.MAX_VALUE;
+					var bottom:int = int.MIN_VALUE;
+					var left:int = int.MAX_VALUE;
+					var right:int = int.MIN_VALUE;
+					// Calculate the number of tiles wide and high we need.
+					for ( var row:uint = 0; row < layerEntry.rows.length; row++ )
+					{
+						var rowEntry:TileEditorRowEntry = layerEntry.rows[row];
+						
+						var drawnThisRow:Boolean = false;
+						
+						for ( var col:uint = 0; col < rowEntry.tiles.length; col++ )
+						{
+							var tileEntry:TileEditorTileEntry = rowEntry.tiles[col];
+							if ( !IgnoreWhiteSpace.selected || tileEntry.tileId >= mapLayer.map.drawIndex )
+							{
+								left = Math.min( left, tileEntry.startX );
+								right = Math.max( right, tileEntry.startX + 1 );
+								drawnThisRow = true;
+							}
+						}
+						if ( drawnThisRow )
+						{
+							top = Math.min(top, rowEntry.startY );
+							bottom = Math.max( bottom, rowEntry.startY + 1 );
+						}
+					}
+					var rect:Rectangle = new Rectangle(left, top, right - left, bottom - top);
+					
+					// Calculate the total space on each side as a proportion of 1 tile.
+					// The whole thing must fit in the screen without scrolling - prevent huge sprites that eat up memory.
+					var tWidth:Number = 0;
+					var tHeight:Number = 0;
+					var tOffsetX:int = 0;
+					var tOffsetY:int = 0;
+					var tSpacingX:int = 0;
+					var tSpacingY:int = 0;
+					var tilesStartY:int = 0;
+					var tilesStartX:int = 0;
+					var totalX:Number = ( rect.width * tileSpacingX ) + Math.abs( tileOffsetX * rect.height ) + tileStagger;
+					var totalY:Number = ( rect.height * tileSpacingY ) + Math.abs( tileOffsetY * rect.width );
+					if ( tileOffsetX && tileOffsetY )
+					{
+						totalX += 1 - ( 2 * tileSpacingX );
+						totalY += 1 - ( 2 * tileSpacingY );
+					}
+					else if ( !tileOffsetX && !tileOffsetY )
+					{
+						totalX += 1 - tileSpacingX;
+						totalY += 1 - tileSpacingY;
+					}
+
+					// The drawn dimensions of 1 whole tile.
+					tWidth = TileBox.width / totalX;
+					tHeight = TileBox.height / totalY;
+					
+					// Do best to keep proportions when scaling up.
+					var scaleX:Number = tWidth / tileWidth;
+					var scaleY:Number = tHeight / tileHeight;
+					
+					if ( scaleX > 1 && scaleY > 1 )
+					{
+						scaleX = scaleY = Math.min( scaleX, scaleY );
+						tWidth = tileWidth * scaleX;
+						tHeight = tileHeight * scaleY;
+					}
+					
+					tOffsetX = tWidth * tileOffsetX;
+					tOffsetY = tHeight * tileOffsetY;
+					tSpacingX = tWidth * tileSpacingX;
+					tSpacingY = tHeight * tileSpacingY;
+					tileStagger = tWidth * tileStagger;
+					
+					tilesStartY = (rect.width - 1) * -tOffsetY;
+					tilesStartX = (rect.height - 1) * -tOffsetX;
+					
+					tilesStartY = Math.max(0, tilesStartY );
+					tilesStartX = Math.max(0, tilesStartX );
+					
+					var storedX:int = tilesStartX;
+					var storedY:int = tilesStartY;
+					
+					var tx:int = storedX;
+					var ty:int = storedY;					
+					
+					var storedPt:Point = null;
+					var matrix:Matrix = new Matrix;
+					
+					var lastRowY:int = layerEntry.rows[0].startY - rect.top;
+
+					// Now just render the tiles to the sprite
+					for ( row = 0; row < layerEntry.rows.length; row++ )
+					{
+						rowEntry = layerEntry.rows[row];
+						var y:int = rowEntry.startY - rect.top;
+						
+						if ( y != lastRowY )
+						{
+							var diff:int = y - lastRowY;
+							storedX += ( tOffsetX * diff );
+							tx = storedX;
+							storedY += ( tSpacingY * diff );
+							ty = storedY;
+							
+							lastRowY = y;
+						}
+						
+						if ( rowEntry.startY % 2 )
+							tx += tileStagger;
+						
+						var newX:int;
+						var newY:int;
+						
+						for ( col = 0; col < rowEntry.tiles.length; col++ )
+						{
+							tileEntry = rowEntry.tiles[col];
+							
+							if ( tileEntry.tileId >= mapLayer.map.drawIndex )
+							{
+								var x:int = tileEntry.startX - rect.left;
+								
+								newX = tx + ( x * tSpacingX );
+								newY = ty + ( x * tOffsetY );
+								var tileBitmap:BitmapData = mapLayer.map.GetTileBitmap( tileEntry.tileId );
+								matrix.identity();
+								matrix.scale(scaleX, scaleY);
+								matrix.translate( newX, newY );
+								tilesBitmap.bitmapData.draw(tileBitmap, matrix);
+							}
+						}
+						
+						
+					}
+				}
+			}
+			
+			private function flipHoriz():void
+			{
+				if ( ListBrushes.selectedItem )
+				{
+					var layerEntry:TileEditorLayerEntry = ListBrushes.selectedItem.entry;
+					var first:int = 999;
+					var last:int = 0;
+					// First need to find the first and last tiles so we can flip it correctly.
+					for each( var rowEntry:TileEditorRowEntry in layerEntry.rows )
+					{
+						for each( var tile:TileEditorTileEntry in rowEntry.tiles )
+						{
+							if ( tile.startX < first )
+							{
+								first = tile.startX;
+							}
+							if ( tile.startX > last )
+							{
+								last = tile.startX;
+							}
+						}
+					}
+					
+					// Now reverse the lists and flip the x positions.
+					for each( rowEntry in layerEntry.rows )
+					{
+						rowEntry.tiles = rowEntry.tiles.reverse();
+						for each( tile in rowEntry.tiles )
+						{
+							tile.startX = first + ( last - tile.startX );
+						}
+					}
+					recalcPreview();
+				}
+			}
+			
+			private function flipVert():void
+			{
+				if ( ListBrushes.selectedItem )
+				{
+					var layerEntry:TileEditorLayerEntry = ListBrushes.selectedItem.entry;
+					var first:int = 999;
+					var last:int = 0;
+					for each( var rowEntry:TileEditorRowEntry in layerEntry.rows )
+					{
+						if ( rowEntry.startY > last )
+						{
+							last = rowEntry.startY;
+						}
+						if ( rowEntry.startY < first )
+						{
+							first = rowEntry.startY;
+						}
+					}
+					layerEntry.rows = layerEntry.rows.reverse();
+					for each( rowEntry in layerEntry.rows )
+					{
+						rowEntry.startY = first + ( last - rowEntry.startY );
+					}
+					recalcPreview();
+				}
+			}
+        
+			// Resize the tilebox when we resize the popup window.
+			private function resizeMoveHandler(event:Event):void
+			{
+				TileFrame.width = width - widthDiff;
+				TileFrame.height = height - heightDiff;
+				TileBox.width = tiles.width;
+				TileBox.height = tiles.height;
+			}
+			
+            override protected function init():void
+			{
+				nativeWindow.addEventListener(Event.RESIZE, resizeMoveHandler);
+				var uiref:UIComponent = new UIComponent;
+				TileBox.addChild(uiref);
+				tiles = new Sprite();
+				uiref.addChild(tiles);
+				
+				tilesBitmap = new Bitmap(new BitmapData(TileBox.width, TileBox.height));
+				tiles.addChild( tilesBitmap);
+				
+				titleName = "Tile Brushes";
+				AllowMinimizeToStatusBar();
+				
+				if ( brushes.length > 0 )
+				{
+					ListBrushes.selectedItem = TileBrushesWindow.brushes[0];
+				}
+				
+				recalcPreview();
+				
+				doubleClickTitleBarShrinks = true;
+				
+				tiles.contextMenu = null;
+				
+				validateNow();
+				
+				width = container.width + 20;
+				height = container.height + titleBar.height + 20;
+				
+				widthDiff = width - TileFrame.width;
+				heightDiff = height - TileFrame.height;
+				
+				super.init();
+			}
+			
+			override protected function onRestore(event:Event):void
+			{
+				super.onRestore(event);
+				recalcPreview();
+			}
+			
+			public function removeCurrentBrush():void
+			{
+				if ( ListBrushes.selectedIndex != -1 )
+				{
+					HistoryStack.BeginOperation( new OperationModifyTileBrushes(ListBrushes.selectedIndex, false) );
+					brushes.removeItemAt(ListBrushes.selectedIndex);
+					if ( brushes.length > 0 )
+					{
+						ListBrushes.selectedItem = brushes.getItemAt(brushes.length - 1 );
+					}
+					recalcPreview();
+				}
+			}
+			
+			public function addFromSelection():void
+			{
+				var layer:LayerMap = App.getApp().CurrentLayer as LayerMap;
+				if ( layer )
+				{
+					var state:EditorState = FlxG.state as EditorState;
+					var tileEditor:EditorTypeTiles = state.getCurrentEditor(App.getApp()) as EditorTypeTiles;
+					if ( tileEditor )
+					{
+						var selection:TileEditorLayerEntry = tileEditor.GetSelection();
+						if ( selection && selection.rows.length > 0)
+						{
+							HistoryStack.BeginOperation( new OperationModifyTileBrushes(brushes.length, true) );
+							// Ensure we reference the data by the image rather than the layer, so that if
+							// the layer is deleted we don't keep any rogue references to it in memory.
+							selection.imageFile = selection.layer.imageFileObj;
+							selection.layer = null;
+							brushes.addItem( { label:"brush " + (brushes.length + 1), entry:selection } );
+							ListBrushes.selectedItem = brushes.getItemAt(brushes.length - 1 );
+							recalcPreview();
+						}
+					}
+				}
+			}
+			
+
+        ]]>
+    </mx:Script>
+
+	<mx:Box id="container">
+		<mx:HBox>
+			<mx:List id="ListBrushes" height="100%" minWidth="100" dataProvider="{brushes}" editable="true" change="recalcPreview()" />
+			<mx:Box id="TileFrame" width="300" height="300" borderStyle="solid" horizontalScrollPolicy="off" verticalScrollPolicy="off">
+				<comUI:ImageRepeatCanvas id="TileBox" width="300" height="300" horizontalScrollPolicy="off" verticalScrollPolicy="off" 
+					borderStyle="solid" backgroundAlpha="0" repeatDirection="both" repeatImage="{Img_background}" />
+			</mx:Box>
+		</mx:HBox>
+		
+		<mx:HBox horizontalAlign="center" width="100%">
+			<mx:Button id="AddFromSelectionButton" label="Add From Current Selection" click="addFromSelection()" />
+			<mx:Button id="RemoveCurrentBrush" label="Remove Current Brush" click="removeCurrentBrush()" />
+			<mx:CheckBox id="IgnoreWhiteSpace" label="Ignore White Space" change="recalcPreview()" />
+		</mx:HBox>
+		<mx:HBox width="100%">
+			<mx:Button id="FlipHorizontally" label="Flip Horizontally" click="flipHoriz()" />
+			<mx:Button id="FlipVertically" label="Flip Vertically" click="flipVert()" />
+		</mx:HBox>
+		<mx:Button id="Close" label="Close/Disable Brush" click="hide()" />
+	</mx:Box>
+</comUI:PopupWindow>

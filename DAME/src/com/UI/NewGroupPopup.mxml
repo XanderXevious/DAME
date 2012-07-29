@@ -1,0 +1,146 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<comUI:PopupWindow xmlns:mx="http://www.adobe.com/2006/mxml" xmlns:comUI="com.UI.*"
+    width="100%" height="100%"
+	resizable="false" showGripper="false" showStatusBar="false" maximizable="false" minimizable="false"
+	defaultButton="{btnOK}"
+    title="Create a new group.">
+
+    <mx:Script>
+        <![CDATA[
+			import com.Layers.LayerEntry;
+			import com.Layers.LayerGroup;
+			import com.Layers.LayerPaths;
+			import com.Layers.LayerShapes;
+			import com.Layers.LayerSprites;
+			import mx.controls.Tree;
+            import mx.managers.FocusManager;
+            import mx.managers.PopUpManager;
+
+			public var openerTree:Tree;
+			
+			public var okPressedCallback:Function = null;
+			
+			public var newGroup:LayerGroup = null;
+			
+			static private var DefaultSpritesSelected:Boolean = false;
+			static private var DefaultPathsSelected:Boolean = false;
+			static private var DefaultMapSelected:Boolean = false;
+			static private var DefaultShapesSelected:Boolean = false;
+           
+           
+            private function ok():void
+			{				
+				var layer:LayerEntry;
+				
+				newGroup = new LayerGroup( "Group" + (openerTree.dataProvider.length + 1) );
+				if ( Sprites.selected )
+				{
+					layer = new LayerSprites( newGroup, "Layer" + (newGroup.children.length + 1) );
+					newGroup.children.addItem( layer );
+					layer.SetScrollFactors(LayerXScroll.value, LayerYScroll.value);
+				}
+				
+				if ( Paths.selected )
+				{
+					layer = new LayerPaths( newGroup, "Layer" + (newGroup.children.length + 1) );
+					layer.SetScrollFactors(LayerXScroll.value, LayerYScroll.value);
+					newGroup.children.addItem( layer );
+				}
+				
+				if ( Shapes.selected )
+				{
+					layer = new LayerShapes( newGroup, "Layer" + (newGroup.children.length + 1) );
+					layer.SetScrollFactors(LayerXScroll.value, LayerYScroll.value);
+					newGroup.children.addItem( layer );
+				}
+				
+				if ( Map.selected )
+				{
+					var layerPopup:LayerPropertiesPopup = App.CreatePopupWindow(LayerPropertiesPopup,true) as LayerPropertiesPopup;
+					if ( layerPopup )
+					{
+						layerPopup.opener = openerTree;
+						layerPopup.Group = newGroup as LayerGroup;
+						layerPopup.okPressedCallback = mapLayerAdded;
+					}
+				}
+				else if ( okPressedCallback != null )
+				{
+					closeWindow( true );
+					okPressedCallback(this);
+				}
+            }
+			
+			private function mapLayerAdded(popup:LayerPropertiesPopup):void
+			{
+				var layer:LayerEntry = popup.Layer;
+				if ( layer )
+				{
+					if ( layer.xScroll != 1 && layer.yScroll == 1)
+					{
+						layer.SetScrollFactors( layer.xScroll, LayerYScroll.value );
+					}
+					else if ( layer.yScroll == 1 && layer.yScroll != 1 )
+					{
+						layer.SetScrollFactors(LayerXScroll.value, layer.yScroll );
+					}
+					newGroup.children.addItem( layer );
+					
+					if ( okPressedCallback != null )
+					{
+						closeWindow( true );
+						okPressedCallback( this );
+					}
+				}
+			}
+			
+			private function closeWindow( madeGroup:Boolean ):void
+			{
+				if ( madeGroup )
+				{
+					DefaultSpritesSelected = Sprites.selected;
+					DefaultPathsSelected = Paths.selected;
+					DefaultMapSelected = Map.selected;
+					DefaultShapesSelected = Shapes.selected;
+				}
+				
+				ForceClose();
+			}
+           
+            override protected function init():void
+			{
+				Sprites.selected = DefaultSpritesSelected;
+				Paths.selected = DefaultPathsSelected;
+				Shapes.selected = DefaultShapesSelected;
+				Map.selected = DefaultMapSelected;
+                
+				width = container.width + 20;
+				height = container.height + titleBar.height + 20;
+				
+				ShowTitleBarIcons = false;
+				
+				super.init();
+            }
+           
+        ]]>
+    </mx:Script>
+
+	<mx:Box id="container">
+		<mx:Label text="Select the layers you wish to create."/>
+		<mx:CheckBox id="Map" label="Map" visible="true" />
+		<mx:CheckBox id="Sprites" label="Sprites" />
+		<mx:CheckBox id="Paths" label="Paths" />
+		<mx:CheckBox id="Shapes" label="Shapes" />
+		<mx:HBox width="100%">
+			<mx:Label text="Scroll x" textAlign="right" width="50"/>
+			<mx:NumericStepper id="LayerXScroll" stepSize="0.01" value="1.00" minimum="-20" maximum="20.00" />
+			<mx:Label text="Scroll y" textAlign="right" width="50"/>
+			<mx:NumericStepper id="LayerYScroll" stepSize="0.01" value="1.00" minimum="-20" maximum="20.00" />
+		</mx:HBox>
+		
+		<mx:HBox horizontalAlign="center" width="100%">
+			<mx:Button id="btnOK" label="OK" click="ok()" />
+			<mx:Button id="btnCancel" label="Cancel" click="ForceClose()" />
+		</mx:HBox>
+	</mx:Box>
+</comUI:PopupWindow>

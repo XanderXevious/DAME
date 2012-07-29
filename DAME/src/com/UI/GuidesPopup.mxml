@@ -1,0 +1,149 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<comUI:PopupWindow xmlns:mx="http://www.adobe.com/2006/mxml" xmlns:comUI="com.UI.*"
+    width="100%" height="100%"
+	resizable="false" showGripper="false" showStatusBar="false" maximizable="false" minimizable="false"
+    defaultButton="{btnOK}" title="Modify Guides">
+
+    <mx:Script>
+        <![CDATA[
+			import com.Utils.DebugDraw;
+			import com.Utils.Global;
+			import mx.collections.ArrayCollection;
+            import mx.managers.FocusManager;
+            import mx.managers.PopUpManager;
+			import com.Editor.GuideLayer;
+
+            [Bindable]
+            public var txt:String;
+			
+			public var okPressedCallback:Function;
+			
+			[Bindable]
+			private var snappos:ArrayCollection = new ArrayCollection(
+				[ { label:"Anchor", data:GuideLayer.SnapPosType_Anchor },
+				  { label:"Center", data:GuideLayer.SnapPosType_Center}, 
+				  { label:"Top Left", data:GuideLayer.SnapPosType_TopLeft}, 
+				  { label:"Bounds Top Left", data:GuideLayer.SnapPosType_BoundsTopLeft },
+				  { label:"Bottom Left", data:GuideLayer.SnapPosType_BottomLeft}, 
+				  { label:"Bounds Bottom Left", data:GuideLayer.SnapPosType_BoundsBottomLeft} ]);
+           
+            private function ok():void
+			{
+				GuideLayer.XStart = XOff.value;
+				GuideLayer.YStart = YOff.value;
+				GuideLayer.XSpacing = XSpacing.value;
+				GuideLayer.YSpacing = YSpacing.value;
+				Global.GridLineColour = 0x77000000 | Colour.selectedColor;
+				GuideLayer.SnapPosType = SnapLocation.selectedIndex;
+				GuideLayer.PaintContinuouslyWhenSnapped = PaintContinuously.selected;
+				GuideLayer.ShowGameRegion = App.getApp().regionOverlayMenuItem.checked = ShowGameRegion.selected;
+				GuideLayer.RegionWidth = RegionWidth.value;
+				GuideLayer.RegionHeight = RegionHeight.value;
+				GuideLayer.RegionOpacity = RegionOpacity.value;
+				GuideLayer.MinGridSpace = MinGridSpace.value;
+				GuideLayer.RegionCentered = RegionCentered.selected;
+				GuideLayer.ShowRegionGrid = RegionGridlines.selected;
+				GuideLayer.RegionGridXStart = RegionGridXOffset.value;
+				GuideLayer.RegionGridYStart = RegionGridYOffset.value;
+				Global.RegionGridLineColour = 0xcc000000 | RegionGridColour.selectedColor;
+				DebugDraw.singleton.HasCachedShape = false;	// force a refresh
+				ForceClose();
+            }
+           
+            override protected function init():void
+			{
+				XOff.value = GuideLayer.XStart;
+				YOff.value = GuideLayer.YStart;
+				XSpacing.value = GuideLayer.XSpacing;
+				YSpacing.value = GuideLayer.YSpacing;
+				Colour.selectedColor = Global.GridLineColour;
+				PaintContinuously.selected = GuideLayer.PaintContinuouslyWhenSnapped;
+				ShowGameRegion.selected = GuideLayer.ShowGameRegion;
+				RegionWidth.value = GuideLayer.RegionWidth;
+				RegionHeight.value = GuideLayer.RegionHeight;
+				RegionOpacity.value = GuideLayer.RegionOpacity;
+				MinGridSpace.value = GuideLayer.MinGridSpace;
+				RegionCentered.selected = GuideLayer.RegionCentered;
+				RegionGridlines.selected = GuideLayer.ShowRegionGrid;
+				RegionGridXOffset.value = GuideLayer.RegionGridXStart;
+				RegionGridYOffset.value = GuideLayer.RegionGridYStart;
+				RegionGridColour.selectedColor = Global.RegionGridLineColour;
+				
+				SnapLocation.selectedIndex = GuideLayer.SnapPosType;
+				
+				width = container.width + 20;
+				height = container.height + titleBar.height + 20;
+				
+				ShowTitleBarIcons = false;
+				
+				super.init();
+            }
+           
+        ]]>
+    </mx:Script>
+
+	<mx:Box id="container">
+		<mx:Form width="100%">
+			<mx:FormItem label="Colour">
+				<mx:ColorPicker id="Colour" selectedColor="0x000000" swatchPanelStyleName="colorsPopupSwatchPanelStyle" />
+			</mx:FormItem>
+			<mx:FormItem label="Snap location.">
+				<mx:ComboBox id="SnapLocation" dataProvider="{snappos}"/>
+			</mx:FormItem>
+			<mx:FormItem label="X offset">
+				<mx:HBox>
+					<mx:NumericStepper id="XOff" stepSize="1" value="1" minimum="-200" maximum="200"/>
+					<mx:Label text="Y offset"/>
+					<mx:NumericStepper id="YOff" stepSize="1" value="1" minimum="-200" maximum="200"/>
+				</mx:HBox>
+			</mx:FormItem>
+			<mx:FormItem label="Horizontal Spacing">
+				<mx:HBox>
+					<mx:NumericStepper id="XSpacing" stepSize="1" value="0" minimum="5" maximum="200" />
+					<mx:Label text="Vertical Spacing"/>
+					<mx:NumericStepper id="YSpacing" stepSize="1" value="0" minimum="5" maximum="200"/>
+				</mx:HBox>
+			</mx:FormItem>
+			<mx:FormItem label="Min Grid Space">
+				<mx:NumericStepper id="MinGridSpace" stepSize="1" value="0" minimum="1" maximum="100"/>
+			</mx:FormItem>
+			<mx:FormItem label="Paint Sprites Continuously When Snapped">
+				<mx:CheckBox id="PaintContinuously" />
+			</mx:FormItem>
+			<mx:FormItem label="Show Game Region Overlay">
+				<mx:CheckBox id="ShowGameRegion" toolTip="Obscure the display except from a region that matches the size of your game screen." />
+			</mx:FormItem>
+			<mx:FormItem label="Region Overlay Width">
+				<mx:HBox>
+					<mx:NumericStepper id="RegionWidth" stepSize="1" value="0" minimum="5" maximum="6400"/>
+					<mx:Label text="Height"/>
+					<mx:NumericStepper id="RegionHeight" stepSize="1" value="0" minimum="5" maximum="4800"/>
+				</mx:HBox>
+			</mx:FormItem>
+			<mx:FormItem label="Region Overlay Opacity">
+				<mx:NumericStepper id="RegionOpacity" stepSize="0.1" value="0" minimum="0.1" maximum="1"/>
+			</mx:FormItem>
+			<mx:FormItem label="Region Centered">
+				<mx:CheckBox id="RegionCentered" toolTip="Center the region overlay on the screen. Note that this does not align parallax layers correctly." />
+			</mx:FormItem>
+			<mx:FormItem label="Show Region Gridlines">
+				<mx:CheckBox id="RegionGridlines" toolTip="Display extra gridlines equal to the size of the region overlay. These will not fade out at extreme zoom or match to layer scrolling at all." />
+			</mx:FormItem>
+			<mx:FormItem label="Region Grid Colour">
+				<mx:ColorPicker id="RegionGridColour" selectedColor="0xffffff" swatchPanelStyleName="colorsPopupSwatchPanelStyle" />
+			</mx:FormItem>
+			<mx:FormItem label="Region Grid X Offset">
+				<mx:HBox>
+					<mx:NumericStepper id="RegionGridXOffset" toolTip="The starting x offset to apply to the region gridlines." stepSize="1" value="0" minimum="-1000" maximum="1000"/>
+					<mx:Label text="Y Offset"/>
+					<mx:NumericStepper id="RegionGridYOffset" toolTip="The starting y offset to apply to the region gridlines." stepSize="1" value="0" minimum="-1000" maximum="1000"/>
+				</mx:HBox>
+			</mx:FormItem>
+		</mx:Form>
+		
+		<mx:HBox horizontalAlign="center" width="100%">
+			<mx:Button id="btnOK" label="OK" click="ok()" />
+			<mx:Button id="btnCancel" label="Cancel" click="ForceClose()" />
+		</mx:HBox>
+	</mx:Box>
+</comUI:PopupWindow>

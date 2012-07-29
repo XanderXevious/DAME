@@ -1,0 +1,437 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<comUI:PopupWindow xmlns:mx="http://www.adobe.com/2006/mxml" xmlns:comUI="com.UI.*"
+    width="100%" height="100%"
+	resizable="false" showGripper="false" showStatusBar="false" maximizable="false" minimizable="false"
+	defaultButton="{btnOK}" horizontalScrollPolicy="off" verticalScrollPolicy="off" 
+    title="Assign Spritesheet Data">
+
+    <mx:Script>
+        <![CDATA[
+			import com.EditorState;
+			import com.Properties.PropertyBase;
+			import com.Properties.PropertyRef;
+			import com.Properties.PropertyType;
+			import com.Tiles.SpriteEntry;
+			import com.UI.PropertyGridRenderer;
+			import com.Utils.Global;
+			import com.Utils.Misc;
+			import flash.display.Bitmap;
+			import flash.display.BitmapData;
+			import flash.filesystem.File;
+			import flash.net.FileFilter;
+			import mx.collections.ArrayCollection;
+			import mx.controls.dataGridClasses.DataGridColumn;
+			import mx.core.ClassFactory;
+			import mx.core.UIComponent;
+			import mx.events.DataGridEvent;
+			import mx.formatters.NumberFormatter;
+			import com.Tiles.ImageBank;
+			import flash.ui.ContextMenu;
+			import org.flixel.FlxG;
+
+            [Bindable]
+            public var txt:String;
+			public var opener:Object;
+			private static var currentFile:File = null;
+			public var currentFileName:String = "";
+
+			public var okPressedCallback:Function;
+			
+			public var bitmap:Bitmap = null;
+			public var previewBitmap:Bitmap = null;
+			
+			public var Entry:SpriteEntry = null;
+			
+			private var properties:ArrayCollection = new ArrayCollection();
+			private var deletedProps:Vector.<PropertyType> = new Vector.<PropertyType>();
+			
+			private var linesBitmapdata:BitmapData = null;
+			private var linesBitmap:Bitmap = null;
+			
+			private function load():void 
+			{
+				var fileChooser:File;
+				if ( ImagePath.text.length )
+				{
+					fileChooser = new File( ImagePath.text );
+				}
+				else
+				{
+					fileChooser = new File(Global.CurrentImageFile.url);
+				}
+				var imageFilter:FileFilter = new FileFilter("Images", "*.bmp;*.jpg;*.jpeg;*.png");
+
+				//tempDisableModal = true;
+				fileChooser.browseForOpen("Load Image", [imageFilter] );
+				solveFileChooserModality(fileChooser);
+				fileChooser.addEventListener(Event.SELECT, loadFileSelected,false,0,true);
+			}
+			
+			private function loadFileSelected(event:Event):void
+			{
+				var newFile:File = event.target as File;
+				if ( Entry && Misc.FilesMatch(newFile, currentFile) )
+				{
+					return;	// Same file so do nothing.
+				}
+
+				newFile.removeEventListener(Event.SELECT, loadFileSelected);
+				
+				ImageBank.LoadImage( newFile, imageLoaded );
+			}
+			
+			private function imageLoaded( data:Bitmap, file:File ):void
+			{
+				ImagePath.text = file.nativePath;
+				ImageBank.RemoveImageRef( currentFile );
+				currentFile = file;
+				currentFileName = currentFile.nativePath;
+				
+				bitmap = new Bitmap( data.bitmapData );
+				
+				WidthInput.value = BoundsWidth.value = data.bitmapData.width;
+				HeightInput.value = BoundsHeight.value = data.bitmapData.height;
+				
+				recalcPreview();
+				
+				Global.CurrentImageFile = file;// new File(currentFile.url);
+			}
+			
+			private function updateAnchorCenter():void
+			{
+				recalcPreview();
+			}
+			
+			private function recalcPreview():void
+			{
+				if ( bitmap == null )
+				{
+					return;
+				}
+				
+				XOffset.value = Math.min( XOffset.value, bitmap.width - 1 );
+				YOffset.value = Math.min( YOffset.value, bitmap.height - 1 );
+				
+				WidthInput.value = Math.min( WidthInput.value, bitmap.width - XOffset.value );
+				HeightInput.value = Math.min( HeightInput.value, bitmap.height - YOffset.value );
+				
+				BoundsX.value = Math.min( BoundsX.value, WidthInput.value-1 );
+				BoundsY.value = Math.min( BoundsY.value, HeightInput.value-1 );
+				BoundsWidth.value = Math.min( BoundsWidth.value, WidthInput.value );
+				BoundsHeight.value = Math.min( BoundsHeight.value, HeightInput.value );
+				if ( CenterAnchor.selected )
+				{
+					AnchorX.value = BoundsX.value + BoundsWidth.value / 2;
+					AnchorY.value = BoundsY.value + BoundsHeight.value / 2;
+				}
+				AnchorPosUI.enabled = !CenterAnchor.selected;
+				AnchorX.value = Math.min( AnchorX.value, WidthInput.value );
+				AnchorY.value = Math.min( AnchorY.value, HeightInput.value );
+				
+				var sourceRect:Rectangle = new Rectangle( XOffset.value, YOffset.value, WidthInput.value, HeightInput.value);
+				var flashPoint:Point = new Point(0, 0);
+				
+				previewBitmap = new Bitmap( new BitmapData(WidthInput.value, HeightInput.value,true,0xffffff) );
+				
+				previewBitmap.bitmapData.copyPixels( bitmap.bitmapData, sourceRect, flashPoint );
+				SpritePreview.data = previewBitmap.bitmapData;
+				
+				// Draw extra info.
+				var scaleX:Number = SpritePreview.drawnBitmap.width / WidthInput.value;
+				var scaleY:Number = SpritePreview.drawnBitmap.height / HeightInput.value;
+				var shape:Shape = new Shape();
+				shape.graphics.lineStyle(1, 0xff0000, 0.7);
+				// Draw the bounding box.
+				shape.graphics.drawRect(BoundsX.value * scaleX, BoundsY.value * scaleY, (BoundsWidth.value * scaleX), (BoundsHeight.value * scaleY));
+				// draw the anchor as a cross.
+				shape.graphics.moveTo((AnchorX.value * scaleX)-10, AnchorY.value * scaleY);
+				shape.graphics.lineTo((AnchorX.value * scaleX)+10, AnchorY.value * scaleY);
+				shape.graphics.moveTo(AnchorX.value * scaleX, (AnchorY.value * scaleY)-10);
+				shape.graphics.lineTo(AnchorX.value * scaleX, (AnchorY.value * scaleY)+10);
+				
+				if ( linesBitmapdata == null || linesBitmapdata.width != SpritePreview.drawnBitmap.width+1 || linesBitmapdata.height != SpritePreview.drawnBitmap.height+1 )
+				{
+					linesBitmapdata = new BitmapData( SpritePreview.drawnBitmap.width + 1, SpritePreview.drawnBitmap.height + 1, true, 0x00000000);
+					
+				}
+				if ( linesBitmap == null )
+				{
+					linesBitmap = new Bitmap( linesBitmapdata );
+					SpritePreview.AddChild(linesBitmap);
+				}
+				else
+				{
+					linesBitmap.bitmapData = linesBitmapdata;
+				}
+				
+				linesBitmapdata.lock();
+				linesBitmapdata.fillRect(linesBitmapdata.rect, 0x00000000);
+				linesBitmapdata.draw(shape);
+				linesBitmapdata.unlock();
+			}
+			
+			private function addProperty():void
+			{
+				SpriteDataPropsGrid.displayMenu();
+			}
+			
+			private function removeProperty():void
+			{
+				if ( SpriteDataPropsGrid.selectedItem != null )
+				{
+					for each( var prop:PropertyType in properties )
+					{
+						if ( prop == SpriteDataPropsGrid.selectedItem )
+						{
+							properties.removeItemAt( properties.getItemIndex( prop ) );
+							var propRef:PropertyRef = prop as PropertyRef;
+							if ( propRef )
+							{
+								deletedProps.push(propRef.refProperty);
+							}
+							return;
+						}
+					}
+				}
+			}
+            private function ok():void
+			{
+				if ( SpritePreview.data != null )
+				{
+					if ( Entry )
+					{
+						Entry.name = Name.text;
+					}
+					else
+					{
+						Entry = new SpriteEntry( Name.text );
+					}
+					Entry.SetImageFile( currentFile );
+					Entry.SetBitmap( bitmap);
+					Entry.SetPreviewBitmap( previewBitmap);
+					Entry.SetClassName( ClassName.text );
+					Entry.SetConstructorText( ConstructorText.text );
+					Entry.SetCreationText( CreationText.text );
+					Entry.Exports = Exports.selected;
+					Entry.CanScale = Scales.selected;
+					Entry.CanRotate = Rotates.selected;
+					Entry.IsSurfaceObject = SurfaceObject.selected;
+					
+					Entry.IsTileSprite = true;
+					Entry.TileOrigin.x = XOffset.value;
+					Entry.TileOrigin.y = YOffset.value;
+					Entry.Anchor.x = AnchorX.value;
+					Entry.Anchor.y = AnchorY.value;
+					Entry.CenterAnchor = CenterAnchor.selected;
+					Entry.Bounds.x = BoundsX.value;
+					Entry.Bounds.y = BoundsY.value;
+					Entry.Bounds.width = BoundsWidth.value;
+					Entry.Bounds.height = BoundsHeight.value;
+					
+					for each ( var fakeProp:PropertyType in properties )
+					{
+						var propRef:PropertyRef = fakeProp as PropertyRef
+						if ( propRef )
+						{
+							var prop:PropertyType = propRef.refProperty;
+							prop.Name = fakeProp.Name;
+							prop.Value = fakeProp.Value;
+						}
+						else
+						{
+							Entry.properties.addItem( new PropertyType(fakeProp.Type, fakeProp.Name, fakeProp.Value, fakeProp.GetTypeObj() ) );
+						}
+					}
+					for each ( prop in deletedProps )
+					{
+						Entry.properties.removeItemAt( Entry.properties.getItemIndex( prop ) );
+						// Set this flag so any avatars that have a ref to this will know to delete that entry.
+						prop.Deleted = true;
+					}
+					
+					App.getApp().spriteData.itemUpdated(Entry);
+					
+					var currentState:EditorState = FlxG.state as EditorState;
+					if ( currentState )
+					{
+						currentState.RefreshSpriteGraphicsAndProperties( Entry );
+					}
+					if ( okPressedCallback != null )
+					{
+						okPressedCallback(this);
+					}
+				}
+				ImageBank.RemoveImageRef( currentFile );
+				ForceClose();
+				if ( opener is UIComponent )
+					opener.setFocus();
+            }
+			
+			private function cancel():void
+			{
+				ImageBank.RemoveImageRef( currentFile );
+			
+				ForceClose();
+				if ( opener is UIComponent )
+					opener.setFocus();
+			}
+			
+			private function onHelpClick():void
+			{
+				navigateToURL(new URLRequest(App.currentDir + "/help/exporters.html#keywords"));
+			}
+
+            override protected function init():void
+			{			
+                Name.setFocus();
+				
+				properties.removeAll();
+				
+				if ( Entry )
+				{
+					currentFile = Entry.imageFile;
+					ImagePath.text = currentFileName = currentFile.nativePath;
+					//if ( currentFileName.length )
+					{
+						//currentFile = new File(currentFileName);
+						// Load it so we have an image ref to the file.
+						ImageBank.LoadImage( currentFile );
+					}
+					previewBitmap = Entry.previewBitmap;
+					bitmap = Entry.bitmap;
+					XOffset.value = Entry.TileOrigin.x;
+					YOffset.value = Entry.TileOrigin.y;
+					WidthInput.value = previewBitmap!=null ? previewBitmap.width : 1;
+					HeightInput.value = previewBitmap != null ? previewBitmap.height : 1;
+					Name.text = Entry.name;
+					ClassName.text = Entry.className;
+					ConstructorText.text = Entry.constructorText;
+					CreationText.text = Entry.creationText;
+					AnchorX.value = Entry.Anchor.x;
+					AnchorY.value = Entry.Anchor.y;
+					CenterAnchor.selected = Entry.CenterAnchor;
+					BoundsX.value = Entry.Bounds.x;
+					BoundsY.value = Entry.Bounds.y;
+					BoundsWidth.value = Entry.Bounds.width;
+					BoundsHeight.value = Entry.Bounds.height;
+					Exports.selected = Entry.Exports;
+					Rotates.selected = Entry.CanRotate;
+					Scales.selected = Entry.CanScale;
+					SurfaceObject.selected = Entry.IsSurfaceObject;
+					
+					for each ( var prop:PropertyType in Entry.properties )
+					{
+						var fakeProp:PropertyRef = new PropertyRef( prop.Type, prop.Name, prop.Value, prop.GetTypeObj() );
+						fakeProp.refProperty = prop;
+						properties.addItem( fakeProp );
+					}
+				}
+				
+				SpriteDataPropsGrid.dataProvider = properties;
+				
+					
+				recalcPreview();
+				
+				width = container.width + 20;
+				height = container.height + titleBar.height + 20;
+				
+				ShowTitleBarIcons = false;
+				
+				super.init();
+            }
+
+        ]]>
+    </mx:Script>
+
+	<mx:Box id="container">
+		<mx:Form width="100%">
+			<!-- Add space before the first label so everything gets nicely aligned. Apparently labelWidth doesn't work properly -->
+			<mx:FormItem label="       Name">
+				<mx:TextInput id="Name" width="100%" />
+			</mx:FormItem>
+			<mx:FormItem label="Class">
+				<mx:TextInput id="ClassName" width="100%" />
+			</mx:FormItem>
+			<mx:FormItem label="Image">
+				<mx:HBox width="100%">
+					<mx:TextInput id="ImagePath" width="460" editable="false" />
+					<mx:Button id="BrowseButton" label="..." click="load()" />
+				</mx:HBox>
+			</mx:FormItem>
+			<mx:HBox>
+				<mx:Label text="Preview " width="70" textAlign="right" />
+				<mx:Box width="300" height="150" borderStyle="solid" horizontalScrollPolicy="off" verticalScrollPolicy="off">
+					<comUI:SpriteRenderer id="SpritePreview" width="100%" height="100%" minWidth="32" minHeight="32" />
+				</mx:Box>
+				<mx:VBox >
+					<mx:HBox>
+						<mx:Label text="X"/>
+						<mx:NumericStepper id="XOffset" stepSize="1" value="0" minimum="0" maximum="5000" change="recalcPreview()" />
+						<mx:Spacer width="25"/>
+						<mx:Label text="Y"/>
+						<mx:NumericStepper id="YOffset" stepSize="1" value="0" minimum="0" maximum="5000" change="recalcPreview()" />
+					</mx:HBox>
+					<mx:HBox>
+						<mx:Label text="Width"/>
+						<mx:NumericStepper id="WidthInput" stepSize="1" value="1" minimum="1" maximum="5000" change="recalcPreview()" />
+						<mx:Label text="Height"/>
+						<mx:NumericStepper id="HeightInput" stepSize="1" value="1" minimum="1" maximum="5000" change="recalcPreview()" />
+					</mx:HBox>
+					<mx:Label text="Bounds:"/>
+					<mx:HBox>
+						<mx:Label text="X"/>
+						<mx:NumericStepper id="BoundsX" stepSize="1" value="0" minimum="0" maximum="5000" change="recalcPreview()" />
+						<mx:Spacer width="10"/>
+						<mx:Label text="Width"/>
+						<mx:NumericStepper id="BoundsWidth" stepSize="1" value="1" minimum="1" maximum="5000" change="recalcPreview()" />
+					</mx:HBox>
+					<mx:HBox>
+						<mx:Label text="Y"/>
+						<mx:NumericStepper id="BoundsY" stepSize="1" value="0" minimum="0" maximum="5000" change="recalcPreview()" />
+						<mx:Spacer width="10"/>
+						<mx:Label text="Height"/>
+						<mx:NumericStepper id="BoundsHeight" stepSize="1" value="1" minimum="1" maximum="5000" change="recalcPreview()" />
+					</mx:HBox>
+					<mx:HBox>
+						<mx:Label text="Anchor:"/>
+						<mx:CheckBox label="Centered" id="CenterAnchor" toolTip="Tick to keep the anchor centered." change="updateAnchorCenter()" />
+					</mx:HBox>
+					<mx:HBox id="AnchorPosUI">
+						<mx:Label text="X"/>
+						<mx:NumericStepper id="AnchorX" stepSize="1" value="0" minimum="0" maximum="5000" change="recalcPreview()" />
+						<mx:Spacer width="25"/>
+						<mx:Label text="Y"/>
+						<mx:NumericStepper id="AnchorY" stepSize="1" value="0" minimum="0" maximum="5000" change="recalcPreview()" />
+					</mx:HBox>
+				</mx:VBox>
+			</mx:HBox>
+			<mx:LinkButton id="keywordHelp" label="Constructor text can use %xpos% format for keywords. Click here for info on full list of keywords..." click="onHelpClick()" />
+			<mx:HBox>
+				<mx:Text text="Constructor Text" width="70" textAlign="left" height="32"/>
+				<mx:TextArea id="ConstructorText" width="520" height="40" toolTip="If the exporter uses constructor text then any calls to create new objects of this type can be replaced with the text here. Use keywords specified in the exporters help page if needed." />
+			</mx:HBox>
+			<mx:HBox>
+				<mx:Text text="Creation Text" width="70" textAlign="left" height="32"/>
+				<mx:TextArea id="CreationText" width="520" height="40" toolTip="If set then this will override the text you pass as the defaultCreationText completely. Use keywords specified in the exporters help page if needed." />
+			</mx:HBox>
+			<mx:HBox>
+				<mx:CheckBox label="Exports" id="Exports" selected="true" toolTip="Select to allow this sprite to be exported. Deselect and it will be ignored during exporting." />
+				<mx:CheckBox label="Can Rotate" id="Rotates" selected="true" toolTip="If selected then it is possible to rotate this sprite." />
+				<mx:CheckBox label="Can Scale" id="Scales" selected="true" toolTip="If selected then it is possible to scale this sprite." />
+				<mx:CheckBox label="Is Surface Object" id="SurfaceObject" selected="false" toolTip="A Surface Object will align with an isometric tile as though it was a tile itself. If unchecked then it is more likely a character or non isometric object." />
+			</mx:HBox>
+			<mx:HBox width="100%">
+				<mx:VBox>
+					<mx:Button id="btnAddProp" toolTip="Add Property" icon="@Embed(source='../../../assets/addPropertyIcon_off.png')" click="addProperty()" />
+					<mx:Button id="btnRemoveProp" toolTip="Remove Property" icon="@Embed(source='../../../assets/deletePropertyIcon_off.png')" click="removeProperty()" />
+				</mx:VBox>
+				<comUI:PropertyGrid id="SpriteDataPropsGrid" />
+			</mx:HBox>
+		</mx:Form>
+		
+		<mx:HBox horizontalAlign="center" width="100%">
+			<mx:Button id="btnOK" label="OK" click="ok()" />
+			<mx:Button id="btnCancel" label="Cancel" click="cancel()" />
+		</mx:HBox>
+	</mx:Box>
+</comUI:PopupWindow>

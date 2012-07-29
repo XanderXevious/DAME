@@ -1,0 +1,165 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<comUI:PopupWindow xmlns:mx="http://www.adobe.com/2006/mxml" xmlns:comUI="com.UI.*"
+    width="100%" height="100%" creationComplete="init()"
+	resizable="false" showGripper="false" showStatusBar="false" maximizable="false" minimizable="false"
+    defaultButton="{btnOK}" title="Colors">
+
+    <mx:Script>
+        <![CDATA[
+			import com.EditorState;
+			import com.Game.PathObject;
+			import com.Game.ShapeObject;
+			import com.Layers.LayerGroup;
+			import com.Layers.LayerPaths;
+			import com.Layers.LayerShapes;
+			import com.Utils.Global;
+			import flash.desktop.NativeApplication;
+			import mx.collections.ArrayCollection;
+			import org.flixel.FlxG;
+			import org.flixel.FlxState;
+           
+            private function ok():void
+			{
+				
+				FlxState.bgColor = Background.selectedColor | 0xff000000;
+				var blue:uint = Background.selectedColor & 0xff;
+				if ( blue > 0xaa )
+				{
+					Global.MapBoundsColour = 0xff000000;
+				}
+				else
+				{
+					Global.MapBoundsColour = 0xffffffff;
+				}
+				Global.GridLineColour = 0x77000000 | GridLines.selectedColor;
+				Global.PathColour = Paths.selectedColor | 0xff000000;
+				Global.PathColourInstanced = InstancedPaths.selectedColor | 0xff000000;
+				Global.ShapeColour = Shapes.selectedColor | 0xaa000000;
+				Global.CalculateShapeOutlineColour();
+				Global.ShapeAlpha = ShapeOpacity.value;
+				var onionChanged:Boolean = false;
+				if ( Global.OnionSkinAlpha != OnionSkinOpacity.value )
+				{
+					Global.OnionSkinAlpha = OnionSkinOpacity.value;
+					onionChanged = true;
+				}
+				if ( Global.SameGroupOnionSkinAlpha != OnionSkinOpacityWithinGroup.value )
+				{
+					Global.SameGroupOnionSkinAlpha = OnionSkinOpacityWithinGroup.value;
+					onionChanged = true;
+				}
+				if ( onionChanged )
+				{
+					var editor:EditorState = FlxG.state as EditorState;
+					editor.UpdateOnionSkin(App.getApp().CurrentLayer);
+				}
+				
+				var layers:ArrayCollection = App.getApp().layerGroups;
+				
+				var i:uint = layers.length;
+				while (i--)
+				{
+					var group:LayerGroup = layers[i];
+					if ( group )
+					{
+						var j:uint = group.children.length;
+						while (j--)
+						{
+							var pathlayer:LayerPaths = group.children[j] as LayerPaths;
+							if ( pathlayer )
+							{
+								var k:uint = pathlayer.sprites.members.length;
+								while ( k-- )
+								{
+									var pathobj:PathObject = pathlayer.sprites.members[k] as PathObject;
+									pathobj.Invalidate();
+								}
+							}
+							else
+							{
+								var shapelayer:LayerShapes = group.children[j] as LayerShapes;
+								if ( shapelayer )
+								{
+									k = shapelayer.sprites.members.length;
+									while ( k-- )
+									{
+										var shapeobj:ShapeObject = shapelayer.sprites.members[k] as ShapeObject;
+										shapeobj.forceRedraw = true;
+									}
+								}
+							}
+							
+						}
+					}
+					
+				}
+				
+				ForceClose();
+
+            }
+			
+			private function ResetColors():void
+			{
+				Global.ResetColorGrid();
+				var colourGrid:ColourGrid = Global.windowedApp.colorGrid;
+				colourGrid.ResetColors();
+			}
+           
+            override protected function init():void
+			{
+				Background.selectedColor = FlxState.bgColor;
+				Paths.selectedColor = Global.PathColour;
+				InstancedPaths.selectedColor = Global.PathColourInstanced;
+				Shapes.selectedColor = Global.ShapeColour;
+				ShapeOpacity.value = Global.ShapeAlpha;
+				OnionSkinOpacity.value = Global.OnionSkinAlpha;
+				OnionSkinOpacityWithinGroup.value = Global.SameGroupOnionSkinAlpha;
+				GridLines.selectedColor = Global.GridLineColour;
+				
+                ShowTitleBarIcons = false;
+				
+				width = container.width + 40;
+				height = container.height + titleBar.height + 80;
+				
+				super.init();
+            }
+           
+        ]]>
+    </mx:Script>
+
+	<mx:Box id="container">
+		<mx:Form width="100%">
+			<mx:FormItem label="Background">
+				<mx:ColorPicker id="Background" selectedColor="0x000000" swatchPanelStyleName="colorsPopupSwatchPanelStyle" />
+			</mx:FormItem>
+			<mx:FormItem label="Paths">
+				<mx:ColorPicker id="Paths" selectedColor="0x000000" swatchPanelStyleName="colorsPopupSwatchPanelStyle" />
+			</mx:FormItem>
+			<mx:FormItem label="Instanced Paths">
+				<mx:ColorPicker id="InstancedPaths" selectedColor="0x000000" swatchPanelStyleName="colorsPopupSwatchPanelStyle" />
+			</mx:FormItem>
+			<mx:FormItem label="Grid Lines">
+				<mx:ColorPicker id="GridLines" selectedColor="0x000000" swatchPanelStyleName="colorsPopupSwatchPanelStyle" />
+			</mx:FormItem>
+			<mx:FormItem label="Shapes">
+				<mx:HBox>
+				<mx:ColorPicker id="Shapes" selectedColor="0x000000" swatchPanelStyleName="colorsPopupSwatchPanelStyle" />
+				<mx:Label text="Opacity"/>
+				<mx:NumericStepper id="ShapeOpacity" value="1" stepSize="0.1" minimum="0.1" maximum="1" />
+				</mx:HBox>
+			</mx:FormItem>
+			<mx:FormItem label="Onion Skin Opacity">
+				<mx:NumericStepper id="OnionSkinOpacity" value="1" stepSize="0.1" minimum="0" maximum="1" />
+			</mx:FormItem>
+			<mx:FormItem label="Onion Skin Opacity Within Groups">
+				<mx:NumericStepper id="OnionSkinOpacityWithinGroup" value="1" stepSize="0.1" minimum="0" maximum="1" />
+			</mx:FormItem>
+			<mx:Button label="Reset Drawing Color Grid" click="ResetColors()" />
+		</mx:Form>
+		
+		<mx:HBox horizontalAlign="center" width="100%">
+			<mx:Button id="btnOK" label="OK" click="ok()" />
+			<mx:Button id="btnCancel" label="Cancel" click="ForceClose()" />
+		</mx:HBox>
+	</mx:Box>
+</comUI:PopupWindow>

@@ -1,0 +1,126 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<mx:Box xmlns:mx="http://www.adobe.com/2006/mxml" direction="horizontal" horizontalGap="0" 
+verticalGap="0" paddingTop="2" enterFrame="update()" creationComplete="init()">
+	
+	<mx:Script>
+        <![CDATA[
+		import com.Editor.EditorTypeDraw;
+		import com.Utils.Global;
+		import flash.geom.Point;
+		import mx.containers.Canvas;
+
+		private var isSmall:Boolean = false;
+		
+		private var colors:Vector.<Canvas>;
+		
+		public var onPick:Function = null;
+		
+		private function init():void
+		{
+			colors = Vector.<Canvas>([color1, color2, color3, color4, color5, color6, color7, color8, color9, color10, color11, color12, color13, color14, color15, color16]);
+			ResetColors();
+		}
+
+		private function pickColour( colorNumber:int ):void
+		{
+			if ( onPick != null )
+			{
+				onPick( Global.colorGrid[colorNumber - 1] );
+			}
+		}
+		
+		private function showPopup( colorNumber:int ):void
+		{
+			var pop1:* = App.CreatePopupWindow(advancedColorPicker, true);
+			if ( pop1 )
+			{
+				var color:int = Global.colorGrid[colorNumber - 1];
+				
+				pop1.setColorRGB(EditorTypeDraw.DrawColor);
+				pop1.addEventListener(MouseEvent.CLICK, setColor);
+	
+				function setColor():void
+				{
+					var color:int = pop1.getColorRGB();
+					onPick( color );
+					colors[colorNumber - 1].setStyle("backgroundColor", color);
+					Global.colorGrid[colorNumber - 1] = color;
+				}
+			}
+		}
+		
+		private function update():void
+		{
+			var pos:Point = new Point(0, 0);
+			pos = localToGlobal(pos);
+			if ( stage )
+			{
+				var rightSide:int = pos.x + ( 16 * 20 );
+				var wantSmall:Boolean = false;
+				//if ( rightSide > stage.width + 10 )
+				{
+					wantSmall = true;
+				}
+				if ( wantSmall != isSmall )
+				{
+					isSmall = wantSmall;
+					var ht:int = isSmall ? 10 : 20;
+					direction = isSmall ? "vertical" : "horizontal";
+					for ( var i:int = 0; i < colors.length; i++ )
+					{
+						colors[i].height = ht;
+						colors[i].width = ht;
+					}
+				}
+			}
+		}
+		
+		private function over(box:Canvas):void
+		{
+			box.setStyle("borderColor", "white");
+		}
+		
+		private function out(box:Canvas):void
+		{
+			box.setStyle("borderColor", "black");
+		}
+		
+		public function ResetColors():void
+		{
+			var i:int = 0;
+			for each( var tile:Canvas in colors )
+			{
+				var color:uint = Global.colorGrid[i];
+				// A strange bug where if it's pure white it doesn't always show.
+				//if ( color == 0xffffff )
+				//	color = 0xefffff;
+				tile.setStyle("backgroundColor", color);
+				i++;
+			}
+		}
+		
+		]]>
+			
+    </mx:Script>
+	
+	<mx:Box id="row1" direction="horizontal" horizontalGap="0">
+		<mx:Canvas id="color1" borderStyle="solid" borderColor="black" cornerRadius="0" width="20" height="20" mouseDown="pickColour(1)" toolTip="choose colour 1. Double click to modify." mouseOver="over(color1)" mouseOut="out(color1)" doubleClick="showPopup(1)" doubleClickEnabled="true" />
+		<mx:Canvas id="color2" borderStyle="solid" borderColor="black" cornerRadius="0" width="20" height="20" mouseDown="pickColour(2)" toolTip="choose colour 2. Double click to modify." mouseOver="over(color2)" mouseOut="out(color2)" doubleClick="showPopup(2)" doubleClickEnabled="true"  />
+		<mx:Canvas id="color3" borderStyle="solid" borderColor="black" cornerRadius="0" width="20" height="20" mouseDown="pickColour(3)" toolTip="choose colour 3. Double click to modify." mouseOver="over(color3)" mouseOut="out(color3)" doubleClick="showPopup(3)" doubleClickEnabled="true"  />
+		<mx:Canvas id="color4" borderStyle="solid" borderColor="black" cornerRadius="0" width="20" height="20" mouseDown="pickColour(4)" toolTip="choose colour 4. Double click to modify." mouseOver="over(color4)" mouseOut="out(color4)" doubleClick="showPopup(4)" doubleClickEnabled="true"  />
+		<mx:Canvas id="color5" borderStyle="solid" borderColor="black" cornerRadius="0" width="20" height="20" mouseDown="pickColour(5)" toolTip="choose colour 5. Double click to modify." mouseOver="over(color5)" mouseOut="out(color5)" doubleClick="showPopup(5)" doubleClickEnabled="true"  />
+		<mx:Canvas id="color6" borderStyle="solid" borderColor="black" cornerRadius="0" width="20" height="20" mouseDown="pickColour(6)" toolTip="choose colour 6. Double click to modify." mouseOver="over(color6)" mouseOut="out(color6)" doubleClick="showPopup(6)" doubleClickEnabled="true"  />
+		<mx:Canvas id="color7" borderStyle="solid" borderColor="black" cornerRadius="0" width="20" height="20" mouseDown="pickColour(7)" toolTip="choose colour 7. Double click to modify." mouseOver="over(color7)" mouseOut="out(color7)" doubleClick="showPopup(7)" doubleClickEnabled="true"  />
+		<mx:Canvas id="color8" borderStyle="solid" borderColor="black" cornerRadius="0" width="20" height="20" mouseDown="pickColour(8)" toolTip="choose colour 8. Double click to modify." mouseOver="over(color8)" mouseOut="out(color8)" doubleClick="showPopup(8)" doubleClickEnabled="true"  />
+	</mx:Box>
+	<mx:Box id="row2" direction="horizontal" horizontalGap="0">
+		<mx:Canvas id="color9" borderStyle="solid" borderColor="black" cornerRadius="0" width="20" height="20" mouseDown="pickColour(9)" toolTip="choose colour 9. Double click to modify." mouseOver="over(color9)" mouseOut="out(color9)" doubleClick="showPopup(9)" doubleClickEnabled="true"  />
+		<mx:Canvas id="color10" borderStyle="solid" borderColor="black" cornerRadius="0" width="20" height="20" mouseDown="pickColour(10)" toolTip="choose colour 10. Double click to modify." mouseOver="over(color10)" mouseOut="out(color10)" doubleClick="showPopup(10)" doubleClickEnabled="true"  />
+		<mx:Canvas id="color11" borderStyle="solid" borderColor="black" cornerRadius="0" width="20" height="20" mouseDown="pickColour(11)" toolTip="choose colour 11. Double click to modify." mouseOver="over(color11)" mouseOut="out(color11)" doubleClick="showPopup(11)" doubleClickEnabled="true"  />
+		<mx:Canvas id="color12" borderStyle="solid" borderColor="black" cornerRadius="0" width="20" height="20" mouseDown="pickColour(12)" toolTip="choose colour 12. Double click to modify." mouseOver="over(color12)" mouseOut="out(color12)" doubleClick="showPopup(12)" doubleClickEnabled="true"  />
+		<mx:Canvas id="color13" borderStyle="solid" borderColor="black" cornerRadius="0" width="20" height="20" mouseDown="pickColour(13)" toolTip="choose colour 13. Double click to modify." mouseOver="over(color13)" mouseOut="out(color13)" doubleClick="showPopup(13)" doubleClickEnabled="true"  />
+		<mx:Canvas id="color14" borderStyle="solid" borderColor="black" cornerRadius="0" width="20" height="20" mouseDown="pickColour(14)" toolTip="choose colour 14. Double click to modify." mouseOver="over(color14)" mouseOut="out(color14)" doubleClick="showPopup(14)" doubleClickEnabled="true"  />
+		<mx:Canvas id="color15" borderStyle="solid" borderColor="black" cornerRadius="0" width="20" height="20" mouseDown="pickColour(15)" toolTip="choose colour 15. Double click to modify." mouseOver="over(color15)" mouseOut="out(color15)" doubleClick="showPopup(15)" doubleClickEnabled="true"  />
+		<mx:Canvas id="color16" borderStyle="solid" borderColor="black" cornerRadius="0" width="20" height="20" mouseDown="pickColour(16)" toolTip="choose colour 16. Double click to modify." mouseOver="over(color16)" mouseOut="out(color16)" doubleClick="showPopup(16)" doubleClickEnabled="true"  />
+</mx:Box>
+</mx:Box>

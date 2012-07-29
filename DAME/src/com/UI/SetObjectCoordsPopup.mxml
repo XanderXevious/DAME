@@ -1,0 +1,502 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<comUI:PopupWindow xmlns:mx="http://www.adobe.com/2006/mxml" xmlns:comUI="com.UI.*"
+    width="100%" height="100%"
+    defaultButton="{btnOK}" title="Set Sprite Coords and Orientation." horizontalScrollPolicy="off" verticalScrollPolicy="off" >
+
+    <mx:Script>
+        <![CDATA[
+			import com.Editor.EditorTypeAvatarsBase;
+			import com.Editor.EditorTypeSprites;
+			import com.EditorState;
+			import com.Game.EditorAvatar;
+			import com.Game.ShapeObject;
+			import com.Layers.LayerMap;
+			import com.Operations.HistoryStack;
+			import com.Operations.OperationTransformSprite;
+			import com.Utils.Global;
+			import com.Utils.Misc;
+			import flash.events.Event;
+			import mx.core.UIComponent;
+			import mx.events.CloseEvent;
+			import com.UI.AlertBox;
+			import org.flixel.FlxG;
+			import org.flixel.FlxPoint;
+
+			public var opener:Object;
+			
+			public var okPressedCallback:Function = null;
+			
+			private var originalX:Number;
+			private var originalY:Number;
+			private var originalAngle:Number;
+			private var originalScaleX:Number;
+			private var originalScaleY:Number;
+			private var originalGY:Number;
+			private var originalZ:Number;
+			private var originalAlignedX:Number;
+			private var originalAlignedY:Number;
+			private var sharedX:Boolean = true;
+			private var sharedY:Boolean = true;
+			private var sharedAngle:Boolean = true;
+			private var sharedScaleX:Boolean = true;
+			private var sharedScaleY:Boolean = true;
+			private var sharedGY:Boolean = true;
+			private var sharedZ:Boolean = true;
+			private var sharedAlignedX:Boolean = true;
+			private var sharedAlignedY:Boolean = true;
+			
+			private var greyColor:uint = 0xaaaaaa;
+			
+			private function apply():void
+			{
+				var state:EditorState = FlxG.state as EditorState;
+				var editorSprites:EditorTypeSprites = state.getCurrentEditor(App.getApp()) as EditorTypeSprites;
+				var doneFirstItem:Boolean = false;
+				if ( editorSprites )
+				{
+					var selection:Vector.<EditorAvatar> = editorSprites.GetSelection();
+					
+					var xChanged:Boolean = InputX.value != originalX;
+					var yChanged:Boolean = InputY.value != originalY;
+					var zChanged:Boolean = InputZ.value != originalZ;
+					var gyChanged:Boolean = InputGY.value != originalGY;
+					var xAlignedChanged:Boolean = InputAlignedX.value != originalAlignedX;
+					var yAlignedChanged:Boolean = InputAlignedY.value != originalAlignedY;
+					
+					HistoryStack.BeginOperation(new OperationTransformSprite(selection));
+					for each( var avatar:EditorAvatar in selection )
+					{
+						var storedX:Number = avatar.x;
+						var storedY:Number = avatar.y;
+					
+						if ( xChanged )
+						{
+							avatar.x = InputX.value;
+							sharedX = true;
+						}
+						if ( yChanged )
+						{
+							avatar.y = InputY.value;
+							sharedY = true;
+						}
+						var masterLayer:LayerMap = avatar.layer.parent.FindMasterLayer();
+						if ( zChanged )
+						{
+							if ( masterLayer && masterLayer.map.tileOffsetX == 0 && masterLayer.map.tileOffsetY != 0 )
+							{
+								// Horizontal z
+								var zDiff:Number = masterLayer.map.tileOffsetY < 0 ? avatar.z : -avatar.z;
+								avatar.x += zDiff;
+								avatar.z = -InputZ.value;
+								zDiff = masterLayer.map.tileOffsetY < 0 ? avatar.z : -avatar.z;
+								avatar.x -= zDiff;
+								if ( sharedX )
+								{
+									InputX.value = avatar.x;
+									originalX = InputX.value;
+								}
+							}
+							else
+							{
+								avatar.y -= avatar.z;
+								avatar.z = -InputZ.value;
+								avatar.y += avatar.z;
+								if ( sharedY )
+								{
+									InputY.value = avatar.y;
+									originalY = InputY.value;
+								}
+							}
+							
+							sharedZ = true;
+						}
+						if ( gyChanged )
+						{
+							avatar.y = (InputGY.value - avatar.height) + avatar.z;
+							sharedGY = true;
+							if ( sharedY )
+							{
+								InputY.value = avatar.y;
+							}
+						}
+						else
+						{
+							if ( sharedY )
+							{
+								InputGY.value = avatar.bottom - avatar.z;
+							}
+						}
+						
+						if ( ThreeD.visible )
+						{
+							var pos:FlxPoint = new FlxPoint;
+							var basePos:FlxPoint = new FlxPoint;
+							var basePosOffset:FlxPoint = new FlxPoint;
+							
+							avatar.GetIsoBasePos(basePos);
+							basePosOffset.x = basePos.x - avatar.x;
+							basePosOffset.y = basePos.y - avatar.y;
+							
+							masterLayer = ( avatar.layer.AlignedWithMasterLayer ) ? avatar.layer.parent.FindMasterLayer() : null;
+							
+							if( masterLayer )
+							{
+								if ( xAlignedChanged || yAlignedChanged )
+								{
+									var unitX:Number = InputAlignedX.value;
+									var unitY:Number = InputAlignedY.value;
+									if ( !masterLayer.map.xStagger )
+									{
+										// Want to be in the center of the tile so shift it by half a tile.
+										unitX += 0.5;
+										unitY += 0.5;
+									}
+									
+									if ( !(xAlignedChanged && yAlignedChanged) )
+									{
+										// If only one changed then need to keep the value that is the same.
+										basePos.x = storedX + basePosOffset.x;
+										basePos.y = storedY + basePosOffset.y;
+										masterLayer.map.GetTileInfo(basePos.x - masterLayer.map.x, basePos.y - masterLayer.map.y, pos, null, true);
+										// Want to be in the center of the tile so shift it back by half a tile.
+										if ( !xAlignedChanged )
+											unitX = pos.x;
+										else if (!yAlignedChanged )
+											unitY = pos.y;
+									}
+									
+									masterLayer.map.GetTileWorldFromUnitPos(unitX, unitY, pos, true );
+									
+									// The position is relative to the tilemap. Transform it to be back in world space.
+									// Ignore scroll factors as you can't have any consistent position on one layer with
+									// another of a different factor.
+							
+									avatar.x = pos.x - basePosOffset.x;
+									avatar.y = pos.y - basePosOffset.y;
+									if ( sharedAlignedX && sharedAlignedY )
+									{
+										InputX.value = avatar.x;
+										sharedX = true;
+										InputY.value = avatar.y;
+										sharedY = true;
+										InputGY.value = avatar.bottom - avatar.z;
+										sharedGY = true;
+									}
+									sharedAlignedX = sharedAlignedX || xAlignedChanged;
+									sharedAlignedY = sharedAlignedY || yAlignedChanged;
+								}
+							}
+						}
+						var shapeObject:ShapeObject = avatar as ShapeObject;
+						
+						if ( InputAngle.value != originalAngle )
+						{
+							if ( !masterLayer || avatar.CanRotate() )
+							{
+								avatar.angle = InputAngle.value;
+								avatar.OnRotate();
+								sharedAngle = true;
+							}
+						}
+						var resized:Boolean = false;
+						
+						if ( InputScaleX.value != originalScaleX )
+						{
+							var width:Number = avatar.width;
+							var maxWidth:Number = Math.max(EditorTypeAvatarsBase.maxAvatarWidth, width);
+							avatar.width = width * ( InputScaleX.value / avatar.scale.x );
+							avatar.scale.x = InputScaleX.value;
+							if ( avatar.width > maxWidth )
+							{
+								avatar.width = maxWidth;
+								avatar.scale.x = maxWidth / width;
+							}
+							avatar.offset.x = - ( avatar.width - avatar.frameWidth ) * 0.5;
+							resized = true;
+							sharedScaleX = true;
+							if ( shapeObject && shapeObject.isEllipse )
+							{
+								avatar.scale.y = avatar.scale.x;
+								avatar.offset.y = avatar.offset.x;
+								avatar.height = avatar.width;
+							}
+						}
+						if ( InputScaleY.value != originalScaleY )
+						{
+							var height:Number = avatar.height;
+							var maxHeight:Number = Math.max(EditorTypeAvatarsBase.maxAvatarHeight, height);
+							avatar.height = height * ( InputScaleY.value / avatar.scale.y );
+							avatar.scale.y = InputScaleY.value;
+							if ( avatar.height > maxHeight )
+							{
+								avatar.height = maxHeight;
+								avatar.scale.y = maxHeight / height;
+							}
+							avatar.offset.y = - ( avatar.height - avatar.frameHeight ) * 0.5;
+							resized = true;
+							sharedScaleY = true;
+							if ( shapeObject && shapeObject.isEllipse )
+							{
+								avatar.scale.x = avatar.scale.y;
+								avatar.offset.x = avatar.offset.y;
+								avatar.width = avatar.height;
+							}
+						}
+						if ( resized )
+						{
+							avatar.OnResize();
+							if ( avatar.spriteEntry && avatar.spriteEntry.IsTileSprite)
+							{
+								avatar.SetAsTile();
+							}
+						}
+						avatar.layer.SortAvatar(avatar);
+					}
+
+					originalX = InputX.value;
+					originalY = InputY.value;
+					originalAngle = InputAngle.value;
+					originalScaleX = InputScaleX.value;
+					originalScaleY = InputScaleY.value;
+					originalGY = InputGY.value;
+					originalZ = InputZ.value;
+					originalAlignedX = InputAlignedX.value;
+					originalAlignedY = InputAlignedY.value;
+					changeValue();
+				}
+			}
+           
+            private function ok():void
+			{
+				apply();
+				
+				if ( okPressedCallback!=null )
+				{
+					okPressedCallback(this);
+				}
+				ForceClose();
+            }
+			
+			private function cancel():void
+			{
+				ForceClose();
+			}
+			
+			private function setControlStyle(Control:UIComponent, Value:Number, Original:Number, Shared:Boolean):void
+			{
+				if (Value != Original)
+				{
+					Control.setStyle("color", 0x000000 );
+					Control.setStyle("fontWeight", "bold" );
+				}
+				else
+				{
+					Control.setStyle("color", Shared ? greyColor : 0x000000 );
+					Control.setStyle("fontWeight", "normal" );
+				}
+			}
+			
+			private function changeValue():void
+			{
+				setControlStyle(InputX, InputX.value, originalX, sharedX);
+				setControlStyle(InputY, InputY.value, originalY, sharedY);
+				setControlStyle(InputAngle, InputAngle.value, originalAngle, sharedAngle);
+				setControlStyle(InputScaleX, InputScaleX.value, originalScaleX, sharedScaleX);
+				setControlStyle(InputScaleY, InputScaleY.value, originalScaleY, sharedScaleY);
+				setControlStyle(InputGY, InputGY.value, originalGY, sharedGY);
+				setControlStyle(InputZ, InputZ.value, originalZ, sharedZ);
+				setControlStyle(InputAlignedX, InputAlignedX.value, originalAlignedX, sharedAlignedX);
+				setControlStyle(InputAlignedY, InputAlignedY.value, originalAlignedY, sharedAlignedY);
+			}
+           
+            override protected function init():void
+			{				
+				var state:EditorState = FlxG.state as EditorState;
+				var editorSprites:EditorTypeSprites = state.getCurrentEditor(App.getApp()) as EditorTypeSprites;
+				var doneFirstItem:Boolean = false;
+				var has3D:Boolean = false;
+				if ( editorSprites )
+				{
+					var selection:Vector.<EditorAvatar> = editorSprites.GetSelection();
+					for each( var avatar:EditorAvatar in selection )
+					{
+						var bottom:Number = avatar.bottom - avatar.z;
+						// Common stuff first...
+						if ( !doneFirstItem )
+						{
+							doneFirstItem = true;
+							
+							// Validate the values before assigning the originals so that the originals match the controls exactly.
+							// This prevents unwanted values getting changed.
+							InputX.value = avatar.x;
+							InputX.validateNow();
+							originalX = InputX.value;
+							
+							InputY.value = avatar.y;
+							InputY.validateNow();
+							originalY = InputY.value;
+							
+							InputAngle.value = Misc.ModulateAngle(avatar.angle);
+							InputAngle.validateNow();
+							originalAngle = InputAngle.value;
+							
+							InputScaleX.value = avatar.scale.x;
+							InputScaleX.validateNow();
+							originalScaleX = InputScaleX.value;
+							
+							InputScaleY.value = avatar.scale.y;
+							InputScaleY.validateNow();
+							originalScaleY = InputScaleY.value;
+							
+							InputGY.value = bottom;
+							InputGY.validateNow();
+							originalGY = InputGY.value;
+							
+							InputZ.value = -avatar.z;
+							InputZ.validateNow();
+							originalZ = InputZ.value;
+						}
+						else
+						{
+							if ( avatar.x != originalX )
+							{
+								sharedX = false;
+							}
+							if ( avatar.y != originalY )
+							{
+								sharedY = false;
+							}
+							if ( Misc.ModulateAngle(avatar.angle) != originalAngle )
+							{
+								sharedAngle = false;
+							}
+							if ( avatar.scale.x != originalScaleX )
+							{
+								sharedScaleX = false;
+							}
+							if ( avatar.scale.y != originalScaleY )
+							{
+								sharedScaleY = false;
+							}
+							if ( -avatar.z != originalZ )
+							{
+								sharedZ = false;
+							}
+							if ( bottom != originalGY )
+							{
+								sharedGY = false;
+							}
+						}
+						
+						// Then the Aligned 3D stuff...
+						var masterLayer:LayerMap = null;
+						
+						if ( avatar.layer.AlignedWithMasterLayer
+							&& ( masterLayer = avatar.layer.parent.FindMasterLayer() ) )
+						{
+							var posOnMap:FlxPoint = new FlxPoint;
+							var basePos:FlxPoint = new FlxPoint;
+							avatar.GetIsoBasePos(basePos);
+							masterLayer.map.GetTileInfo(basePos.x - masterLayer.map.x, basePos.y - masterLayer.map.y, posOnMap, null, true);
+							// Want to be in the center of the tile so shift it back by half a tile.
+							if ( !masterLayer.map.xStagger )
+							{
+								posOnMap.x -= 0.5;
+								posOnMap.y -= 0.5;
+							}
+							if ( !has3D )
+							{
+								has3D = true;
+								InputAlignedX.value = posOnMap.x;
+								InputAlignedX.validateNow();
+								originalAlignedX = InputAlignedX.value;
+								
+								InputAlignedY.value = posOnMap.y;
+								InputAlignedY.validateNow();
+								originalAlignedY = InputAlignedY.value;
+							}
+							else
+							{
+								if ( posOnMap.x != originalAlignedX )
+								{
+									sharedAlignedX = false;
+								}
+								if ( posOnMap.y != originalAlignedY )
+								{
+									sharedAlignedY = false;
+								}
+							}
+							if ( masterLayer.map.xStagger )
+							{
+								// We only allow whole increments for staggered maps due to imprecision.
+								InputAlignedX.stepSize = 1;
+								InputAlignedY.stepSize = 1;
+							}
+						}
+					}
+				}
+				
+				if ( !has3D )
+				{
+					ThreeD.height = 0;
+					ThreeD.visible = false;
+				}
+				
+				changeValue();
+				
+				width = container.width + 20;
+				height = container.height + titleBar.height + 20;
+				
+				ShowTitleBarIcons = false;
+				
+				super.init();
+            }
+           
+        ]]>
+    </mx:Script>
+
+	<mx:Box id="container" width="100%" height="100%" >
+		<mx:Form>
+			<mx:FormItem label="X">
+				<mx:NumericStepper id="InputX" stepSize="0.1" minimum="-99999" maximum="99999" change="changeValue()" />
+			</mx:FormItem>
+			<mx:FormItem label="Y">
+				<mx:NumericStepper id="InputY" stepSize="0.1" minimum="-99999" maximum="99999" change="changeValue()"/>
+			</mx:FormItem>
+			
+			<mx:FormItem label="Angle">
+				<mx:NumericStepper id="InputAngle" stepSize="0.1" minimum="0" maximum="360" change="changeValue()"/>
+			</mx:FormItem>
+			<mx:FormItem label="X Scale">
+				<mx:NumericStepper id="InputScaleX" stepSize="0.01" minimum="0.01" maximum="100" change="changeValue()"/>
+			</mx:FormItem>
+			<mx:FormItem label="Y Scale">
+				<mx:NumericStepper id="InputScaleY" stepSize="0.01" minimum="0.01" maximum="100" change="changeValue()"/>
+			</mx:FormItem>
+			
+			<mx:FormItem label="Y at Ground">
+				<mx:NumericStepper id="InputGY" toolTip="The y value of the object at ground level." stepSize="0.1" minimum="-99999" maximum="99999" change="changeValue()" />
+			</mx:FormItem>
+			<mx:FormItem label="Z height">
+				<mx:NumericStepper id="InputZ" toolTip="The height of the object." stepSize="0.1" minimum="-99999" maximum="99999" change="changeValue()"/>
+			</mx:FormItem>
+		</mx:Form>
+		
+		<mx:VBox id="ThreeD" borderStyle="solid" borderThickness="1">
+			<mx:Label text="3d positioning:" fontWeight="bold" />
+			<mx:TextArea width="300" height="60" text="These allow you to control ground positioning when aligned to a map by specifying the coordinates in tile units rather than the position on the screen.."/>
+			<mx:HBox>
+				<mx:Label text="X"/>
+				<mx:NumericStepper id="InputAlignedX" stepSize="0.01" minimum="-99999" maximum="99999" change="changeValue()"/>
+				<mx:Label text="Y"/>
+				<mx:NumericStepper id="InputAlignedY" stepSize="0.01" minimum="-99999" maximum="99999" change="changeValue()"/>
+			</mx:HBox>
+		</mx:VBox>
+	
+		<mx:HBox horizontalAlign="center" width="100%">
+			<mx:Button id="btnApply" label="Apply" click="apply()" />
+			<mx:Button id="btnOK" label="OK" click="ok()" />
+			<mx:Button id="btnCancel" label="Cancel" click="cancel()" />
+		</mx:HBox>
+	</mx:Box>
+</comUI:PopupWindow>

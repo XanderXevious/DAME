@@ -1,0 +1,92 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+	<head>
+		<META http-equiv="Content-Type" content="text/html; charset=UTF-8">
+		<title>DAME - Isometric Tilemaps</title>
+		<style type="text/css">
+			h1 {color:#0000CC;}
+			h2 {color:#000099;}
+			h3 {color:#000066;}
+			pc {color:#AA0000;}
+			dpc {color:#0000AA;}
+		</style>
+	</head>
+	<body>
+		<p align=right><a href="index.html">Return to help contents...</a></p>
+		<h1>Isometric tilemaps</h1>
+		<p>DAME provides built in support for a variety of tilemap types.</p>
+		<table border="0">
+		<ol>
+			<li><a href="#settingup">Setting Up</a> </li>
+			<li><a href="#editing">Editing</a> </li>
+			<li><a href="#rendering">Sample Rendering Code</a></li>
+		</ol>
+		</table>
+		
+		<p/>
+		<h2><a name="settingup">1. Setting Up</a></h2>
+		<p>DAME makes it easy to set up the common types of tilemap. When you create or edit a map layer in the Layer Properties window, just select the type of map you want from the drop-down box and modify the required values. A shaded area will appear over the first tile to indicate the base shape of each tile to speed up the process.</p>
+		
+		<h2><a name="editing">2. Editing</a></h2>
+		<p>All of the functionality for editing 2D tilemaps works with isometric tilemaps. However when in drawing mode there are some extra tools to make life easier:</p>
+		<ol>
+			<li><img src="drawbaseicon.jpg" alt="Draw on tile base only"/> Draw on Tile Base: This will ensure that whenever you draw on a tile the pixels will only be placed on the base of the tile. So for example, if it's a diamond isometric then you will draw inside the diamond and not outside, also if it's a 2D tile with height then no pixels will be drawn on the high part of the tile. This can be used to quickly fill an isometric tile with a colour or to draw on multiple tiles, ensuring the pixels connect together correctly. Without this, there is always the potential of drawing on the wrong tile.</li>
+			<li>View Menu->Draw Tiles Without Height: This will display only the base areas of the tiles. It also mirrors the Draw On Tile Base functionality - i.e. you can only draw on what you can see in this case.</li>
+			<li>Context Menu->Lock Tile Under Cursor: This is always useful when you want to edit only one tile. Because isometric tiles overlap, it will ensure you are only drawing on the currently locked tile.</li>
+		</ol>
+		
+		<h2><a name="rendering">3. Sample Rendering Code</a></h2>
+		<p>Rendering isometric tilemaps is not difficult. In fact, it's possible to write generic code that will render all of the tilemaps which DAME inherently supports. Tilemap rendering is usually done with 2 loops. As the tilemap is stored as a long string of data, the inner loop moves horizontally and the outer loop moves vertically. With each iteration the location of the next tile is moved along by either 1 tile width or 1 tile height. To render the tilemaps DAME supports you need to modify this location by various amounts. Lets consider each type of tilemap to look at the variables we must consider.</p>
+		<p>To render an isometric tilemap, what you need to do is offset the location of the next tile in one or both axes by a set number of pixels with each tile. This is where the <em>TileOffsetY</em> and <em>TileOffsetX</em> come into play. Simply by adding this value to the current location you can achieve the isometric effect.</p>
+		<p>A staggered isometric tilemap is one where the each even numbered row is offset by a set number of pixels. In other words, all of the odd rows, starting with the first, start at the same x coordinate and all of the even rows start at the x coordinate + <em>XStagger</em>.</p>
+		<p>Finally, tilemaps can appear to have height. Looking at a basic 2D tilemap with height as an example, all it is doing is moving the next tile's y coordinate by a smaller value than the actual height of a rendered tile.</p>
+		<p>Bearing all of this in mind, it's very easy to write just one block of code to draw almost any type of tile. Below is some pseudocode modified from the actual actionscript code used to render tilemaps in DAME to give you an idea of how to implement the render function:</p>
+		<pre>
+	rowIndex = 0; // Or the index in tile array of first tile to render.
+	row = 0;
+	yIndex = renderY;
+	storedX = 0; // Or the starting x coordinate.
+	maxRows = heightInTiles; // Or the number of rows that can fit on the screen.
+	while(row < _screenRows)
+	{
+		columnIndex = rowIndex;
+		column = 0;
+		px = storedX;
+		// Staggered rows alternate the pixel offset on every even row.
+		if ( xStagger && yIndex%2==1)
+		{
+			px += xStagger;
+		}
+		// Store py so it can be restored for the next row.
+		storedY = py;
+		while(column < _screenCols)
+		{
+			if ( columnIndex >= 0 && columnIndex < totalTiles )
+			{
+				// Draw the tile at px and py
+			}
+			px += tileSpacingX;
+			py += tileOffsetY;
+			column++;
+			columnIndex++;
+		}
+		rowIndex += widthInTiles;
+		py = storedY + tileSpacingY;
+		storedX += tileOffsetX;
+		row++;
+		yIndex++;
+	}
+		</pre>
+		<p>The above code will draw every tile on the tilemap and it is down to the user to either position it correctly or to modify it so that it only renders the visible tiles.</p>
+		<p>Also, here is a very useful bit of code for any non-staggered isometric tilemap. Given the the x and y tile ids from within the map, it will return the screen position. You may have to offset it by the starting position of the first tile as well:</p>
+		<pre>
+	var newX:Number = (xpos * tileSpacingX) + (ypos * tileOffsetX);
+	var newY:Number = (xpos * tileOffsetY) + (ypos * tileSpacingY);
+		</pre>
+		
+		
+		<center class="copyright"> 
+		</center>
+	</body>
+</html>
+<!-- -->

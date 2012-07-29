@@ -1,0 +1,87 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+	<head>
+		<META http-equiv="Content-Type" content="text/html; charset=UTF-8">
+		<title>DAME - Basics</title>
+		<style type="text/css">
+			h1 {color:#0000CC;}
+			h2 {color:#000099;}
+			h3 {color:#000066;}
+			pc {color:#AA0000;}
+			dpc {color:#0000AA;}
+		</style>
+	</head>
+	<body>
+		<p align=right><a href="index.html">Return to help contents...</a></p>
+		<h1>Basics</h1>
+		<p>Click on the links below to learn more about editing the different types of object DAME supports:</p>
+		<table border="0">
+		<tr>
+			<td width="10"/>
+			<td>
+				<table>
+				<tr><td><a href="#main">1. The Main Window</a> </td></tr>
+				<tr><td><a href="#navigation">2. Navigation</a> </td></tr>
+				<tr><td><a href="#transformations">3. Transformations</a> </td></tr>
+				<tr><td><a href="#grids">4. Grids and Constraints</a> </td></tr>
+				</table>
+			</td>
+		</tr>
+		</table>
+		
+		<p/>
+		<h2><a name="main">1. The Main Window</a></h2>
+		<p>Below is a screenshot of DAME's main window along with information about the important areas of the DAME window.</p>
+		<ol>
+			<li>Layers Tab - Click this button to display the Layer pane in the Panel area.</li>
+			<li>Sprites Tab - Click this button to display the Sprites pane in the Panel area.</li>
+			<li>Edit Mode Toolbar - Buttons on this toolbar change between the main editing modes.</li>
+			<li>Current Editor Toolbar - Buttons here change depending on the current edit mode or selected object.</li>
+			<li>Panel Area - This displays either the Layer pane or the Sprites pane.</li>
+			<li>Properties Grid - This will display if you are editing a tilemap or an object and displays the current item's properties.</li>
+			<li>Main Area - This is where the magic happens! The map will show up in here and this is where you place objects.</li>
+			<li>Status Bar - Some information shows up here such as the current X,Y coordinates and the time since the last save.</li>
+			<li>Main Menu - Access this to change some of the display/editing features as well as to save, load and export..</li>
+		</ol>
+		<img src="damewindow.jpg" alt="The main window."/>
+		
+		<h2><a name="navigation">2. Navigation</a></h2>
+		<p>You can navigate around a DAME map many ways:</p>
+		<ul>
+			<li>Hold down the middle mouse button in the Main Area and drag the view around.</li>
+			<li>Hold down both the 'D' key and the middle mouse button in the Main Area to drag the view around at a constant rate determined by the distance of the mouse from the initial drag area.</li>
+			<li>Use Ctrl with the Arrow keys to move the view around.</li>
+			<li>F2 to move to (and select) the previous object to the left/up (if valid) on the current layer.</li>
+			<li>F3 to move to (and select) the next object to the right/down (if valid) on the current layer.</li>
+			<li>Ctrl+L (or Main Menu->View->Center Layer) to move the view to the center of the current layer.</li>
+			<li>Scroll the mouse wheel to zoom the display in and out.</li>
+		</ul>
+		
+		<h2><a name="transformations">3. Transformations</a></h2>
+		<p>There are 3 types of transformation supported by DAME:</p>
+		<ol>
+			<li>Movement - Tiles and all objects support this.</li>
+			<li>Rotation - Only objects support this.</li>
+			<li>Scaling - Only objects support this.</li>
+		</ol>
+		<p>It is only possible to transform an object when it has the dotted lines around it. This goes for tilemaps as well. Usually you initiate transformation mode by selecting the object/tile when in selection mode. This can be done by clicking on the selection icon: <img src="selecticon.jpg" alt="The selection icon."/>. With objects it is also possible to transform the last placed down object.</p>
+		<p>With the object selected you can move it by clicking anywhere on the object with the left mouse button and dragging it around the map.</p>
+		<p>Scaling can be done by doing the same as the above but holding down the Alt key. Rotation can be done by doing the same again, but holding down the R key instead.</p>
+		<p>An alternative way of scaling is to click on the transformation handles that appear around the edges of an already selected object when you move the cursor over it. You will see the cursor icon change to indicate scaling is possible Likewise, if you move the cursor over the edges of the object the cursor icon will change to indicate rotation is possible. Clicking the left mouse button at this time will begin a rotation.</p>
+		<p>You can constrain rotation to within 45 degree angles by holding down the 'A' Key. To constrain scaling so that it is uniform only hold down the 'S' Key.</p>
+		
+		<h2><a name="grids">4. Grids and constraints</a></h2>
+		<p>You can display the grids by going to the menu "View->Grid" (Ctrl+G). If you wish to change the size of the guidelines this can be done two ways:</p>
+		<ol>
+			<li>As guidelines will always be aligned to the tilemap when you are on a tilemap layer you can go to the menu Edit->Guides->Set From Current Layer. This will ensure that whatever layer you are on the guidelines will be aligned to this layer.</li>
+			<li>Go to "View->Change Grid Settings..." to bring up a window that will let you select all of the gridline parameters. For most settings this is only relevant to non tilemap layers. By default tilemaps will always display lines around every tile, though you can stagger the lines using the "Min Grid Space" value. This controls the minimum spacing between any two grid lines. The "Snap Location" value controls the location of the snapping point of an object when it is snapped to a grid.</li>
+		</ol>
+		<p>Displaying the grid doesn't necessarily mean that objects will be snapped into place when you move/add them. To do this select the menu option "View->Snap To Grid" (Ctrl+Shift+G).</p>
+		<p>If you have a tilemap and want to quickly align non-tilemap layers to the tilemap then you can select the menu option "View->Align Grids To Current Layer".</p>
+		<p>An alternative method of constraining movement/placement is to hold down the 'X' key to ensure that movement of the cursor will only occur horizontally, and the 'Y' key (or 'Z' key) to ensure it can only occur vertically.</p>
+		<p>One other feature available in the grid settings is the Game Region Overlay. This is also available through the menu option "Tools->Show Game Region Overlay" (Ctrl+Y). When active it will display opaque or partially transparent over the main view of the editor, leaving only the region specified in the settings clear. This will allow you to see how your game might look in game.</p>
+		<center class="copyright"> 
+		</center>
+	</body>
+</html>
+<!-- -->

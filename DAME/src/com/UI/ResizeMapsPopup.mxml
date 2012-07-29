@@ -1,0 +1,153 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<comUI:PopupWindow xmlns:mx="http://www.adobe.com/2006/mxml" xmlns:comUI="com.UI.*"
+    width="100%" height="100%"
+    defaultButton="{btnOK}" title="Resize All Maps" horizontalScrollPolicy="off" verticalScrollPolicy="off" >
+
+    <mx:Script>
+        <![CDATA[
+			import com.Layers.LayerEntry;
+			import com.Layers.LayerGroup;
+			import com.Layers.LayerMap;
+			import com.Operations.HistoryStack;
+			import com.Operations.OperationResizeManyMaps;
+			import com.Utils.Global;
+			import com.Utils.Misc;
+			import flash.events.Event;
+			import flash.filesystem.File;
+			import mx.events.CloseEvent;
+			import com.UI.AlertBox;
+
+			public var opener:Object;
+			
+			public var okPressedCallback:Function = null;
+			
+			public var Group:LayerGroup = null;
+			
+           
+			private function applyLayerChanges():void
+			{				
+				var sizeLessThan:Boolean = false;
+				for ( var i:uint = 0; !sizeLessThan && i < Group.children.length; i++ )
+				{
+					var mapLayer:LayerMap = Group.children[i] as LayerMap;
+					if ( mapLayer )
+					{
+						if ( LayerWidth.value < mapLayer.map.widthInTiles || LayerHeight.value < mapLayer.map.heightInTiles )
+						{
+							sizeLessThan = true;
+						}
+					}
+				}
+
+				if( sizeLessThan)
+					AlertBox.Show("You are resizing one or more maps to a smaller size. You will lose data. Click OK to continue.", "Warning", AlertBox.OK | AlertBox.CANCEL, null, resizeMaps, AlertBox.CANCEL);
+				else
+					resizeMaps(null);
+			}
+
+			private function resizeMaps(eventObj:CloseEvent):void
+			{
+				if ( eventObj == null || eventObj.detail == AlertBox.OK)
+				{
+					var hAlignPercent:Number = 0;
+					if ( PlacementX.selectedLabel == "MIDDLE" )
+						hAlignPercent = 0.5;
+					else if ( PlacementX.selectedLabel == "RIGHT" )
+						hAlignPercent = 1;
+					var vAlignPercent:Number = 0;
+					if ( PlacementY.selectedLabel == "MIDDLE" )
+						vAlignPercent = 0.5;
+					else if ( PlacementY.selectedLabel == "BOTTOM" )
+						vAlignPercent = 1;
+					HistoryStack.BeginOperation( new OperationResizeManyMaps( Group ) );
+					for ( var i:uint = 0; i < Group.children.length; i++ )
+					{
+						var mapLayer:LayerMap = Group.children[i] as LayerMap;
+						if ( mapLayer )
+						{
+							mapLayer.map.resizeMap( LayerWidth.value, LayerHeight.value, mapLayer.map.tileWidth, mapLayer.map.tileHeight, hAlignPercent, vAlignPercent, PreserveTilePositions.selected );
+						}
+					}
+				}
+			}
+           
+            private function ok():void
+			{
+				applyLayerChanges();
+				
+				if ( okPressedCallback!=null )
+				{
+					okPressedCallback(this);
+				}
+				ForceClose();
+            }
+			
+			private function cancel():void
+			{
+				ForceClose();
+			}
+           
+            override protected function init():void
+			{				
+				// Base the dimensions on the largest maps.
+				for ( var i:uint = 0; i < Group.children.length; i++ )
+				{
+					var mapLayer:LayerMap = Group.children[i] as LayerMap;
+					if ( mapLayer )
+					{
+						LayerWidth.value = Math.max( mapLayer.map.widthInTiles, LayerWidth.value );
+						LayerHeight.value = Math.max( mapLayer.map.heightInTiles, LayerHeight.value );
+					}
+				}
+				
+				width = container.width + 20;
+				height = container.height + titleBar.height + 20;
+				
+				ShowTitleBarIcons = false;
+				
+				super.init();
+            }
+           
+        ]]>
+    </mx:Script>
+
+	<mx:Box id="container" width="100%" height="100%" >
+		<mx:HBox width="100%">
+			<mx:Label text="width" textAlign="right" width="80"/>
+			<mx:NumericStepper id="LayerWidth" stepSize="1" value="1" minimum="2" maximum="99999" width="100"/>
+			<mx:Label text="height" textAlign="right" width="80"/>
+			<mx:NumericStepper id="LayerHeight" stepSize="1" value="1" minimum="2" maximum="99999" width="100"/>
+		</mx:HBox>
+		
+		<mx:HBox width="100%">
+			<mx:Label text="Placement X" textAlign="right" width="80"/>
+			<mx:ComboBox id="PlacementX" width="100" >
+				<mx:dataProvider>
+				  <mx:Array>
+					 <mx:String>LEFT</mx:String>
+					 <mx:String>MIDDLE</mx:String>
+					 <mx:String>RIGHT</mx:String>
+				   </mx:Array>
+			   </mx:dataProvider>
+			</mx:ComboBox>
+			
+			<mx:Label text="Placement Y" textAlign="right" width="80" />
+			<mx:ComboBox id="PlacementY" width="100">
+				<mx:dataProvider>
+				  <mx:Array>
+					 <mx:String>TOP</mx:String>
+					 <mx:String>MIDDLE</mx:String>
+					 <mx:String>BOTTOM</mx:String>
+				   </mx:Array>
+			   </mx:dataProvider>
+			</mx:ComboBox>
+		</mx:HBox>
+		
+		<mx:CheckBox id="PreserveTilePositions" label="Preserve Tile Positions" />
+	
+		<mx:HBox horizontalAlign="center" width="100%">
+			<mx:Button id="btnOK" label="OK" click="ok()" />
+			<mx:Button id="btnCancel" label="Cancel" click="cancel()" />
+		</mx:HBox>
+	</mx:Box>
+</comUI:PopupWindow>

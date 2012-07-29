@@ -1,0 +1,603 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<comUI:PopupWindow xmlns:mx="http://www.adobe.com/2006/mxml" xmlns:comUI="com.UI.*"
+    width="100%" height="100%"
+	resizable="false" showGripper="false" showStatusBar="false" maximizable="false" minimizable="false"
+	defaultButton="{btnOK}"
+    title="Export As Image">
+
+    <mx:Script>
+        <![CDATA[
+import com.EditorState;
+import com.formatlos.as3.lib.display.BitmapDataUnlimited;
+import com.formatlos.as3.lib.display.events.BitmapDataUnlimitedEvent;
+import com.Game.PathObject;
+import com.Game.ShapeObject;
+import com.Layers.LayerAvatarBase;
+import com.Layers.LayerEntry;
+import com.Layers.LayerGroup;
+import com.Tiles.FlxTilemapExt;
+import com.Utils.Global;
+import com.Utils.ImageSaver;
+import flash.display.BitmapData;
+import flash.events.Event;
+import flash.filesystem.File;
+import flash.geom.Matrix;
+import flash.geom.Point;
+import mx.collections.ArrayCollection;
+import org.flixel.FlxG;
+import org.flixel.FlxGroup;
+import org.flixel.FlxObject;
+import org.flixel.FlxPoint;
+import org.flixel.FlxState;
+import org.flixel.FlxTilemap;
+import flash.utils.setInterval;
+import flash.utils.getTimer;
+
+			private const MAX_SIZE:int = 8000;
+
+			private var layers:Vector.<LayerEntry> = new Vector.<LayerEntry>;
+			private var maxX:int = int.MIN_VALUE;
+			private var maxY:int = int.MIN_VALUE;
+			private var minX:int = int.MAX_VALUE;
+			private var minY:int = int.MAX_VALUE;
+			
+			private var oldWidth:int;
+			private var oldHeight:int;
+			private var forceRefresh:Boolean;
+			private var oldScroll:Point;
+			private var oldZoom:Number;
+			private var oldExtraZoom:Number;
+			private var oldZoomBitShift:int;
+			private var oldInvExtraZoom:Number;
+			private var onionsEnabled:Boolean;
+			private var changedOnions:Boolean = false;
+			private var oldBuffer:BitmapData;
+			private var oldExtraScroll:FlxPoint;
+			
+			private var outputBmp:BitmapData = null;
+			private var bufferBmp:BitmapData = null;
+			private var intervalId:uint;
+			private var currentImage:int = 0;
+			private var currentFileNum:int = 0;
+			private var maxImages:int;
+			private var maxFiles:int;
+			private var currentLayerIndex:int = 0;
+			private var numIters:int = 0;
+			private var totalWidth:int;
+			private var totalHeight:int;
+			private var totalScaledWidth:int;
+			private var totalScaledHeight:int;
+			private var currentExtraScroll:FlxPoint;
+			private var file:File;
+			private var quadrantNumber:int;
+			private var imgX:int;
+			private var imgY:int;
+			private var additionalExtraScroll:FlxPoint = new FlxPoint;
+           
+            private function ok():void
+			{
+				ForceClose();
+            }
+           
+            override protected function init():void
+			{
+				width = container.width + 100;
+				height = container.height + titleBar.height + 20;
+				
+				ShowTitleBarIcons = false;
+				
+				super.init();
+				
+				recalcLayers();
+            }
+			
+			private function CheckExportedImageFile(event:Event):void
+			{
+				file = event.target as File;
+				file.removeEventListener(Event.SELECT, CheckExportedImageFile);
+				if ( !file.extension )
+				{
+					file.nativePath += ".png";
+				}
+				doExport();
+			}
+			
+			private function export():void
+			{
+				var fileChooser:File;
+				if (App.getApp().GetCurrentFile())
+				{
+					fileChooser = App.getApp().GetCurrentFile().parent.resolvePath('NewImage.png');
+				}
+				else
+				{
+					fileChooser = File.documentsDirectory.resolvePath('NewImage.png');
+				}
+				fileChooser.browseForSave("Specify Exported Image Filename.");
+				solveFileChooserModality(fileChooser);
+				fileChooser.addEventListener(Event.SELECT, CheckExportedImageFile);
+			}
+			
+			private function recalcLayers():void
+			{
+				var app:App = App.getApp();
+				var currentLayer:LayerEntry = null;
+				var currentGroup:LayerEntry = null;
+				layers.length = 0;
+				if ( CurrentLayer.selected )
+				{
+					if ( app.CurrentLayer is LayerGroup )
+					{
+						currentGroup = app.CurrentLayer;
+					}
+					else
+					{
+						currentLayer = app.CurrentLayer;
+					}
+				}
+				
+				if ( currentGroup == null && CurrentGroup.selected && app.CurrentLayer )
+				{
+					if ( app.CurrentLayer is LayerGroup )
+					{
+						currentGroup = app.CurrentLayer;
+					}
+					else
+					{
+						currentGroup = app.CurrentLayer.parent;
+					}
+				}
+				
+				// Build the list of layers to export based on the chosen criteria and calculate the output image dimensions.
+				
+				
+				var layerGroups:ArrayCollection = app.layerGroups;
+				for ( var groupIndex:uint = 0; groupIndex < layerGroups.length; groupIndex++ )
+				{
+					var group:LayerGroup = layerGroups[groupIndex];
+					if ( currentGroup && currentGroup != group )
+					{
+						continue;
+					}
+					if ( OnlyExported.selected && !group.Exports(false) )
+					{
+						continue;
+					}
+					if ( OnlyVisible.selected && !group.visible )
+					{
+						continue;
+					}
+					for (var layerIndex:uint = 0; layerIndex < group.children.length; layerIndex++ )
+					{
+						var layer:LayerEntry = group.children[layerIndex];
+						if ( currentLayer && currentLayer != layer )
+						{
+							continue;
+						}
+						if ( !IncludeParallax.selected && layer.xScroll != 1 && layer.yScroll != 1 )
+						{
+							continue;
+						}
+						if ( OnlyExported.selected && !layer.Exports(false) )
+						{
+							continue;
+						}
+						if ( OnlyVisible.selected && !layer.visible )
+						{
+							continue;
+						}
+						
+						// And update the output image dimensions.
+						var map:FlxTilemapExt = layer.map as FlxTilemapExt;
+						if ( map )
+						{
+							maxX = Math.max(maxX, map.x + map.width);
+							maxY = Math.max(maxY, map.y + map.height);
+							minX = Math.min(minX, map.x);
+							minY = Math.min(minY, map.y);
+						}
+						else
+						{
+							var avatarLayer:LayerAvatarBase = layer as LayerAvatarBase;
+							if ( avatarLayer && avatarLayer.sprites.members.length )
+							{
+								var firstObj:Object = avatarLayer.sprites.members[0];
+								if ( !IncludeShapes.selected && firstObj is ShapeObject )
+								{
+									continue;
+								}
+								else if ( !IncludePaths.selected && firstObj is PathObject )
+								{
+									continue;
+								}
+								maxX = Math.max(maxX, avatarLayer.maxx);
+								maxY = Math.max(maxY, avatarLayer.maxy);
+								minX = Math.min(minX, avatarLayer.minx);
+								minY = Math.min(minY, avatarLayer.miny);
+							}
+						}
+						
+						// Finally add it to the list in the correct drawing order
+						if ( Global.DisplayLayersFirstOnTop )
+						{
+							layers.splice(0, 0, layer);
+						}
+						else
+						{
+							layers.push(layer);
+						}
+					}
+				}
+				
+				var scaler:Number = int(ZoomPercent.selectedLabel) / 100;
+				totalWidth = maxX - minX;	
+				totalHeight = maxY - minY;
+				totalScaledWidth = totalWidth * scaler;
+				totalScaledHeight = totalHeight * scaler;
+				if ( scaler != 0.5 )
+				{
+					totalWidth = totalScaledWidth;
+					totalHeight = totalScaledHeight;
+				}
+				
+				
+				maxFiles = Math.ceil(totalScaledWidth / MAX_SIZE) * Math.ceil(totalScaledHeight / MAX_SIZE );
+				maxImages = ( scaler != 0.5 ) ? maxFiles : maxFiles * 4;
+				
+				InfoText.text = "Estimated Size: " + totalScaledWidth + ", " + totalScaledHeight;
+				if ( totalScaledWidth > MAX_SIZE || totalScaledHeight > MAX_SIZE )
+				{
+					WarningText.text = "Image will be split into " + maxFiles + " files.";
+				}
+				else
+				{
+					WarningText.text = "";
+				}
+				ProgressText.text = "";
+			}
+			
+			private function saveGlobals():void
+			{
+				// Save our old values.
+				oldWidth = FlxG.width;
+				oldHeight = FlxG.height;
+				forceRefresh = FlxG.forceRefresh;
+				oldScroll = FlxG.scroll.clone();
+				oldZoom = FlxG.zoomScale;
+				oldExtraZoom = FlxG.extraZoom;
+				oldZoomBitShift = FlxG.zoomBitShifter;
+				oldInvExtraZoom = FlxG.invExtraZoom;
+				onionsEnabled = Global.OnionSkinEnabled;
+				oldBuffer = FlxG.buffer;
+				oldExtraScroll = FlxG.extraScroll.copy();
+				
+				if ( !KeepOnions.selected && Global.OnionSkinEnabled )
+				{
+					changedOnions = true;
+					Global.OnionSkinEnabled = false;
+				}
+				
+				var scaler:Number = int(ZoomPercent.selectedLabel) / 100;
+				FlxG.width = Math.min(totalWidth,MAX_SIZE);
+				FlxG.height = Math.min(totalHeight, MAX_SIZE);
+				if ( scaler == 0.25 )
+				{
+					FlxG.extraZoom = scaler;
+					FlxG.invExtraZoom = 4;
+					FlxG.zoomBitShifter = 2;
+					FlxG.zoomScale = 1;
+				}
+				else if ( scaler < 0.13 )
+				{
+					FlxG.extraZoom = 0.125;
+					FlxG.invExtraZoom = 8;
+					FlxG.zoomBitShifter = 3;
+					FlxG.zoomScale = 1;
+				}
+				else
+				{
+					FlxG.zoomBitShifter = 0;
+					FlxG.extraZoom = 1;
+					FlxG.invExtraZoom = 1;
+					FlxG.zoomScale = scaler;
+				}
+				
+				
+				currentExtraScroll = new FlxPoint;
+				additionalExtraScroll = new FlxPoint;
+				FlxG.extraScroll.copyFrom(currentExtraScroll);
+				FlxG.disableUpdate = true;
+						
+				FlxG.scroll.x = -minX;
+				FlxG.scroll.y = -minY;
+			}
+			
+			private function restoreGlobals():void
+			{
+				FlxG.width = oldWidth;
+				FlxG.height = oldHeight;
+				FlxG.requestRefresh = true;
+				FlxG.scroll.x = oldScroll.x;
+				FlxG.scroll.y = oldScroll.y;
+				FlxG.zoomScale = oldZoom;
+				FlxG.extraZoom = oldExtraZoom;
+				FlxG.zoomBitShifter = oldZoomBitShift;
+				FlxG.invExtraZoom = oldInvExtraZoom;
+				FlxG.buffer.unlock();
+				FlxG.buffer = oldBuffer;
+				FlxG.disableUpdate = false;
+				
+				FlxG.extraScroll.copyFrom(oldExtraScroll);
+				if ( changedOnions )
+				{
+					Global.OnionSkinEnabled = onionsEnabled;
+					var editor:EditorState = FlxG.state as EditorState;
+					editor.UpdateOnionSkin(App.getApp().CurrentLayer);
+				}
+				
+				for each( var layer:LayerEntry in layers)
+				{
+					if ( layer.map )
+					{
+						layer.map.UpdateScreenSize();
+					}
+				}
+			}
+			
+			private function doExport( ):void
+			{
+				numIters = 0;
+				try
+				{
+					var needsOutputBmp:Boolean = ( totalWidth != totalScaledWidth || totalHeight != totalScaledHeight );
+					outputBmp = bufferBmp = null;
+					
+					var bufferBmpUnlimited:BitmapDataUnlimited = new BitmapDataUnlimited();
+					bufferBmpUnlimited.addEventListener(BitmapDataUnlimitedEvent.COMPLETE, onBufferBmpReady);
+					
+					if ( needsOutputBmp )
+					{
+						var outputBmpUnlimited:BitmapDataUnlimited = new BitmapDataUnlimited();
+						outputBmpUnlimited.addEventListener(BitmapDataUnlimitedEvent.COMPLETE, onOutputBmpReady);
+						outputBmpUnlimited.create(Math.min(totalScaledWidth,MAX_SIZE), Math.min(totalScaledHeight,MAX_SIZE), true, NoBackground.selected ? 0x00000000 : FlxState.bgColor);
+					}
+					
+					ProgressText.text = "Progress: 0% - 0 / " + maxFiles + " files";
+					bufferBmpUnlimited.create(Math.min(totalWidth,MAX_SIZE), Math.min(totalHeight,MAX_SIZE), true, NoBackground.selected ? 0x00000000 : FlxState.bgColor);
+					//outputBmp = FlxG.buffer = new BitmapData(totalWidth, totalHeight, true, NoBackground.selected ? 0x00000000 : FlxState.bgColor);
+					//renderImage();
+	
+					function onBufferBmpReady(event : BitmapDataUnlimitedEvent) : void
+					{
+						bufferBmp = bufferBmpUnlimited.bitmapData;
+						if ( !needsOutputBmp )
+						{
+							outputBmp = bufferBmp;
+						}
+						if ( outputBmp )
+						{
+							BeginRender();
+						}
+					}
+					
+					function onOutputBmpReady(event : BitmapDataUnlimitedEvent) : void
+					{
+						outputBmp = outputBmpUnlimited.bitmapData;
+						if ( bufferBmp )
+						{
+							BeginRender();
+						}
+					}
+					
+					function BeginRender():void
+					{
+						saveGlobals();
+						FlxG.buffer = bufferBmp;
+						FlxG.buffer.lock();
+						currentLayerIndex = 0;
+						currentImage = 0;
+						currentFileNum = 0;
+						imgX = imgY = 0;
+						intervalId = setInterval(renderImage, 50);
+					}
+					//renderImage();
+				}
+				catch (error:Error)
+				{
+				}
+				
+			}
+			
+			private function renderImage():void
+			{
+				try
+				{
+					numIters++;
+					var startTime:uint = getTimer();
+					
+					if ( currentLayerIndex == 0 )
+					{
+						FlxG.forceRefresh = true;
+						if ( FlxG.zoomScale == 0.5 )
+						{
+							if ( quadrantNumber == 0 )
+							{
+								additionalExtraScroll.x = 0;
+								additionalExtraScroll.y = 0;
+							}
+							else if ( quadrantNumber == 1 )
+							{
+								additionalExtraScroll.x = -bufferBmp.width;
+								additionalExtraScroll.y = 0;
+							}
+							else if ( quadrantNumber == 2 )
+							{
+								additionalExtraScroll.x = 0;
+								additionalExtraScroll.y = -bufferBmp.height;
+							}
+							else
+							{
+								additionalExtraScroll.x = -bufferBmp.width;
+								additionalExtraScroll.y = -bufferBmp.height;
+							}
+						}
+						bufferBmp.fillRect(bufferBmp.rect, NoBackground.selected ? 0x00000000 : FlxState.bgColor);
+					}
+					var maxQuadrants:int = FlxG.zoomScale == 0.5 ? 4 : 1;
+					var numLayersDone:int = currentLayerIndex + (currentImage * layers.length);
+					var percent:int = ( numLayersDone / (maxImages*layers.length) )*100;
+					ProgressText.text = "Progress: " + percent + "% - " + currentFileNum +" / " + maxFiles + " files";
+					
+					FlxG.extraScroll.x = currentExtraScroll.x + additionalExtraScroll.x;
+					FlxG.extraScroll.y = currentExtraScroll.y + additionalExtraScroll.y;
+					
+					var numDone:uint = 0;
+					for (; currentLayerIndex < layers.length; currentLayerIndex++)
+					{
+						var currentTime:uint = getTimer();
+						if ( numDone > 0 && currentTime - startTime > 500 )
+						{
+							return;
+						}
+						numDone++;
+						var layer:LayerEntry = layers[currentLayerIndex];
+						var wasVisible:Boolean = layer.visible;
+						if ( !OnlyVisible.selected && !wasVisible )
+						{
+							layer.visible = true;
+							layer.UpdateVisibility();
+						}
+						if ( layer.map )
+						{
+							layer.map.UpdateScreenSize();
+							if ( changedOnions )
+							{
+								layer.map.setAlpha( 1 );
+							}
+							layer.map.render();
+						}
+						else
+						{
+							var avatarLayer:LayerAvatarBase = layer as LayerAvatarBase;
+							if ( avatarLayer )
+							{
+								if ( changedOnions )
+								{
+									var members:Array = avatarLayer.sprites.members;
+									var i:uint = members.length;
+									while (i--)
+									{
+										members[i].updateAlphaPulse();
+									}
+								}
+								avatarLayer.sprites.render();
+							}
+						}
+						if ( !OnlyVisible.selected && !wasVisible )
+						{
+							layer.visible = false;
+							layer.UpdateVisibility();
+						}
+					}
+					if ( currentLayerIndex == layers.length )
+					{
+						var newFile:File = file.clone();
+						if ( maxFiles > 1 )
+						{
+							var nameMinusExtension:String = file.nativePath.replace("." + file.extension, "");
+							newFile.nativePath = nameMinusExtension + "_" + imgX + "_" + imgY + "." + file.extension;
+						}
+						var widToAdd:int = bufferBmp.width;
+						var htToAdd:int = bufferBmp.height;
+						currentImage++;
+						currentLayerIndex = 0;
+						if ( FlxG.zoomScale == 0.5 )
+						{
+							widToAdd *= 2;
+							htToAdd *= 2;
+							var mat:Matrix = new Matrix;
+							mat.translate(-additionalExtraScroll.x, -additionalExtraScroll.y);
+							mat.scale(0.5, 0.5);
+							
+							outputBmp.draw(bufferBmp, mat);
+							quadrantNumber++;
+							
+							if ( quadrantNumber == 4 )
+							{
+								quadrantNumber = 0;
+								ImageSaver.Save(outputBmp, newFile);
+								currentFileNum++;
+							}
+							else
+							{
+								return;
+							}
+							
+						}
+						else
+						{
+							ImageSaver.Save(outputBmp, newFile);
+							currentFileNum++;
+						}
+						
+						currentExtraScroll.x -= widToAdd;
+						imgX++;
+						
+						if ( currentExtraScroll.x <= -totalWidth )
+						{
+							imgX = 0;
+							currentExtraScroll.x = 0;
+							imgY++;
+							currentExtraScroll.y -= htToAdd;
+						}
+						
+						if ( currentExtraScroll.y <= -totalHeight )
+						{
+							clearInterval(intervalId);
+							restoreGlobals();
+							ProgressText.text = "Progress: 100%";
+						}
+					}
+				}
+				catch ( error:Error)
+				{
+					trace("error exporting image");
+					clearInterval(intervalId);
+					restoreGlobals();
+				}
+			}
+           
+        ]]>
+    </mx:Script>
+	
+	<mx:Array id="zoomPercentArray"> 
+		<mx:String>100</mx:String>
+		<mx:String>50</mx:String>
+		<mx:String>25</mx:String>
+		<mx:String>12.5</mx:String>
+	</mx:Array>
+	
+	<mx:VBox id="container" horizontalAlign="center" width="100%" >
+		<mx:Spacer height="20"/>
+		<mx:CheckBox id="IncludePaths" label="Include Paths" selected="true" change="recalcLayers()" />
+		<mx:CheckBox id="IncludeShapes" label="Include Shapes" selected="true" change="recalcLayers()"/>
+		<mx:CheckBox id="KeepOnions" label="Keep Onion Skin Opacity" selected="true" change="recalcLayers()"/>
+		<mx:CheckBox id="OnlyVisible" label="Only Visible Layers" selected="true" change="recalcLayers()"/>
+		<mx:CheckBox id="OnlyExported" label="Only Exported Layers" selected="true" change="recalcLayers()"/>
+		<mx:CheckBox id="IncludeParallax" label="Include Parallax Layers" selected="true" change="recalcLayers()"/>
+		<mx:CheckBox id="CurrentLayer" label="Only Current Layer" selected="false" change="recalcLayers()"/>
+		<mx:CheckBox id="CurrentGroup" label="Only Current Group" selected="false" change="recalcLayers()"/>
+		<mx:CheckBox id="NoBackground" label="No Background" selected="false" change="recalcLayers()"/>
+		<mx:HBox>
+			<mx:Label text="Scale percent:"/>
+			<comUI:MyComboBox id="ZoomPercent" dataProvider="{zoomPercentArray}" editable="false" change="recalcLayers()" />
+		</mx:HBox>
+		<mx:Label id="InfoText" text="EstimatedSize:"/>
+		<mx:Label id="WarningText" text=""/>
+		<mx:Label id="ProgressText" text="" visible="true" />
+		<mx:HBox>
+			<mx:Button id="btnExport" label="Export" click="export()" />
+			<mx:Button id="btnOK" label="OK" click="ok()" />
+		</mx:HBox>
+	</mx:VBox>
+</comUI:PopupWindow>

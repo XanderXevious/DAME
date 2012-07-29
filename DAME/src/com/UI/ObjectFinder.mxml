@@ -1,0 +1,147 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<comUI:PopupWindow xmlns:mx="http://www.adobe.com/2006/mxml" xmlns:comUI="com.UI.*"
+    width="100%" height="100%"
+	resizable="false" showGripper="false" showStatusBar="false" maximizable="false" minimizable="false"
+	defaultButton="{btnOK}"
+    title="Object Finder">
+
+    <mx:Script>
+        <![CDATA[
+			import com.Editor.EditorTypeAvatarsBase;
+			import com.EditorState;
+			import com.Game.EditorAvatar;
+			import com.Layers.LayerAvatarBase;
+			import com.Layers.LayerSprites;
+			import com.Operations.HistoryStack;
+			import com.Operations.OperationDeleteAvatar;
+			import mx.collections.ArrayCollection;
+			import mx.events.CloseEvent;
+			import mx.events.DataGridEvent;
+			import mx.events.ListEvent;
+			import org.flixel.FlxG;
+			import org.flixel.FlxPoint;
+           
+			public var Layer:LayerAvatarBase = null;
+			private var objects:ArrayCollection = new ArrayCollection;
+           
+            override protected function init():void
+			{				
+				width = container.width + 20;
+				height = container.height + titleBar.height + 20;
+				
+				ShowTitleBarIcons = false;
+				
+				ObjectList.dataProvider = objects;
+				
+				if ( Layer )
+				{
+					if ( !(Layer is LayerSprites) )
+					{
+						Classes.visible = false;
+						Names.visible = false;
+						/*var index:int = ObjectList.columns.indexOf(Classes);
+						if ( index != -1 )
+						{
+							ObjectList.columns.splice( index, 1 );
+						}
+						index = ObjectList.columns.indexOf(Names);
+						if ( index != -1 )
+						{
+							ObjectList.columns.splice( index, 1 );
+						}*/
+					}
+					for ( var i:int = 0; i < Layer.sprites.members.length; i++ )
+					{
+						var sprite:EditorAvatar = Layer.sprites.members[i];
+						var obj:Object = new Object;
+						obj.x = sprite.x;
+						obj.y = sprite.y;
+						obj.sprite = sprite;
+						if ( sprite.spriteEntry )
+						{
+							obj.name = sprite.spriteEntry.name;
+							obj.className = sprite.spriteEntry.className;
+						}
+						objects.addItem(obj);
+					}
+				}
+				
+				super.init();
+            }
+			
+			private function goToItem(event:ListEvent):void
+			{
+				if ( event.rowIndex >= 0 && event.rowIndex < objects.length )
+				{
+					var obj:Object = ObjectList.dataProvider[event.rowIndex];
+					var state:EditorState = FlxG.state as EditorState;
+					var pos:FlxPoint = new FlxPoint(obj.sprite.x + ( obj.sprite.width * 0.5), obj.sprite.y + ( obj.sprite.height * 0.5) );
+					state.MoveCameraToLocation( pos, Layer.xScroll, Layer.yScroll );
+					var avatarEditor:EditorTypeAvatarsBase = state.getCurrentEditor(App.getApp()) as EditorTypeAvatarsBase;
+					if ( avatarEditor )
+					{
+						avatarEditor.ForceSelection(obj.sprite);
+					}
+				}
+			}
+			
+			private function ok():void
+			{
+				ForceClose();
+            }
+			
+			private function deleteObjects():void
+			{
+				if ( ObjectList.selectedIndex >= 0 && ObjectList.selectedIndex < objects.length )
+				{
+					AlertBox.Show("Are you sure you wish to delete the selected object(s)?", "Obligatory Warning", AlertBox.OK | AlertBox.CANCEL, null, confirmDelete, AlertBox.CANCEL);
+				}
+			}
+			
+			private function confirmDelete(eventObj:CloseEvent):void
+			{
+				if ( eventObj.detail == AlertBox.OK)
+				{
+					var obj:Object = ObjectList.dataProvider[ObjectList.selectedIndex];
+					objects.removeItemAt( ObjectList.selectedIndex );
+					var avatars:Vector.<EditorAvatar> = new Vector.<EditorAvatar>;
+					avatars.push( obj.sprite );
+					HistoryStack.BeginOperation( new OperationDeleteAvatar( avatars ) );
+					obj.sprite.Delete();
+					
+					var currentState:EditorState = FlxG.state as EditorState;
+					currentState.UpdateMapList();
+					
+					//remove from current editor selection.
+					var avatarEditor:EditorTypeAvatarsBase = currentState.getCurrentEditor(App.getApp()) as EditorTypeAvatarsBase;
+					if ( avatarEditor )
+					{
+						avatarEditor.RemoveAvatarFromSelection(obj.sprite);
+					}
+				}
+			}
+           
+        ]]>
+    </mx:Script>
+	
+	<mx:VBox id="container" horizontalAlign="center" width="100%" >
+		<mx:HBox >
+			<mx:Label text="Double click an entry to move to and select it." />
+		</mx:HBox>
+		<mx:VBox horizontalAlign="left">
+			<mx:DataGrid id="ObjectList" width="100%" height="100%" variableRowHeight="false" editable="false"
+				doubleClickEnabled="true" itemDoubleClick="goToItem(event)" >
+				<mx:columns>
+					<mx:DataGridColumn id="Classes" headerText="Class" dataField="className" />
+					<mx:DataGridColumn id="Names" headerText="Name" dataField="name" />
+					<mx:DataGridColumn headerText="X" dataField="x" />
+					<mx:DataGridColumn headerText="Y" dataField="y" />
+				</mx:columns>
+			</mx:DataGrid>
+		</mx:VBox>
+		<mx:HBox >
+			<mx:Button id="btnDel" label="Delete" click="deleteObjects()" />
+			<mx:Button id="btnOK" label="OK" click="ok()" />
+		</mx:HBox >
+	</mx:VBox>
+</comUI:PopupWindow>

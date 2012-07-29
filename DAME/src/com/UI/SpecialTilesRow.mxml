@@ -1,0 +1,132 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<mx:VBox xmlns:mx="http://www.adobe.com/2006/mxml" creationComplete="init()">
+	
+	<mx:Script>
+    <![CDATA[
+		import com.Tiles.TileConnectionList;
+		import com.UI.TileConnectionGrid;
+		import com.UI.RenamePopup;
+		import com.Utils.Global;
+		import mx.collections.ArrayCollection;
+		import mx.events.ItemClickEvent;
+		
+		public var tiles:TileConnectionGrid;
+		
+		// Only used when initialising for the first time.
+		public var initTileConnectionsIndex:uint = 0;
+		public var initTileIds:Array = null;
+		
+		[Bindable]
+		public var RowRemoved:Function = null;
+		
+		[Bindable]
+		public var SetRemoved:Function = null;
+		
+		[Bindable]
+		public var SetRenamed:Function = null;
+				  
+		private function OnConnectionsChanged():void
+		{
+			tiles.Connections = connections.selectedItem as TileConnectionList;
+		}
+		
+		private function OnSetRenamed(popup:RenamePopup):void
+		{
+			tiles.Connections.label = popup.txt;
+			if ( SetRenamed != null )
+			{
+				SetRenamed(this, tiles.Connections );
+			}
+		}
+		
+		private function init():void
+		{
+			connections.selectedItem = TileConnectionList.tileConnectionLists[initTileConnectionsIndex];
+			
+			tiles = new TileConnectionGrid(TileBox.width, TileBox.height, 4, 1, connections.selectedItem as TileConnectionList);
+			var uiref:DraggableTileWrapper = new DraggableTileWrapper;
+			TileBox.addChild(uiref);
+			uiref.width = TileBox.width;
+			uiref.height = TileBox.height;
+			
+			tiles.ContainerObject = TileBox;
+			uiref.setTileObject(tiles);
+			tiles.canAcceptDrop = true;
+			tiles.canBeginDrag = true;
+			
+			var tileMatrix:TileMatrix = App.getApp().tileMatrixWindow;
+			if (tileMatrix )
+			{
+				tiles.OnPreDragDropCallback = tileMatrix.OnMatrixChanged;
+			}
+			
+			if ( initTileIds )
+			{
+				for ( var i:uint = 0; i < initTileIds.length; i++ )
+				{
+					tiles.SetTileIdForIndex(i, initTileIds[i], new BitmapData(1,1) );
+				}
+				initTileIds = null;
+			}
+		}
+		
+		public function UpdateComboBox( connectionSet:TileConnectionList ):void
+		{
+			if ( tiles.Connections == connectionSet )
+			{
+				connections.selectedItem = connectionSet;
+				connections.validateNow();
+				connections.validateDisplayList();
+			}
+		}
+		
+		private function actionButtonsHandler(event:ItemClickEvent):void
+		{
+			switch( event.label )
+			{
+				case "Remove Row":
+				if( RowRemoved != null )
+				{
+					RowRemoved(this);
+				}
+				break;
+				
+				case "Rename Set":
+				var renamePopup:RenamePopup = App.CreatePopupWindow(RenamePopup, true, App.getApp()) as RenamePopup;
+				if ( renamePopup )
+				{
+					renamePopup.txt = tiles.Connections.label;
+					renamePopup.opener = this;
+					renamePopup.okPressedCallback = OnSetRenamed;
+				}
+				break;
+				
+				case "Remove Set":
+				if( SetRemoved != null )
+				{
+					SetRemoved(this, tiles.Connections);
+				}
+				break;
+			}
+		}
+		
+		
+	]]>
+    </mx:Script>
+	
+	<mx:HBox verticalAlign="middle" >
+	<mx:ComboBox id="connections" width="100" dropdownWidth="200" dataProvider="{TileConnectionList.tileConnectionLists}" change="OnConnectionsChanged()" />
+	<mx:Box id="TileBox" width="160" height="40" borderStyle="solid" horizontalScrollPolicy = "off" verticalScrollPolicy="off"/>
+	</mx:HBox>
+	<mx:ButtonBar id="actionButtons" itemClick="actionButtonsHandler(event);">
+		<mx:dataProvider>
+			<mx:Array>
+				<mx:String>Remove Row</mx:String>
+				<mx:String>Rename Set</mx:String>
+				<mx:String>Remove Set</mx:String>
+			</mx:Array>
+		</mx:dataProvider>
+	</mx:ButtonBar>
+	<mx:HRule width="100%" />
+	
+</mx:VBox>

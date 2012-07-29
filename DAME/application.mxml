@@ -1,0 +1,1143 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<mx:WindowedApplication xmlns:mx="http://www.adobe.com/2006/mxml" styleName="plain" xmlns:DAMEApp="*" creationComplete="init()" 
+	xmlns:comUI="com.UI.*" xmlns:docks="com.UI.Docking.*" horizontalScrollPolicy="off" verticalScrollPolicy="off"
+	statusTextStyleName="statusBarStyle" verticalGap="0" initialize="Initialize()" title="DAME - Untitled Project">
+	<mx:Style source="silverStyle.css"/>
+	<DAMEApp:App horizontalScrollPolicy="off" />
+	
+	
+	<mx:Script>
+        <![CDATA[
+
+			import com.Editor.EditorTypeGroups;
+			import com.Layers.LayerAvatarBase;
+			import com.Layers.LayerEntry;
+			import com.Layers.LayerImage;
+			import com.Layers.LayerSprites;
+			import com.UI.DameStatusBar;
+			import com.Editor.EditorType;
+			import com.Editor.EditorTypeDraw;
+			import com.Editor.EditorTypeShapes;
+			import com.Editor.EditorTypeTileMatrix;
+			import com.Editor.EditorTypePaths;
+			import com.Editor.EditorTypeTiles;
+			import com.EditorState;
+			import com.Layers.LayerGroup;
+			import com.Layers.LayerMap;
+			import com.Properties.PropertyBase;
+			import com.Properties.PropertyData;
+			import com.Properties.PropertyType;
+			import com.UI.PropertyGridRenderer;
+			import com.UI.UpdateManager;
+			import com.UI.AnimEditor;
+			import com.Utils.Global;
+			import flash.events.ContextMenuEvent;
+			import flash.events.Event;
+			import com.Utils.CustomEvent;
+			import flash.ui.ContextMenu;
+			import flash.ui.ContextMenuItem;
+			import mx.containers.Panel;
+			import mx.controls.Button;
+			import mx.controls.dataGridClasses.DataGridColumn;
+			import mx.core.ClassFactory;
+			import mx.core.IFactory;
+			import mx.core.UIComponent;
+			import mx.events.*;
+            import mx.collections.*;
+			import mx.events.ItemClickEvent;
+			import mx.formatters.NumberFormatter;
+			import org.flixel.FlxG;
+			import com.UI.advancedColorPicker;
+			import com.UI.TileMatrix;
+			import mx.managers.PopUpManager;
+			import com.UI.AlertBox;
+			import mx.collections.ArrayCollection;
+			import org.flixel.FlxPoint;
+
+			[Bindable]
+			private var dp:ArrayCollection;
+			
+			public var tileMatrix:TileMatrix = null;
+			
+			// Store this as the datagrid's dp can never be set to null, meaning we can't test if it's
+			// set correctly or not which causes the program to hang sometimes.
+			private var propsDataProvider:ArrayCollection = null;
+			
+			private var StatusBarPadding:uint = 20;
+			
+			public var MyStatusBar:DameStatusBar = null;
+			
+			private var lastLayer:LayerEntry = null;
+			
+			private var isEditingProperty:Boolean = false;
+			
+			public function get IsEditingProperty():Boolean { return isEditingProperty; }
+			
+			private var currentSelectedButton:Button;
+			
+			// Mimic functionality of toggleButtonBar as that control hijacks keyPressed handlers occasionally.
+			public function changeEditMode( buttonIndex:uint):void
+			{
+				var buttons:Array = ToolBar.getChildren();
+				var i:uint = 0;
+				var currentButton:Button = null;
+				
+				
+				for each (var obj:Object in buttons )
+				{
+					var button:Button = obj as Button;
+					if ( button )
+					{
+						if ( i == buttonIndex )
+						{
+							var currentState:EditorState = FlxG.state as EditorState;
+							if ( button == currentSelectedButton )
+							{
+								// Only turn off move mode if we click on the same button.
+								EditModeMove.selected = false;
+								ChangeSelectMode();
+							}
+							currentButton = currentSelectedButton = button;
+							
+							if ( currentState )
+							{
+								currentState.ChangeEditMode( button.id );
+							}
+						}
+						else if( button != EditModeMove )
+						{
+							button.selected = false;
+						}
+						i++;
+					}
+				}
+				
+				// Prevent unselecting buttons - always must have 1 button selected.
+				if ( currentButton && !currentButton.selected )
+				{
+					currentButton.selected = true;
+				}
+				
+				UpdateToolBars();
+			}
+			
+			private function ChangeSelectMode():void
+			{
+				EditorState.InSelectMode = EditModeMove.selected;
+			}
+			
+			public function selectBrushType(button:Button):void
+			{
+				if ( button == DrawNoise && DrawNoise.selected )
+				{
+					DrawPerlin.selected = false;
+					EditorTypeDraw.DrawNoise = true;
+					EditorTypeDraw.DrawPerlin = false;
+				}
+				else if ( button == DrawPerlin && DrawPerlin.selected )
+				{
+					DrawNoise.selected = false;
+					EditorTypeDraw.DrawNoise = false;
+					EditorTypeDraw.DrawPerlin = true;
+				}
+				else
+				{
+					EditorTypeDraw.DrawNoise = false;
+					EditorTypeDraw.DrawPerlin = false;
+				}
+				if ( EditorTypeDraw.DrawPerlin )
+				{
+					NoiseGroup.visible = true;
+					NoiseGroup.percentWidth = 100;
+					NoiseGroup.enabled = true;
+				}
+				else
+				{
+					NoiseGroup.visible = false;
+					NoiseGroup.width = 0;
+					NoiseGroup.enabled = false;
+				}
+			}
+			
+			private function UpdateToolBars():void
+			{
+				if ( EditModeDraw.selected || EditModePaint.selected )
+				{
+					if ( !EditModeMove.enabled )
+					{
+						EditModeMove.enabled = true;
+						EditModeMove.alpha = 1;
+					}
+				}
+				else if ( EditModeMove.enabled )
+				{
+					EditModeMove.enabled = false;
+					EditModeMove.alpha = 0.5;
+				}
+				
+				if ( ToolBarPaths.visible || ToolBarTileSelect.visible || ToolBarTiles.visible || ToolBarShapes.visible || ToolBarDrawing.visible || ToolBarGroups.visible)
+				{
+					return;
+				}
+				var buttons:Array = ToolBar.getChildren();
+				var i:uint = 0;
+				
+				for each (var obj:Object in buttons )
+				{
+					var button:Button = obj as Button;
+					if ( button )
+					{
+						if ( button == EditModeDraw )
+						{
+							ToolBarDrawing.visible = button.selected;
+						}
+						else if ( button == EditModeMatrix )
+						{
+							ToolBarTileMatrix.visible = button.selected;
+							showTileMatrix( button.selected );
+						}
+					}
+				}
+			}
+			
+			private function makeToolbarVisible( toolbar:Panel ):void
+			{
+				ToolBarDrawing.visible = false;
+				ToolBarTileMatrix.visible = false;
+				ToolBarTiles.visible = false;
+				ToolBarPaths.visible = false;
+				ToolBarShapes.visible = false;
+				ToolBarTileSelect.visible = false;
+				ToolBarGroups.visible = false;
+				
+				toolbar.visible = true;
+				showTileMatrix( toolbar == ToolBarTileMatrix );
+			}
+			
+			
+			public function showTileMatrix( show:Boolean):void
+			{
+				var app:App = App.getApp();
+				if ( show )
+				{
+					tileMatrix.Active = true;
+					if ( app.myTileList )
+					{
+						app.myTileList.canBeginDrag = true;
+					}
+				}
+				else
+				{
+					tileMatrix.Active = false;
+					if ( app.myTileList )
+					{
+						app.myTileList.canBeginDrag = false;
+					}
+				}
+			}
+			
+			private function doColorPicker( color:uint, colorPickObj:UIComponent):void
+			{
+				var pop1:* = App.CreatePopupWindow(advancedColorPicker, true);
+				if ( pop1 )
+				{
+					pop1.setColorRGB(color);
+					pop1.addEventListener(MouseEvent.CLICK, setColor);
+		
+					function setColor():void
+					{
+						var color:uint = pop1.getColorRGB();
+						colorPickObj.setStyle("backgroundColor", color);
+						if ( colorPickObj == ShapeFillColorPick )
+							EditorTypeDraw.ShapeFillColor = color;
+						else
+							EditorTypeDraw.DrawColor = color;
+					}
+				}
+			}
+			
+			private function changeColor(newColor:int ):void
+			{
+				colorPick.setStyle("backgroundColor", newColor);
+				EditorTypeDraw.DrawColor = newColor;
+			}
+			
+			private var releaseGCFrameCount:uint = 0;
+			private var gcCount:int = 99;
+			private function startGCCycle():void
+			{
+				gcCount = 0;
+				//addEventListener(Event.ENTER_FRAME, doGC);
+			}
+			private function doGC(evt:Event):void
+			{
+				//trace("trigger GC");
+				flash.system.System.gc();
+				if (++gcCount > 1)
+				{
+					//removeEventListener(Event.ENTER_FRAME, doGC);
+					setTimeout(lastGC, 40);
+				}
+			}
+			private function lastGC():void
+			{
+				//trace("last GC");
+				flash.system.System.gc();
+			}
+			
+			protected override function updateDisplayList( unscaledWidth:Number, unscaledHeight:Number ):void
+			{
+				super.updateDisplayList( unscaledWidth, unscaledHeight );
+				
+				var app:App = App.getApp();
+				
+				if ( !app || !app.Created )
+				{
+					return;
+				}
+
+				if ( app.CurrentLayer )
+				{
+					// Get the map coords of the top left of the screen.
+					var pos:FlxPoint = EditorState.getMapXYFromScreenXY(0, 0, app.CurrentLayer.xScroll, app.CurrentLayer.yScroll );
+					pos.multiplyBy(FlxG.extraZoom);
+					hbar.visible = vbar.visible = true;
+					//hbar.width = (FlxG.width * Math.max(1, FlxG.zoomScale) ) - vbar.width;
+					hbar.width = MainCanvas.width - vbar.width;
+					vbar.x = hbar.width;
+					vbar.enabled = true;
+					hbar.pageSize = hbar.lineScrollSize = FlxG.width;
+					vbar.pageSize = vbar.lineScrollSize = FlxG.height;
+					var avatarLayer:LayerAvatarBase = app.CurrentLayer as LayerAvatarBase;
+					var isTilemap:Boolean = app.CurrentLayer is LayerMap;
+					if ( isTilemap )
+					{
+						var mapLayer:LayerMap = app.CurrentLayer as LayerMap;
+						
+						// Extend the scrollable area by the screen size.
+						hbar.maxScrollPosition = (mapLayer.map.width >> FlxG.zoomBitShifter)  + FlxG.width;
+						hbar.scrollPosition = pos.x + FlxG.width - (mapLayer.map.x >> FlxG.zoomBitShifter);
+						
+						vbar.maxScrollPosition = (mapLayer.map.height >> FlxG.zoomBitShifter) + FlxG.height;
+						vbar.scrollPosition = pos.y + FlxG.height - (mapLayer.map.y >> FlxG.zoomBitShifter);
+					}
+					else if( avatarLayer )
+					{
+						hbar.maxScrollPosition = ((avatarLayer.maxx - avatarLayer.minx) >> FlxG.zoomBitShifter) + FlxG.width;
+						hbar.scrollPosition = pos.x + FlxG.width - (avatarLayer.minx >> FlxG.zoomBitShifter);
+						
+						vbar.maxScrollPosition = ((avatarLayer.maxy - avatarLayer.miny) >> FlxG.zoomBitShifter) + FlxG.height;
+						vbar.scrollPosition = pos.y + FlxG.height - (avatarLayer.miny >> FlxG.zoomBitShifter);
+					}
+					else
+					{
+						// Group - just estimate.
+						hbar.maxScrollPosition = 40000 + FlxG.width;
+						hbar.scrollPosition = pos.x + FlxG.width + 20000;
+						
+						vbar.maxScrollPosition = 40000 + FlxG.height;
+						vbar.scrollPosition = pos.y + FlxG.height + 20000;
+					}
+				}
+				else
+				{
+					hbar.visible = vbar.visible = false;
+				}
+			}
+			
+			private function update(event:Event ):void
+			{				
+				if ( ++releaseGCFrameCount > 100 )
+				{
+					//trace("trigger GC");
+					startGCCycle();
+					releaseGCFrameCount = 0;
+				}
+				else
+				{
+					if ( gcCount < 2 )
+					{
+						doGC(null);
+					}
+				}
+				
+				// Handle keyboard shortcuts for edit mode switching.
+				// Disallow when ALT and CONTROL pressed to prevent accidents when you CTRL+V or CTRL+B or select
+				if ( !isEditingProperty && !FlxG.keys.CONTROL && !FlxG.keys.ALT )
+				{
+					if ( FlxG.keys.justPressed("V") )
+					{
+						changeEditMode(0); // click paint brush.
+					}
+					else if ( FlxG.keys.justPressed("B") )
+					{
+						EditModeMove.selected = !EditModeMove.selected;
+						ChangeSelectMode();
+					}
+					else if ( FlxG.keys.justPressed("M") )
+					{
+						changeEditMode(1); // click tile matrix.
+					}
+					else if ( FlxG.keys.justPressed("D") )
+					{
+						changeEditMode(2); // click draw tool.
+					}
+				}
+				//colorPick.setStyle("backgroundColor", EditorTypeDraw.DrawColor );
+				var currentState:EditorState = FlxG.state as EditorState;
+				
+				var app:App = App.getApp();
+				
+				var editor:EditorType = currentState.getCurrentEditor(app);
+				
+				if ( status != app.StatusBarText )
+				{
+					status = app.StatusBarText;
+				}
+				
+				if ( MyStatusBar.HasMinimizedWindow() )
+				{
+					// Until we can partially hide the main part of the status bar need to ensure that
+					// we can always see minimized windows.
+					if ( !showStatusBar )
+					{
+						ShowStatusBar(true);
+					}
+				}
+				else if ( Global.StatusBarVisible != showStatusBar )
+				{
+					ShowStatusBar(Global.StatusBarVisible);
+				}
+				
+				var props:ArrayCollection = null;
+				
+				if ( editor)
+				{
+					props = editor.GetCurrentObjectProperties();
+				}
+				var usingLayerProps:Boolean = false;
+				if ( props == null )
+				{
+					var groupLayer:LayerGroup = app.CurrentLayer as LayerGroup;
+					if ( app.CurrentLayer )
+					{
+						props = app.CurrentLayer.properties;
+						usingLayerProps = true;
+					}
+				}
+				
+				var isTilemap:Boolean = app.CurrentLayer is LayerMap;
+				
+				if ( propsDataProvider != props )
+				{
+					propsDataProvider = props;
+					SpritePropsGrid.SetDataListProvider( props );
+					if ( editor is EditorTypeTiles || editor is EditorTypeDraw || editor is EditorTypeTileMatrix )
+					{
+						PropGridLabel.text = "Layer properties:";
+						if ( isTilemap )
+						{
+							TilemapHitsCheckBox.selected = (app.CurrentLayer as LayerMap).HasHits;
+						}
+						ObjectPropsLabel.visible = false;
+						ObjectPropsLabel.height = 0;
+						PropsGridLabelBox.visible = true;
+					}
+					else if ( groupLayer )
+					{
+						ObjectPropsLabel.visible = false;
+						ObjectPropsLabel.height = 0;
+						PropGridLabel.text = "Group properties:";
+						PropsGridLabelBox.visible = true;
+					}
+					else if( props!=null )
+					{
+						if ( usingLayerProps )
+						{
+							PropGridLabel.text = "Layer properties:";
+							PropsGridLabelBox.visible = true;
+							ObjectPropsLabel.visible = false;
+							ObjectPropsLabel.height = 0;
+						}
+						else
+						{
+							PropsGridLabelBox.visible = false;
+							ObjectPropsLabel.visible = true;
+							ObjectPropsLabel.height = 20;
+						}
+						
+						//PropGridLabel.text = "Selected Object properties:";
+					}
+					else
+					{
+						ObjectPropsLabel.visible = false;
+						ObjectPropsLabel.height = 0;
+						PropsGridLabelBox.visible = false;
+					}
+					
+				}
+				var imageLayer:LayerImage = app.CurrentLayer as LayerImage;
+				if ( lastLayer != app.CurrentLayer )
+				{
+					updateAnimEditor();
+					lastLayer = app.CurrentLayer;
+					if ( app.CurrentLayer != null )
+					{
+						// Currently disallow image layer from being exportable.
+						
+						if ( imageLayer )
+						{
+							LayerParamsGroup.visible = false;
+							LayerParamsGroup.height = 0;
+							LayerImageGroup.visible = true;
+							LayerImageGroup.height = 60;
+							visibilitySlider.value = imageLayer.opacity;
+							ImageLayerExportsCheckBox.selected = app.CurrentLayer.Exports(false);
+						}
+						else
+						{
+							LayerImageGroup.visible = false;
+							LayerImageGroup.height = 0;
+							
+							LayerExportsCheckBox.selected = app.CurrentLayer.Exports(false);
+							LayerLockedCheckBox.selected = app.CurrentLayer.Locked(false);
+							LayerParamsGroup.visible = true;
+							LayerParamsGroup.height = 20;
+							if ( isTilemap && !TilemapHitsCheckBox.visible )
+							{
+								TilemapHitsCheckBox.visible = true;
+							}
+							else if ( !isTilemap && TilemapHitsCheckBox.visible )
+							{
+								TilemapHitsCheckBox.visible = false;
+							}
+						}
+					}
+					else
+					{
+						LayerParamsGroup.visible = false;
+						LayerImageGroup.visible = false;
+						LayerImageGroup.height = 0;
+					}
+				}
+				if ( imageLayer )
+				{
+					imageLayer.SetOpacity( visibilitySlider.value );
+				}
+				
+				if ( props==null && SpritePropsGrid.visible )
+				{
+					SpritePropsGrid.visible = false;
+				}
+				else if (props!=null && !SpritePropsGrid.visible )
+				{
+					SpritePropsGrid.visible = true;
+				}
+				
+				if ( EditorTypeDraw.IsActiveEditor() )
+				{
+					makeToolbarVisible(ToolBarDrawing);
+				}
+				else if ( EditorTypePaths.IsActiveEditor() )
+				{
+					makeToolbarVisible(ToolBarPaths);
+				}
+				else if ( EditorTypeShapes.IsActiveEditor() )
+				{
+					makeToolbarVisible(ToolBarShapes);
+				}
+				else if ( EditorTypeTiles.IsActiveEditor()  )
+				{
+					if ( EditorState.InSelectMode )
+					{
+						makeToolbarVisible(ToolBarTileSelect);
+					}
+					else
+					{
+						makeToolbarVisible(ToolBarTiles);
+					}
+				}
+				else if ( EditorTypeGroups.IsActiveEditor() )
+				{
+					makeToolbarVisible(ToolBarGroups);
+				}
+				else
+				{
+					if ( ToolBarPaths.visible || ToolBarTileSelect.visible || ToolBarTiles.visible || ToolBarShapes.visible || ToolBarDrawing.visible || ToolBarGroups.visible)
+					{
+						ToolBarPaths.visible = false;
+						ToolBarTileSelect.visible = false;
+						ToolBarTiles.visible = false;
+						ToolBarShapes.visible = false;
+						ToolBarDrawing.visible = false;
+						ToolBarGroups.visible = false;
+						UpdateToolBars();
+					}
+				}
+				
+				if ( SpritesTab.SaveSeparately.selected != Global.SaveSpritesSeparetely )
+				{
+					SpritesTab.SaveSeparately.selected = Global.SaveSpritesSeparetely;
+				}
+				
+			}
+			
+			public function updateAnimEditor( ):void
+			{
+				var app:App = App.getApp();
+				if ( ButtonAnimEditor.selected )
+				{
+					app.ShowAnimEditor();
+				}
+				else
+				{
+					app.HideAnimEditor();
+				}
+				ButtonAnimEditor.enabled = ButtonAnimEditor.visible = app.CurrentLayer is LayerSprites;
+				if ( app.animEditor )
+				{
+					app.animEditor.Active = ( ButtonAnimEditor.selected && ButtonAnimEditor.enabled);
+					
+				}
+			}
+			
+			private function scrolledX(event:ScrollEvent):void
+			{
+				var layer:LayerEntry = App.getApp().CurrentLayer;
+				var mapLayer:LayerMap = layer as LayerMap;
+				var avatarLayer:LayerAvatarBase = layer as LayerAvatarBase;
+				var editor:EditorState = FlxG.state as EditorState;
+				var x:int = event.currentTarget.scrollPosition;
+				if ( !layer )
+					return;
+					
+				if ( mapLayer )
+				{
+					x = x - FlxG.width + ( mapLayer.map.x >> FlxG.zoomBitShifter );
+				}
+				else if ( avatarLayer )
+				{
+					x = x - FlxG.width + ( avatarLayer.minx >> FlxG.zoomBitShifter );
+				}
+				else
+				{
+					x = x - FlxG.width + (-20000);
+				}
+				x *= FlxG.invExtraZoom;
+				if ( layer.xScroll )
+				{
+					x /= -layer.xScroll;
+				}
+				editor.scrollToPos( x, FlxG.scroll.y );
+			}
+			
+			private function scrolledY(event:ScrollEvent):void
+			{
+				var layer:LayerEntry = App.getApp().CurrentLayer;
+				var mapLayer:LayerMap = layer as LayerMap;
+				var avatarLayer:LayerAvatarBase = layer as LayerAvatarBase;
+				var editor:EditorState = FlxG.state as EditorState;
+				var y:int = event.currentTarget.scrollPosition;
+				if ( !layer )
+					return;
+					
+				if ( mapLayer )
+				{
+					y = y - FlxG.height + (mapLayer.map.y >> FlxG.zoomBitShifter );
+				}
+				else if ( avatarLayer )
+				{
+					y = y - FlxG.height + (avatarLayer.miny >> FlxG.zoomBitShifter );
+				}
+				else
+				{
+					y = y - FlxG.height + (-20000);
+				}
+				y *= FlxG.invExtraZoom;
+				if ( layer.yScroll )
+				{
+					y /= -layer.yScroll;
+				}
+				editor.scrollToPos(FlxG.scroll.x, y );
+			}
+			
+			private function ChangeLayerLocked():void
+			{
+				var layer:LayerEntry = App.getApp().CurrentLayer;
+				if ( layer )
+				{
+					layer.locked = LayerLockedCheckBox.selected;
+					App.getApp().layerGroups.itemUpdated(layer);
+				}
+			}
+			
+			private function ChangeLayerExports():void
+			{
+				var layer:LayerEntry = App.getApp().CurrentLayer;
+				if ( layer )
+				{
+					layer.exports = LayerExportsCheckBox.selected;
+				}
+			}
+			
+			private function ChangeImageLayerExports():void
+			{
+				var layer:LayerEntry = App.getApp().CurrentLayer;
+				if ( layer )
+				{
+					layer.exports = ImageLayerExportsCheckBox.selected;
+				}
+			}
+			
+			private function ChangeTilemapHits():void
+			{
+				var layer:LayerMap = App.getApp().CurrentLayer as LayerMap;
+				if ( layer )
+				{
+					layer.HasHits = TilemapHitsCheckBox.selected;
+				}
+			}
+			
+			private function onChangeFloodFill(selected:Boolean):void
+			{
+				EditorTypeDraw.FloodFill = FloodFill.selected = selected;
+				if ( selected )
+				{
+					FloodFillGroup.visible = FloodFillGroup.enabled = true;
+					FloodFillGroup.percentWidth = 100;
+				}
+				else
+				{
+					FloodFillGroup.visible = FloodFillGroup.enabled = false;
+					FloodFillGroup.width = 0;
+				}
+			}
+			
+			private function spritePropsButtonHandler(event:ItemClickEvent):void
+			{
+				if ( SpritePropsGrid.dataProvider == null )
+				{
+					return;
+				}
+				
+				
+    		    switch( event.label )
+				{
+					case "Add Property":
+						SpritePropsGrid.displayMenu();
+					
+					break;
+					
+					case "Delete Property":
+					if ( SpritePropsGrid.selectedItem != null )
+					{
+						var prop:PropertyData = SpritePropsGrid.selectedItem as PropertyData;
+						if ( prop )
+						{
+							// If it's a derived property then we restore the value to the default instead of deleting.
+							prop.UsingDefaultValue = true;
+						}
+						else
+						{
+							SpritePropsGrid.dataProvider.removeItemAt( SpritePropsGrid.dataProvider.getItemIndex( SpritePropsGrid.selectedItem ) );
+						}
+					}
+					break;
+				}
+				
+				SpritePropsGrid.dataProvider.refresh();
+			}
+			
+			public function PropertyGridItemEditBegin(event:DataGridEvent):void
+			{
+				isEditingProperty = true;
+			}
+
+			public function PropertyGridCheckData(event:DataGridEvent):void
+			{
+				isEditingProperty = false;
+			}
+			
+			private function ShowStatusBar(show:Boolean):void
+			{
+				showStatusBar = !showStatusBar;
+				MainDiv.setStyle("paddingBottom", showStatusBar ? StatusBarPadding : 0);
+			}
+			
+			private function changeDrawStyle(event:MenuEvent):void
+			{
+				DrawStyle.setStyle("icon", event.item.icon);
+				DrawStyle.toolTip = event.item.toolTip;
+				EditorTypeDraw.DrawLines = ( event.item.data == "lines" );
+				EditorTypeDraw.DrawCircles = ( event.item.data == "circles" );
+				EditorTypeDraw.DrawEllipses = ( event.item.data == "ellipses" );
+				EditorTypeDraw.DrawBoxes = ( event.item.data == "boxes" );
+				EditorTypeDraw.DrawPolyLines = ( event.item.data == "polygons" );
+				updateDrawStyle();
+			}
+			
+			private function updateDrawStyle():void
+			{
+				if ( EditorTypeDraw.DrawCircles || EditorTypeDraw.DrawBoxes || EditorTypeDraw.DrawPolyLines || EditorTypeDraw.DrawEllipses )
+				{
+					FilledShapesGroup.visible = FilledShapesGroup.enabled = true;
+					FilledShapesGroup.percentWidth = 100;
+				}
+				else
+				{
+					FilledShapesGroup.visible = FilledShapesGroup.enabled = false;
+					FilledShapesGroup.width = 0;
+				}
+			}
+			
+			private function changeDrawNewTiles():void
+			{
+				EditorTypeDraw.DrawNewTiles = DrawNewTiles.selected;
+				if ( DrawNewTiles.selected )
+				{
+					NewTilesGroup.visible = NewTilesGroup.enabled = true;
+					NewTilesGroup.percentWidth = 100;
+					EditorTypeDraw.ApplyNewTileStroke();
+				}
+				else
+				{
+					NewTilesGroup.visible = NewTilesGroup.enabled = false;
+					NewTilesGroup.width = 0;
+				}
+			}
+			
+			private function changeDrawOrder(event:MenuEvent):void
+			{
+				DrawOrderMode.setStyle("icon", event.item.icon);
+				DrawOrderMode.toolTip = event.item.toolTip;
+				EditorTypeDraw.drawOrderMode = event.item.data;
+			}
+			
+			[Embed(source = "assets/selectVisibleIcon.png")] public var SelectVisibleIcon:Class;
+			[Embed(source="assets/selectInvisibleIcon.png")] public var SelectInvisibleIcon:Class;
+			private function changeTileSelectionType():void
+			{
+				EditorTypeTiles.SelectHiddenTiles = !EditorTypeTiles.SelectHiddenTiles;
+				setTileSelectionIcon();
+			}
+			
+			private function setTileSelectionIcon():void
+			{
+				if ( EditorTypeTiles.SelectHiddenTiles )
+				{
+					TileSelectionType.toolTip = "Select all tiles";
+					TileSelectionType.setStyle("icon", SelectInvisibleIcon);
+				}
+				else
+				{
+					TileSelectionType.toolTip = "Select only visible tiles";
+					TileSelectionType.setStyle("icon", SelectVisibleIcon);
+				}
+			}
+			
+			
+			import flash.events.ErrorEvent;
+			import air.update.ApplicationUpdaterUI;
+			import air.update.events.UpdateEvent;
+			import mx.controls.Alert;
+			
+			private var appUpdater:UpdateManager;
+			//private var appUpdater:ApplicationUpdaterUI = new ApplicationUpdaterUI();
+
+			public function checkForUpdate():void 
+			{
+				//setApplicationVersion(); // Find the current version so we can show it below
+				/*appUpdater.updateURL = "http://dambots.com/games/dame/dame_version.xml"; // Server-side XML file describing update
+				appUpdater.isCheckForUpdateVisible = false; // We won't ask permission to check for an update
+				appUpdater.addEventListener(UpdateEvent.INITIALIZED, onUpdate); // Once initialized, run onUpdate
+				appUpdater.addEventListener(ErrorEvent.ERROR, onError); // If something goes wrong, run onError
+				appUpdater.initialize(); // Initialize the update framework*/
+				appUpdater = new UpdateManager("http://dambots.com/games/dame/dame_version.xml", false, true );
+			}
+			
+			import mx.rpc.events.ResultEvent;
+			
+			private function handleUpdateResult(event:ResultEvent):void
+            {
+                var xml:XML = event.result as XML;
+                //baseURL = xml..baseurl.toString();
+                //updates = xml..updates.toString();
+
+                //if(updates)
+                    //appUpdater = new UpdateManager(true, false,"http://dambots.com/games/dame/dame_version.xml");
+            }
+
+			private function onError(event:ErrorEvent):void 
+			{
+				AlertBox.Show(event.toString());
+			}
+
+			/*private function onUpdate(event:UpdateEvent):void 
+			{
+				appUpdater.checkNow(); // Go check for an update now
+			}*/
+			
+			public function onClose(event:Event):void
+			{
+				App.getApp().onClose(event);
+			}
+			
+			public function SettingsLoaded():void
+			{
+				DrawOnBase.selected = EditorTypeDraw.DrawOnBaseOnly;
+				LockedTileMode.selected = EditorTypeDraw.LockedTileMode;
+				lineThickness.value = EditorTypeDraw.LineThickness;
+				PerlinScale.value = EditorTypeDraw.PerlinScale;
+				DrawPerlin.selected = EditorTypeDraw.DrawPerlin;
+				DrawNoise.selected = EditorTypeDraw.DrawNoise;
+				DrawNewTiles.selected = EditorTypeDraw.DrawNewTiles;
+				ShapeFillColorPick.setStyle("backgroundColor", EditorTypeDraw.ShapeFillColor );
+				FillAlpha.value = EditorTypeDraw.ShapeFillAlpha;
+				
+				changeDrawNewTiles();
+				updateDrawStyle();
+				
+				if ( EditorTypeDraw.DrawPerlin )
+					selectBrushType( DrawPerlin );
+				else if ( EditorTypeDraw.DrawNoise )
+					selectBrushType( DrawNoise );
+				else	
+					selectBrushType( null );
+				colorAlpha.value = EditorTypeDraw.DrawAlpha * 100;
+				
+				setTileSelectionIcon();
+				
+				if ( !Global.DisableAutoUpdates )
+				{
+					checkForUpdate();
+				}
+			}
+			
+			public function Initialize():void
+			{
+				statusBarFactory = new ClassFactory(DameStatusBar);
+			}
+
+		   
+			// This function is called when the "creationComplete" event occurs.
+			public function init():void
+			{
+				currentSelectedButton = EditModePaint;
+				Global.MyStatusBar = MyStatusBar = statusBar as DameStatusBar;
+				Global.windowedApp = this;
+				MainDiv.setStyle("paddingBottom", showStatusBar ? StatusBarPadding : 0);
+				App.getApp().addChild(MainDiv);
+				App.getApp().initUIComponents( MainDiv, LayersTab.layerTree, gameCanvas, SpritesTab.SpriteListTree );
+				colorPick.setStyle("backgroundColor", EditorTypeDraw.DrawColor );
+				
+				addEventListener(Event.ENTER_FRAME, update );
+				
+				addEventListener(Event.CLOSING, onClose);
+				
+			}
+
+
+        ]]>
+    </mx:Script>
+	
+	<mx:HTTPService id="configService" method="GET" resultFormat="e4x" url="config/configuration.xml" result="handleUpdateResult(event)" />
+
+	<mx:VBox id="MainDiv" horizontalScrollPolicy="off" height="100%" verticalGap="0">
+		<mx:HBox horizontalScrollPolicy="off" verticalScrollPolicy="off" styleName="Toolbars" width="100%" height="39" verticalGap="0">
+			
+			<mx:Canvas backgroundAlpha="0">
+				<mx:Panel id="ToolBar" styleName="toolBarPanel" layout="horizontal" height="39" y="10" >
+					<comUI:ButtonExt id="EditModePaint" defaultSkin="@Embed(source='assets/paintIcon_off.png')" highlightSkin="@Embed(source='assets/paintIcon.png')" width="24" height="24" toggle="true" toolTip="Paint - 'B'" click="changeEditMode(0)" selected="true" />
+					<comUI:ButtonExt id="EditModeMatrix" defaultSkin="@Embed(source='assets/matrixIcon_off.png')" highlightSkin="@Embed(source='assets/matrixIcon.png')" width="24" height="24" toggle="true" toolTip="Tile Matrix - 'M'" click="changeEditMode(1)" />
+					<comUI:ButtonExt id="EditModeDraw" defaultSkin="@Embed(source='assets/drawIcon_off.png')" highlightSkin="@Embed(source='assets/drawIcon.png')" width="24" height="24" toggle="true" toolTip="Draw on tiles - 'D'" click="changeEditMode(2)" />
+					<comUI:ButtonExt id="EditModeMove" y="10" defaultSkin="@Embed(source='assets/moveIcon_off.png')" highlightSkin="@Embed(source='assets/moveIcon.png')" width="24" height="24" toggle="true" toolTip="Select/Move - 'V'" click="ChangeSelectMode()" />
+				</mx:Panel>
+			</mx:Canvas>
+			
+			<mx:Panel id="ExtraToolBars" borderStyle="none" backgroundAlpha="0" headerHeight="0" creationPolicy="all" horizontalScrollPolicy="off" verticalScrollPolicy="off" layout="absolute">
+				
+				<mx:Panel id="ToolBarGroups" styleName="toolBarPanel" layout="horizontal" x="0" y="10" height="26" visible="false" minWidth="0">
+					<comUI:ButtonExt id="MoveGroup" defaultSkin="@Embed(source='assets/resizeLayerIcon_off.png')" highlightSkin="@Embed(source='assets/resizeLayerIcon.png')" width="24" height="24" toggle="true" toolTip="Move group." click="EditorTypeGroups.MovingGroup=MoveGroup.selected" />
+				</mx:Panel>
+				
+				<mx:Panel id="ToolBarTileSelect" styleName="toolBarPanel" layout="horizontal" x="0" y="10" height="26" visible="false" minWidth="0">
+					<comUI:ButtonExt id="UseMagicWand" defaultSkin="@Embed(source='assets/magicWandIcon_off.png')" highlightSkin="@Embed(source='assets/magicWandIcon.png')" width="24" height="24" toggle="true" toolTip="Magic wand" click="EditorTypeTiles.UseMagicWand=UseMagicWand.selected" />
+					<comUI:ButtonExt id="TileSelectionType" icon="@Embed(source='assets/selectVisibleIcon.png')" width="24" height="24" toggle="false" toolTip="Select only visible tiles" click="changeTileSelectionType()" />
+					<comUI:ButtonExt id="ResizeMap" defaultSkin="@Embed(source='assets/resizeLayerIcon_off.png')" highlightSkin="@Embed(source='assets/resizeLayerIcon.png')" width="24" height="24" toggle="true" toolTip="Move/Resize map." click="EditorTypeTiles.ResizeMapMode=ResizeMap.selected" />
+				</mx:Panel>
+				
+				<mx:Panel id="ToolBarTiles" styleName="toolBarPanel" layout="horizontal" x="0" y="10" height="26" visible="false" minWidth="0">
+					<comUI:ButtonExt id="PaintBucket" defaultSkin="@Embed(source='assets/paintBucketIcon_off.png')" highlightSkin="@Embed(source='assets/paintBucketIcon.png')" width="24" height="24" toggle="true" toolTip="Fill adjacent tiles with current tile" click="EditorTypeTiles.UsePaintBucket=PaintBucket.selected;EditorTypeTiles.UsingDropper=TilesEyeDropper.selected=false;" />
+					<comUI:ButtonExt id="TilesEyeDropper" defaultSkin="@Embed(source='assets/eyedropperIcon_off.png')" highlightSkin="@Embed(source='assets/eyedropperIcon.png')" width="24" height="24" toggle="true" toolTip="EyeDropper (or hold SPACE)" click="EditorTypeTiles.UsingDropper=TilesEyeDropper.selected;EditorTypeTiles.UsePaintBucket=PaintBucket.selected=false;" />
+				</mx:Panel>
+				
+				<mx:Panel id="ToolBarDrawing" styleName="toolBarPanel" layout="horizontal" horizontalGap="4" x="0" y="0" height="39" visible="false" minWidth="0" horizontalScrollPolicy="off" verticalScrollPolicy="off">
+					<mx:Canvas backgroundAlpha="0"><comUI:ButtonExt id="LockedTileMode" y="10" defaultSkin="@Embed(source='assets/lockedIcon_off.png')" highlightSkin="@Embed(source='assets/lockedIcon.png')" width="24" height="24" toggle="true" toolTip="Lock tiles" click="EditorTypeDraw.LockedTileMode=LockedTileMode.selected" /></mx:Canvas>
+					<mx:Canvas backgroundAlpha="0"><comUI:ButtonExt id="EditModeEyeDropper" y="10" defaultSkin="@Embed(source='assets/eyedropperIcon_off.png')" highlightSkin="@Embed(source='assets/eyedropperIcon.png')" width="24" height="24" toggle="true" toolTip="Eye Dropper (or hold SPACE)" click="EditorTypeDraw.UsingDropper=EditModeEyeDropper.selected;onChangeFloodFill(false);" /></mx:Canvas>
+					
+					<mx:Canvas backgroundAlpha="0">
+						<mx:PopUpMenuButton id="DrawStyle" y="10" label="" itemClick="changeDrawStyle(event)" width="40" toolTip="Change draw style.">
+							<mx:dataProvider>
+								<mx:Array>
+									<mx:Object label="Freehand" icon="@Embed(source='assets/drawFreehandIcon.png')" data="freehand" toolTip="Draw freehand." />
+									<mx:Object label="Lines" icon="@Embed(source='assets/drawLineIcon.png')" data="lines" toolTip="Draw lines." />
+									<mx:Object label="Circles" icon="@Embed(source='assets/drawCircleIcon.png')" data="circles" toolTip="Draw circles." />
+									<mx:Object label="Ellipses" icon="@Embed(source='assets/drawEllipseIcon.png')" data="ellipses" toolTip="Draw ellipses." />
+									<mx:Object label="Boxes" icon="@Embed(source='assets/drawBoxIcon.png')" data="boxes" toolTip="Draw boxes." />
+									<mx:Object label="Polygons" icon="@Embed(source='assets/drawPolyLineIcon.png')" data="polygons" toolTip="Draw poly lines/polygons." />
+								</mx:Array>
+							</mx:dataProvider>
+						</mx:PopUpMenuButton>
+					</mx:Canvas>
+					
+					<mx:Panel backgroundAlpha="0" styleName="toolBarPanel" layout="horizontal" id="FilledShapesGroup" enabled="false" visible="false" width="0" horizontalScrollPolicy="off" verticalScrollPolicy="off">
+						<mx:Canvas backgroundAlpha="0" horizontalScrollPolicy="off" verticalScrollPolicy="off">
+							<mx:Label text="Fill alpha:" fontSize="9" fontFamily="Tahoma" fontWeight="normal" letterSpacing="1" fontAntiAliasType="normal" />
+							<mx:NumericStepper id="FillAlpha" y="14" width="45" height="18" borderStyle="solid" minimum="0" maximum="1" stepSize="0.05" change="EditorTypeDraw.ShapeFillAlpha = FillAlpha.value;" value="0" toolTip="Opacity of fill for shapes." />
+
+							<mx:Label text="color:" x="52" fontSize="9" fontFamily="Tahoma" fontWeight="normal" letterSpacing="1" fontAntiAliasType="normal" />
+							<mx:Canvas id="ShapeFillColorPick" x="57" y="17" borderStyle="solid" borderColor="black" cornerRadius="0" backgroundColor="0xffffff" width="14" height="14" mouseDown="doColorPicker(EditorTypeDraw.ShapeFillColor,ShapeFillColorPick)" toolTip="choose fill colour" />
+						</mx:Canvas>
+					</mx:Panel>
+					
+					<mx:Canvas backgroundAlpha="0"><comUI:ButtonExt id="DrawNewTiles" y="10" defaultSkin="@Embed(source='assets/drawNewTilesIcon_off.png')" highlightSkin="@Embed(source='assets/drawNewTilesIcon.png')" width="24" height="24" toggle="true" toolTip="Adds new tiles whereever you draw. Mode is reset once you stop drawing." click = "changeDrawNewTiles();" /></mx:Canvas>
+					<mx:Canvas backgroundAlpha="0" id="NewTilesGroup" enabled="false" visible="false" width="0" horizontalScrollPolicy="off" verticalScrollPolicy="off">
+						<mx:Label text="Stroke:" fontSize="9" fontFamily="Tahoma" fontWeight="normal" letterSpacing="1" fontAntiAliasType="normal" />
+						<comUI:ButtonExt id="NewTileStroke" x="2" y="11" defaultSkin="@Embed(source='assets/tickIcon_off.png')" highlightSkin="@Embed(source='assets/tickIcon.png')" width="24" height="24" toolTip="Click to reset the list of newly created tiles." click="EditorTypeDraw.ApplyNewTileStroke();" />
+					</mx:Canvas>
+					
+					<mx:Canvas backgroundAlpha="0"><comUI:ButtonExt id="FloodFill" y="10" defaultSkin="@Embed(source='assets/paintBucketIcon_off.png')" highlightSkin="@Embed(source='assets/paintBucketIcon.png')" width="24" height="24" toggle="true" toolTip="Flood Fill same coloured areas of selected tile." click="onChangeFloodFill(FloodFill.selected);EditorTypeDraw.UsingDropper = EditModeEyeDropper.selected = false;" /></mx:Canvas>
+					<mx:Panel backgroundAlpha="0" id="FloodFillGroup" styleName="toolBarPanel" layout="horizontal" enabled="false" visible="false" width="0" horizontalScrollPolicy="off" verticalScrollPolicy="off">
+						<mx:Canvas backgroundAlpha="0" horizontalScrollPolicy="off" verticalScrollPolicy="off">
+							<mx:Label text="Tolerance:" fontSize="9" fontFamily="Tahoma" fontWeight="normal" letterSpacing="1" fontAntiAliasType="normal" />
+							<mx:NumericStepper id="FillTolerance" y="14" width="45" height="18" borderStyle="solid" minimum="0" maximum="255" stepSize="1" change="EditorTypeDraw.FloodFillTolerance = FillTolerance.value;" value="5" toolTip="Tolerance of flood fill." />
+						</mx:Canvas>
+					</mx:Panel>
+					
+					<mx:Canvas backgroundAlpha="0"><comUI:ButtonExt id="EditModeDrawEraser" y="10" defaultSkin="@Embed(source='assets/eraserIcon_off.png')" highlightSkin="@Embed(source='assets/eraserIcon.png')" width="24" height="24" toggle="true" toolTip="Eraser (E)" click="EditorTypeDraw.Eraser=EditModeDrawEraser.selected" /></mx:Canvas>
+					<mx:Canvas backgroundAlpha="0"><mx:Canvas id="colorPick" x="3" y="17" borderStyle="solid" borderColor="black" cornerRadius="0" backgroundColor="0xffffff" width="14" height="14" mouseDown="doColorPicker(EditorTypeDraw.DrawColor,colorPick)" toolTip="choose colour" /> </mx:Canvas>
+					<mx:Spacer width="3"/>
+					<mx:Canvas backgroundAlpha="0">
+						<mx:Label text="Opacity:" fontSize="9" fontFamily="Tahoma" fontWeight="normal" letterSpacing="1" fontAntiAliasType="normal" />
+						<mx:NumericStepper id="colorAlpha" y="14" width="45" height="18" borderStyle="solid" minimum="1" maximum="100" stepSize="1" change="EditorTypeDraw.DrawAlpha = colorAlpha.value * 0.01;" value="100" toolTip="Opacity of brush" />
+						<mx:Spacer width="50"/>
+					</mx:Canvas>
+					<mx:Canvas backgroundAlpha="0">
+						<mx:Label text="Size:" fontSize="9" fontFamily="Tahoma" fontWeight="normal" letterSpacing="1" fontAntiAliasType="normal" />
+						<mx:NumericStepper id="lineThickness" y="14" width="40" height="18" borderStyle="solid" minimum="1" maximum="30" stepSize="1" change="EditorTypeDraw.LineThickness = lineThickness.value;" value="1" toolTip="Thickness of brush" />
+						<mx:Spacer width="45"/>
+					</mx:Canvas>
+					<mx:Canvas backgroundAlpha="0">
+						<mx:PopUpMenuButton id="DrawOrderMode" y="10" label="" itemClick="changeDrawOrder(event)" width="40" toolTip="Draw on anything.">
+							<mx:dataProvider>
+								<mx:Array>
+									<mx:Object label="Always" icon="@Embed(source='assets/drawAlwaysIcon.png')" data="0" toolTip="Draw on anything." />
+									<mx:Object label="Above" icon="@Embed(source='assets/drawAboveIcon.png')" data="1" toolTip="Only draw on opaque pixels." />
+									<mx:Object label="Behind" icon="@Embed(source='assets/drawBehindIcon.png')" data="2" toolTip="Only draw on transparent pixels." />
+								</mx:Array>
+							</mx:dataProvider>
+						</mx:PopUpMenuButton>
+					</mx:Canvas>
+					<mx:Canvas backgroundAlpha="0"><comUI:ButtonExt id="DrawOnBase" y="10" defaultSkin="@Embed(source='assets/drawBaseIcon_off.png')" highlightSkin="@Embed(source='assets/drawBaseIcon.png')" width="24" height="24" toggle="true" toolTip="Draw on tile base only." click="EditorTypeDraw.DrawOnBaseOnly=DrawOnBase.selected" /></mx:Canvas>
+					<mx:Canvas backgroundAlpha="0"><comUI:ButtonExt id="DrawNoise" y="10" defaultSkin="@Embed(source='assets/drawNoiseIcon_off.png')" highlightSkin="@Embed(source='assets/drawNoiseIcon.png')" width="24" height="24" toggle="true" toolTip="Draw using noise" click="selectBrushType(DrawNoise)" /></mx:Canvas>
+					<mx:Canvas backgroundAlpha="0"><comUI:ButtonExt id="DrawPerlin" y="10" defaultSkin="@Embed(source='assets/drawPerlinIcon_off.png')" highlightSkin="@Embed(source='assets/drawPerlinIcon.png')" width="24" height="24" toggle="true" toolTip="Draw using perlin noise" click="selectBrushType(DrawPerlin)" /></mx:Canvas>
+					<mx:Canvas backgroundAlpha="0" id="NoiseGroup" visible="false" width="0" enabled="false" horizontalScrollPolicy="off" verticalScrollPolicy="off">
+						<mx:Label text="Noise:" fontSize="9" fontFamily="Tahoma" fontWeight="normal" letterSpacing="1" fontAntiAliasType="normal" />
+						<mx:NumericStepper id="PerlinScale" y="14" width="50" height="18" borderStyle="solid" minimum="0.1" maximum="10" stepSize="0.1" change="EditorTypeDraw.PerlinScale = PerlinScale.value;" value="1" toolTip="Scale of Perlin noise" />
+						<mx:Spacer width="55"/>
+					</mx:Canvas>
+					<mx:Canvas backgroundAlpha="0"><comUI:ColourGrid y="10" id="colorGrid" onPick="changeColor" /></mx:Canvas>
+					<mx:Canvas backgroundAlpha="0"><comUI:ButtonExt id="ButtonAnimEditor" y="10" defaultSkin="@Embed(source='assets/animIcon_off.png')" highlightSkin="@Embed(source='assets/animIcon.png')" width="24" height="24" toggle="true" toolTip="AnimEditor" click="updateAnimEditor()" selected="false" visible="false" enabled="false" /></mx:Canvas>
+				</mx:Panel>
+				
+				<mx:Panel id="ToolBarTileMatrix" styleName="toolBarPanel" layout="horizontal" x="0" y="10" height="26" visible="false" minWidth="0">
+					<comUI:ButtonExt id="MatrixMagnet" defaultSkin="@Embed(source='assets/magnetIcon_off.png')" highlightSkin="@Embed(source='assets/magnetIcon.png')" width="24" height="24" toggle="true" toolTip="Magnet - Drag already painted tiles into the matrix." click="EditorTypeTileMatrix.UseMatrixMagnet=MatrixMagnet.selected" />
+					<comUI:ButtonExt id="MatrixVisible" defaultSkin="@Embed(source='assets/drawMatrixOverVisibleIcon_off.png')" highlightSkin="@Embed(source='assets/drawMatrixOverVisibleIcon.png')" width="24" height="24" toggle="true" toolTip="Draw Matrix over visible tiles only." click="EditorTypeTileMatrix.SelectOnlyVisible=MatrixVisible.selected" />
+					<comUI:ButtonExt id="ConfirmMatrix" defaultSkin="@Embed(source='assets/tickIcon_off.png')" highlightSkin="@Embed(source='assets/tickIcon.png')" width="24" height="24"  toolTip="confirm" click="EditorTypeTileMatrix.ConfirmMatrix = true;" />
+					<comUI:ButtonExt id="CancelMatrix" defaultSkin="@Embed(source='assets/crossIcon_off.png')" highlightSkin="@Embed(source='assets/crossIcon.png')" width="24" height="24" toolTip="cancel" click="EditorTypeTileMatrix.CancelMatrix = true;" />
+				</mx:Panel>
+				
+				<mx:Panel id="ToolBarPaths" styleName="toolBarPanel" layout="horizontal" x="0" y="10" height="26" visible="false" minWidth="0">
+					<comUI:ButtonExt id="StopEditingShape" defaultSkin="@Embed(source='assets/tickIcon_off.png')" highlightSkin="@Embed(source='assets/tickIcon.png')" width="24" height="24" toolTip="confirm" click="EditorTypePaths.StopEditingShape = true;" />
+					<mx:Spacer width="5" />
+					<comUI:ButtonExt id="SetPathMode" defaultSkin="@Embed(source='assets/pathIcon_off.png')" highlightSkin="@Embed(source='assets/pathIcon.png')" width="24" height="24" toolTip="Edit Paths" selected="true" toggle="true"
+						click="EditorTypePaths.ClosedPoly = SetPathMode.selected==false; SetPolyMode.selected = !SetPathMode.selected;" />
+					<comUI:ButtonExt id="SetPolyMode" defaultSkin="@Embed(source='assets/polyIcon_off.png')" highlightSkin="@Embed(source='assets/polyIcon.png')" width="24" height="24" toolTip="Edit Closed Polygons" toggle="true"
+						click="EditorTypePaths.ClosedPoly = SetPolyMode.selected==true; SetPathMode.selected = !SetPolyMode.selected;" />
+					<mx:Spacer width="5" />
+					<comUI:ButtonExt id="SetCurveMode" defaultSkin="@Embed(source='assets/curveIcon_off.png')" highlightSkin="@Embed(source='assets/curveIcon.png')" width="24" height="24" toolTip="Edit Curves" toggle="true"
+						click="EditorTypePaths.CurveMode = SetCurveMode.selected;" />
+					<mx:Spacer width="5" />
+					<comUI:ButtonExt id="SetPathEventMode" defaultSkin="@Embed(source='assets/eventIcon_off.png')" highlightSkin="@Embed(source='assets/eventIcon.png')" width="24" height="24" toolTip="Edit Path Events" toggle="true"
+						click="EditorTypePaths.EventsMode = SetPathEventMode.selected; if( SetPathEventMode.selected ){ EditorTypePaths.StopEditingShape = true; }" />
+				</mx:Panel>
+				
+				<mx:Panel id="ToolBarShapes" styleName="toolBarPanel" layout="horizontal" x="0" y="10" height="26" visible="false" minWidth="0">
+					<comUI:ButtonExt id="DrawSquares" defaultSkin="@Embed(source='assets/squareIcon_off.png')" highlightSkin="@Embed(source='assets/squareIcon.png')" width="24" height="24" toolTip="Draw Squares" selected="true" toggle="true"
+						click="EditorTypeShapes.DrawType = EditorTypeShapes.DRAW_SQUARES; DrawCircles.selected = false; DrawSquares.selected = true; DrawText.selected = false;" />
+					<comUI:ButtonExt id="DrawCircles" defaultSkin="@Embed(source='assets/circleIcon_off.png')" highlightSkin="@Embed(source='assets/circleIcon.png')" width="24" height="24" toolTip="Draw Circles" toggle="true"
+						click="EditorTypeShapes.DrawType = EditorTypeShapes.DRAW_CIRCLES; DrawCircles.selected = true; DrawSquares.selected = false; DrawText.selected = false;" />
+					<comUI:ButtonExt id="DrawText" defaultSkin="@Embed(source='assets/textIcon_off.png')" highlightSkin="@Embed(source='assets/textIcon.png')" width="24" height="24" toolTip="Draw Text" toggle="true"
+						click="EditorTypeShapes.DrawType = EditorTypeShapes.DRAW_TEXT; DrawCircles.selected = false; DrawSquares.selected = false; DrawText.selected = true;" />
+				</mx:Panel>
+			</mx:Panel>
+		</mx:HBox>
+		
+		<comUI:ExtendedDividedBox direction="horizontal" id="MainArea" width="100%" height="100%" horizontalScrollPolicy="off" horizontalGap="6" liveDragging="true" >
+			<docks:DockablePage width="240" minWidth="10" maxWidth="350" height="100%" horizontalScrollPolicy="off" verticalScrollPolicy="off" >
+				<comUI:ExtendedDividedBox direction="vertical" width="100%" minWidth="10" maxWidth="350" height="100%" horizontalScrollPolicy="off" verticalScrollPolicy="off" liveDragging="true" >
+					<docks:DockablePage width="100%" minWidth="10" maxWidth="350" height="100%" horizontalScrollPolicy="off" verticalScrollPolicy="off" >
+						<docks:DockableTabNav width="100%" height="100%" paddingTop="0" paddingBottom="0" horizontalScrollPolicy="off" creationPolicy="all">
+							<comUI:LayersTab id="LayersTab" />
+							<comUI:SpritesTab id="SpritesTab" />
+						</docks:DockableTabNav>
+					</docks:DockablePage>
+					
+					<docks:DockablePage width="100%" minWidth="10" maxWidth="350" height="100%" horizontalScrollPolicy="off" verticalScrollPolicy="off" >
+						<mx:VBox id="PropsBox" label="Properties" width="100%" height="100%" minHeight="100" horizontalScrollPolicy="off" verticalGap="0">
+							<mx:HBox id="PropsGridLabelBox" visible="false" width="100%" styleName="RibbonHeader" >
+								<mx:Label id="PropGridLabel" text="Layer properties:" />
+							</mx:HBox>
+							<mx:HBox id="LayerParamsGroup" visible="false">
+								<mx:CheckBox label="Locked" id="LayerLockedCheckBox" selected="false" change="ChangeLayerLocked()" />
+								<mx:CheckBox label="Export" id="LayerExportsCheckBox" selected="true" change="ChangeLayerExports()" />
+								<mx:CheckBox label="Has Hits" id="TilemapHitsCheckBox" selected="false" change="ChangeTilemapHits()" />
+							</mx:HBox>
+							<mx:VBox id="LayerImageGroup" visible="false" width="100%">
+								<mx:HBox width="100%">
+									<mx:Label text="Opacity:" color="0x000000" />
+									<mx:HSlider id="visibilitySlider" minimum="0" maximum="1" liveDragging="true" width="100%" />
+								</mx:HBox>
+								<mx:CheckBox label="Export" id="ImageLayerExportsCheckBox" selected="true" change="ChangeImageLayerExports()" />
+							</mx:VBox>
+							<mx:HBox width="100%" id="ObjectPropsLabel" styleName="RibbonHeader" visible="false" >
+								<mx:Label text="Selected Object properties:" />
+							</mx:HBox >
+							<comUI:PropertyGrid id="SpritePropsGrid" borderSides="top bottom" OnCheckData="PropertyGridCheckData" OnEditBegin="PropertyGridItemEditBegin" />
+							<mx:ButtonBar width="100%" paddingBottom="10" itemClick="spritePropsButtonHandler(event);" >
+								<mx:dataProvider>
+									<mx:Array>
+										<mx:Object label="Add Property" icon="@Embed(source='assets/addPropertyIcon_off.png')"/>
+										<mx:Object label="Delete Property" icon="@Embed(source='assets/deletePropertyIcon_off.png')"/>
+									</mx:Array>
+								</mx:dataProvider>
+							</mx:ButtonBar>
+						</mx:VBox>
+					</docks:DockablePage>
+				</comUI:ExtendedDividedBox>
+			</docks:DockablePage>
+		
+			<docks:DockablePage AllowCenterDock="false" DragBarHidden="true" width="100%" height="100%" horizontalScrollPolicy="off" verticalScrollPolicy="off" >
+				<mx:Canvas id="MainCanvas" width="100%" height="100%" verticalScrollPolicy="off" horizontalScrollPolicy="off">
+					<mx:Canvas id="gameCanvas" borderStyle="solid" borderThickness="1" borderColor="black" height="100%" width="100%" horizontalScrollPolicy="off" />
+					<mx:HScrollBar visible="false" id="hbar" bottom="0" width="100%" repeatDelay="1000" repeatInterval="500"
+						minScrollPosition="0" maxScrollPosition="1000" lineScrollSize="50" pageScrollSize="100" scroll="scrolledX(event);" />
+					<mx:VScrollBar visible="false" id="vbar" height="100%" repeatDelay="1000" repeatInterval="500"
+						minScrollPosition="0" maxScrollPosition="1000" lineScrollSize="50" pageScrollSize="100" scroll="scrolledY(event);" />
+				</mx:Canvas>
+			</docks:DockablePage>
+		
+		</comUI:ExtendedDividedBox>
+	</mx:VBox>
+	
+</mx:WindowedApplication>

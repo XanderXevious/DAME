@@ -1,0 +1,64 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<mx:Button xmlns:mx="http://www.adobe.com/2006/mxml" enterFrame="update()" creationComplete="init()">
+	<mx:Script>
+		<![CDATA[
+import flash.display.BitmapData;
+		
+		public var defaultSkin:Class = null;
+		public var highlightSkin:Class = null;
+		
+		public var upSkinBitmap:BitmapData = null;
+		public var downSkinBitmap:BitmapData = null;
+		
+		private function init():void
+		{
+			if ( defaultSkin )
+			{
+				upSkinBitmap = new defaultSkin().bitmapData;
+			}
+			if ( highlightSkin )
+			{
+				downSkinBitmap = new highlightSkin().bitmapData;
+			}
+		}
+		
+		private var wasSelected:Boolean = false;
+		
+		private function update():void
+		{
+			if ( selected != wasSelected )
+			{
+				if ( selected )
+				{
+					var selectedColors:Array = getStyle("selectedColors");
+					if( selectedColors )
+					{
+						setStyle("fillColors", selectedColors);
+					}
+				}
+				else
+				{
+					var fillColors:Array = getStyle("unselectedColors");
+					if ( fillColors )
+					{
+						setStyle("fillColors", fillColors);
+					}
+				}
+				wasSelected = selected;
+			}
+		}
+		
+		protected override function keyDownHandler(e : KeyboardEvent) : void
+		{
+			if (e.keyCode == 32)
+			{
+				// Prevent Spacebar from changing focus as DAME uses the spacebar for the eyedropper.
+				return;
+			}
+
+			super.keyDownHandler (e);
+        }
+
+		]]>
+	</mx:Script>
+</mx:Button>

@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<update xmlns="http://ns.adobe.com/air/framework/update/description/1.0">
+<version>3.0.4</version>
+<url>http://dambots.com/games/dame/DAME.air</url>
+<description><![CDATA[
+DAME 3.0.5
+- Updated License for open source.
+
+DAME 3.0.4
+- Fix crash when using image layers.
+- Added ability to automatically keep anchors centered for sprites.
+
+DAME 3.0.3
+-------------
+- Fixed bug with shared tile properties going out of sync.
+- Added ability to create an enumerated custom filter type based on sprite names.
+- Can now hide sprite class properties from instances and not export them if desired.
+- Fixed problem with centered guide layer not being drawn correctly in some cases.
+- Optimized grid rendering.
+- Changing the current sprite entry while in selection mode now switches back to paint mode.
+
+DAME 3.0.2
+-------------
+- Added menu option in view menu to restore lost popup and tool windows.
+- Improved freehand and line drawing to remove antialiasing.
+- Added ellipse shape tool when drawing on tiles.
+- Fixed inability to draw on sprites.
+- Fixed inability to change the sprite image index on each sprite.
+
+DAME 3.0.1
+-------------
+- View Raw Image Data renamed to Edit Raw Image Data.
+- Fixed bug the corrupts the image when raw image is edited.
+- Added ability to crop or pad all the tiles in the raw image.
+- Fixed inconsistencies with gridlines drawn on tilemaps with height.
+
+DAME 3.0.0
+-------------
+Drawing:
+- Can now draw shapes (lines,polygons,circles and boxes).
+- New mode that will create new tiles as you draw.
+- Sprite drawing improved, also with full select,move,copy,paste functions.
+- Hold Spacebar to use eyedropper in draw mode.
+- Revamped drawing toolbar.
+- Can now flip selections in draw mode.
+- Flood Fill in drawing mode can now use a tolerance value.
+- Fixed Locked Tile Mode (when drawing on tiles).
+- Can now insert/remove tiles(frames) from sprites in Draw Mode.
+- Can insert new tiles under a selction.
+- Improved drawing on isometric tiles.
+Sprites:
+- Added anims for anim sprites, editable on sprite info.
+- Added shapes for anim sprites, allowing you to define custom named points, circles and boxes per frames.
+- Added anim editor for anim sprites, accessible from the film strip icon in Draw Mode.
+- Status bar now displays the name or class of the current selected sprte.
+Paths:
+- Added path events.
+- Improved visibility of nodes on paths.
+- Deleting the last node will now always delete that path.
+Exporters:
+- Updated flixel complex exporter to export SpriteInfo containing anim and shape data for all sprites.
+- New parameter added for tile anims, which exports as %looped%
+- Can add custom separators to various loops in exporters.
+- Flixel complex exporter can now export sprite anims and sprite anim shapes.
+- Added public (non static) boundsMin and boundsMax for each exported level in flixelComplex.
+- Flixel Complex now automatically includes list of classes in BaseLevel for ClassReference dynamic spawning trick.
+- Fixed bug with the %%if prop:%% not working.
+- Added new xml data exporter.
+- Can now use project specific exporters by placing lua files in your .dam project directory and using Menu:File->Export Using Project Exporter.
+- Can specify file paths relative to the current project.
+Tiles:
+- Option to add only visible tiles to a tile matrix, allowing easier re-adding of already placed tiles.
+- Improvements to the way tiles are rendered in lists.
+- Option to make tile palette automatically scale tiles to fit width/height of pane.
+- Ability to turn off the checkered pattern on the tile palette.
+- The chosen answer from the prompt when exiting an unsaved tile matrix can be remembered.
+- Indicators to help visualise the current stack height for tiles allowing z stacking.
+Misc:
+- New Icons!!! Thanks to Behzad Mohammad Rahimi Asad
+- Can save the project to an image.
+- Can now zoom out to 12% normal magnification.
+- Added customisable property types.
+- Tile matrices are now bound more tightly to tilesets.
+- Fixed issues when removing tiles from a tilemap.
+- Fix bugs with onion skin not being enforced.
+- Right click menu option on layers or groups in the layers tree view to move them to the current location of the cursor.
+- Moving groups with snap to grid enabled will now move them in steps of the tilemap size.
+- Improved readability of tile lists in popup windows.
+- Improved visibility of tilemap and selection borders when zoomed out.
+- You can now specify properties on any layer type.
+- Tile properties are now highlighted in the tilelist for easy navigation.
+- Double click on entries in Layers and Sprites trees to edit their properties.
+- Right click menu option to edit sprite entries within sprite editor.
+- Added warning when starting a new file or loading a file from the desktop when there are unsaved changes in the current file.
+- Fixed for graphical corruption at edge of screen with very large windows.
+- Fixed incorrectly sized panels when starting DAME maximized.
+- Game region overlay can now be centered on the screen.
+- Extra gridlines sized based on the game region overlay size (overlay doesn't need to be active).
+- Object links now drawn as arrows.
+- Keyboard shortcuts for tile matrix and drawing modes.
+- Select None will now deselect on all editor modes.
+- Fix problems with images from imported DAME files in another location.
+- Fix bug when swapping tiles referenced in multiple maps.
+- Sprite entries will now display their classname in the tree view if no name is specified.
+- Can now edit properties as multiline text via a menu option.
+
+
+
+]]></description>
+</update>

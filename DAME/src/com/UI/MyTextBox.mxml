@@ -1,0 +1,46 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<mx:TextInput xmlns:mx="http://www.adobe.com/2006/mxml" creationComplete="init()" >
+   <mx:Script>	   
+      <![CDATA[
+		import flash.display.NativeMenuItem;
+		import flash.events.ContextMenuEvent;
+		import flash.events.Event;
+		import flash.events.MouseEvent;
+		import flash.text.TextField;
+		import flash.ui.ContextMenu;
+		import flash.ui.ContextMenuItem;
+		import mx.core.mx_internal;
+		use namespace mx_internal;
+		
+		public function init():void
+		{
+			var newMenu:ContextMenu = new ContextMenu();
+			newMenu.hideBuiltInItems();
+			newMenu.clipboardMenu = true; //Use this to show the options such as copy, paste and so on.
+
+			var menuItem:ContextMenuItem = new ContextMenuItem("Edit Multiline Text");
+			newMenu.addItem(menuItem);
+			var textarea:TextField = getTextField() as TextField;
+			textarea.contextMenu = newMenu;
+			menuItem.addEventListener(Event.SELECT, editMultiline);
+		}
+		
+		public function editMultiline(event:Event):void
+		{
+			var popup:MultilinePopup = App.CreatePopupWindow(MultilinePopup, true, this.owner) as MultilinePopup;
+			if ( popup )
+			{
+				popup.txt = text;
+				popup.opener = this;
+				popup.okPressedCallback = textEdited;
+			}
+		}
+		
+		private function textEdited(popup:MultilinePopup):void
+		{
+			this.text = popup.txt;
+		}
+      ]]>
+   </mx:Script>
+
+</mx:TextInput>

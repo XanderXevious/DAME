@@ -1,0 +1,226 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<comUI:PopupWindow xmlns:mx="http://www.adobe.com/2006/mxml" xmlns:comUI="com.UI.*"
+    width="600" height="400"
+	showStatusBar="false" maximizable="false" minimizable="false"
+	defaultButton="{btnOK}"
+    title="Property Types Editor">
+
+    <mx:Script>
+        <![CDATA[
+			import com.Properties.CustomPropertyFilterType;
+			import com.Properties.CustomPropertyType;
+			import com.Properties.CustomPropertyValue;
+			import mx.collections.ArrayCollection;
+			import mx.events.CloseEvent;
+			import mx.events.DataGridEvent;
+			import mx.events.ListEvent;
+           
+			private var objects:ArrayCollection = new ArrayCollection;
+           
+            override protected function init():void
+			{
+				width = container.width + 20;
+				height = container.height + titleBar.height + 20;
+				
+				ShowTitleBarIcons = false;
+				
+				Types.dataProvider = CustomPropertyType.TypesProvider;
+				
+				FilterTypesHelp.htmlText = "Enter a pattern that will be used for that type<br>" +
+					"Qualifiers are:<br>" +
+					"<b>%groupname%</b> outputs the name of the group<br>" +
+					"<b>%layername%</b> outputs the name of the layer (if not a group)<br>" +
+					"<b>%name%</b> outputs the name of the layer in all cases.<br>" +
+					"<b>%spritename%></b> outputs the sprite name for all sprites (not compatible with layer filters)<br>";
+				
+				super.init();
+            }
+			
+			private function ok():void
+			{
+				ForceClose();
+            }
+			
+			private function selectedItemChanged():void
+			{
+				var type:CustomPropertyType = Types.selectedItem as CustomPropertyType;
+				if ( type )
+				{
+					IsString.selected = type.isString;
+					ExportedType.text = type.ExportedType;
+					if ( type is CustomPropertyFilterType )
+					{
+						SystemTypesGroup.visible = true;
+						SystemTypesGroup.percentWidth = 100;
+						CustomTypesGroup.visible = false;
+						CustomTypesGroup.width = 0;
+						var filterType:CustomPropertyFilterType = type as CustomPropertyFilterType;
+						TypeEdit.text = filterType.pattern;
+						FilterTilemaps.selected = Boolean(filterType.filters & CustomPropertyFilterType.FILTER_TILEMAP);
+						FilterSpriteLayers.selected = Boolean(filterType.filters & CustomPropertyFilterType.FILTER_SPRITELAYER);
+						FilterPathLayers.selected = Boolean(filterType.filters & CustomPropertyFilterType.FILTER_PATHLAYER);
+						FilterShapeLayers.selected = Boolean(filterType.filters & CustomPropertyFilterType.FILTER_SHAPELAYER);
+						FilterImageLayers.selected = Boolean(filterType.filters & CustomPropertyFilterType.FILTER_IMAGELAYER);
+						FilterGroups.selected = Boolean(filterType.filters & CustomPropertyFilterType.FILTER_GROUPS);
+						FilterSprites.selected = Boolean(filterType.filters & CustomPropertyFilterType.FILTER_SPRITES);
+					}
+					else
+					{
+						CustomTypesGroup.visible = true;
+						CustomTypesGroup.percentWidth = 100;
+						SystemTypesGroup.visible = false;
+						SystemTypesGroup.width = 0;
+						Names.dataProvider = type.list;
+					}
+				}
+			}
+			
+			private function updateIsString():void
+			{
+				var type:CustomPropertyType = Types.selectedItem as CustomPropertyType;
+				if ( type )
+				{
+					type.isString = IsString.selected;
+				}
+			}
+			
+			private function changeExportedType():void
+			{
+				var type:CustomPropertyType = Types.selectedItem as CustomPropertyType;
+				if ( type )
+				{
+					type.ExportedType = ExportedType.text;
+				}
+			}
+			
+			private function changeTypePattern():void
+			{
+				var type:CustomPropertyFilterType = Types.selectedItem as CustomPropertyFilterType;
+				if ( type )
+				{
+					type.pattern = TypeEdit.text;
+					type.filters = 0;
+					if ( FilterTilemaps.selected )
+						type.filters |= CustomPropertyFilterType.FILTER_TILEMAP;
+					if ( FilterSpriteLayers.selected )
+						type.filters |= CustomPropertyFilterType.FILTER_SPRITELAYER;
+					if ( FilterPathLayers.selected )
+						type.filters |= CustomPropertyFilterType.FILTER_PATHLAYER;
+					if ( FilterShapeLayers.selected )
+						type.filters |= CustomPropertyFilterType.FILTER_SHAPELAYER;
+					if ( FilterImageLayers.selected )
+						type.filters |= CustomPropertyFilterType.FILTER_IMAGELAYER;
+					if ( FilterGroups.selected )
+						type.filters |= CustomPropertyFilterType.FILTER_GROUPS;
+					if ( FilterSprites.selected )
+						type.filters |= CustomPropertyFilterType.FILTER_SPRITES;
+				}
+			}
+			
+			private function addType():void
+			{
+				Types.dataProvider.addItem( new CustomPropertyType("Type " + (Types.dataProvider.length + 1) ) );
+				Types.selectedIndex = Types.dataProvider.length - 1;
+				Types.validateNow();
+				Types.scrollToIndex(Types.dataProvider.length - 1);
+				selectedItemChanged();
+			}
+			
+			private function addFilterType():void
+			{
+				var type:CustomPropertyFilterType = new CustomPropertyFilterType("Type " + (Types.dataProvider.length + 1) ) ;
+				Types.dataProvider.addItem( type );
+				Types.selectedIndex = Types.dataProvider.length - 1;
+				Types.validateNow();
+				Types.scrollToIndex(Types.dataProvider.length - 1);
+				selectedItemChanged();
+			}
+			
+			private function deleteType():void
+			{
+				var type:CustomPropertyType = Types.selectedItem as CustomPropertyType;
+				if ( type )
+				{
+					Types.dataProvider.removeItemAt( Types.dataProvider.getItemIndex( type ) );
+				}
+			}
+			
+			private function addName():void
+			{
+				if ( Names.dataProvider )
+				{
+					Names.dataProvider.addItem( new CustomPropertyValue("Item " + (Names.dataProvider.length + 1) ) );
+				}
+			}
+			
+			private function deleteName():void
+			{
+				var value:CustomPropertyValue = Names.selectedItem as CustomPropertyValue;
+				if ( value )
+				{
+					Names.dataProvider.removeItemAt( Names.dataProvider.getItemIndex( value ) );
+				}
+			}
+           
+        ]]>
+    </mx:Script>
+	
+	<mx:VBox id="container" horizontalAlign="center" width="100%" height="100%">
+		<mx:HBox >
+			<mx:Label text="Double click an entry to move to and select it." />
+		</mx:HBox>
+		<comUI:ExtendedDividedBox direction="horizontal" id="MainArea" width="100%" height="100%" horizontalScrollPolicy="off" horizontalGap="6" liveDragging="true" >
+			<mx:VBox width="250" height="100%">
+				<mx:DataGrid id="Types" width="100%" height="100%" variableRowHeight="false" editable="true" change="selectedItemChanged()" >
+					<mx:columns>
+						<mx:DataGridColumn id="Type" headerText="Type" dataField="name" width="100" minWidth="100" />
+					</mx:columns>
+				</mx:DataGrid>
+				<mx:HBox horizontalAlign="center" >
+					<mx:Button id="btnAddType" label="Add" click="addType()" />
+					<mx:Button id="btnAddFilterType" label="Add Filter Type" click="addFilterType()" />
+					<mx:Button id="btnDelType" label="Delete" click="deleteType()" />
+				</mx:HBox>
+			</mx:VBox>
+			<mx:VBox width="100%" height="100%">
+				<mx:CheckBox label="Is String" id="IsString" change="updateIsString()" toolTip='Treat this data as a string when exporting (eg adding "" ).' />
+				<mx:HBox width="100%">
+					<mx:Label text="Exported Type:"/>
+					<mx:TextInput id="ExportedType" change="changeExportedType()" width="100%" toolTip="The type of data this will be exported as (int/string/float etc)." />
+				</mx:HBox>
+				<mx:HBox width="100%" height="100%">
+					<mx:VBox id="CustomTypesGroup" width="100%" height="100%">
+						<mx:DataGrid id="Names" width="100%" height="100%" variableRowHeight="false" editable="true" >
+							<mx:columns>
+								<mx:DataGridColumn id="Name" headerText="Name" dataField="label" width="150" minWidth="100" />
+								<mx:DataGridColumn id="Exportable" headerText="Exported Text (if different)" dataField="exported" width="200" minWidth="100" />
+							</mx:columns>
+						</mx:DataGrid>
+						<mx:HBox horizontalAlign="center" verticalAlign="bottom" >
+							<mx:Button id="btnAddName" label="Add" click="addName()" />
+							<mx:Button id="btnDelName" label="Delete" click="deleteName()" />
+						</mx:HBox>
+					</mx:VBox>
+					<mx:VBox id="SystemTypesGroup" width="0" height="100%" visible="false">
+						<mx:Label text="Select the layer types this will apply to:"/>
+						<mx:CheckBox label="Tilemaps" id="FilterTilemaps" change="changeTypePattern()"/>
+						<mx:CheckBox label="Sprite Layers" id="FilterSpriteLayers" change="changeTypePattern()"/>
+						<mx:CheckBox label="Shape Layers" id="FilterShapeLayers" change="changeTypePattern()"/>
+						<mx:CheckBox label="Path Layers" id="FilterPathLayers" change="changeTypePattern()"/>
+						<mx:CheckBox label="Image Layers" id="FilterImageLayers" change="changeTypePattern()"/>
+						<mx:CheckBox label="Groups" id="FilterGroups" change="changeTypePattern()" />
+						<mx:CheckBox label="Sprite Classes" id="FilterSprites" change="changeTypePattern()" />
+						<mx:HBox width="100%">
+							<mx:Label text="Text Pattern:"/>
+							<mx:TextInput id="TypeEdit" change="changeTypePattern()" width="100%" toolTip="The text pattern used to construct the text for every entry." />
+						</mx:HBox>
+						<mx:TextArea id="FilterTypesHelp" width="100%" height="150" editable="false" />
+					</mx:VBox>
+				</mx:HBox>
+			</mx:VBox>
+		</comUI:ExtendedDividedBox>
+		<mx:HBox verticalAlign="bottom">
+			<mx:Button id="btnOK" label="OK" click="ok()" />
+		</mx:HBox >
+	</mx:VBox>
+</comUI:PopupWindow>

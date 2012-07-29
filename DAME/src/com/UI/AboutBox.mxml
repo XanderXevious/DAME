@@ -1,0 +1,75 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<comUI:PopupWindow xmlns:mx="http://www.adobe.com/2006/mxml" xmlns:comUI="com.UI.*"
+    width="100%" height="100%"
+	resizable="false" showGripper="false" showStatusBar="false" maximizable="false" minimizable="false"
+	defaultButton="{btnOK}"
+    title="About DAME">
+
+    <mx:Script>
+        <![CDATA[
+           
+            private function ok():void
+			{
+				ForceClose();
+            }
+           
+            override protected function init():void
+			{
+				VersionInfo.text = App.VersionString;
+				
+				width = container.width + 20;
+				height = container.height + titleBar.height + 20;
+				
+				ShowTitleBarIcons = false;
+				
+				super.init();
+            }
+			
+			private function onReleaseNotesClick():void
+			{
+				navigateToURL(new URLRequest(App.currentDir + "/help/versionhistory.html"));
+			}
+           
+        ]]>
+    </mx:Script>
+
+	<mx:String id="photonstormLink">http://www.photonstorm.com/</mx:String>
+	<mx:String id="behzadLink">mailto:b.m.rahimi@gmail.com</mx:String>
+	<mx:String id="test84Link">http://www.AidinZolghadr.com</mx:String>
+	
+	<mx:VBox id="container" horizontalAlign="center" width="100%" >
+		<mx:Spacer height="20"/>
+		<mx:VBox >
+			<mx:Canvas width="100%" height="113">
+				<mx:Image source="@Embed(source='../../../assets/DAMELogo.png')"/>
+				<mx:Label id="VersionInfo" x="215" y="83"  fontSize="11" fontFamily="Verdana"
+				filters="{[new DropShadowFilter(2,90,0xFFcccc,.3,0,0)]}"/>
+			</mx:Canvas>
+		</mx:VBox>
+		<mx:VBox>
+			<mx:Spacer width="20"/>
+			<mx:VBox horizontalAlign="left">
+				<mx:Label text="©2010-2012 - Charles Goatley" />
+				<mx:LinkButton id="URL" label="http://dambots.com/dame-editor/" click="navigateToURL(new URLRequest(URL.label))" />
+				<mx:LinkButton id="URLgitHub" label="https://github.com/XanderXevious/DAME" click="navigateToURL(new URLRequest(URLgitHub.label))" />
+				<mx:Form textAlign="left">
+					<mx:FormItem labelStyleName="customTextAlignLabel" textAlign="left" label="Made possible with Flixel:" >
+						<mx:LinkButton id="flixelURL" label="http://flixel.org/" click="navigateToURL(new URLRequest(flixelURL.label))" />
+					</mx:FormItem>
+					<mx:FormItem labelStyleName="customTextAlignLabel" textAlign="left" label="and Lua Alchemy:">
+						<mx:LinkButton id="alchemyURL" label="http://code.google.com/p/lua-alchemy/" click="navigateToURL(new URLRequest(alchemyURL.label))" />
+					</mx:FormItem>
+					<mx:FormItem labelStyleName="customTextAlignLabel" textAlign="left" label="Special Thanks:">
+						<mx:VBox>
+							<mx:LinkButton label="Richard (Photonstorm) Davey" click="navigateToURL(new URLRequest(photonstormLink))" />
+							<mx:LinkButton label="Behzad Mohammad Rahimi Asad" click="navigateToURL(new URLRequest(behzadLink))" />
+							<mx:LinkButton label="Aidin (test84) Zolghadr" click="navigateToURL(new URLRequest(test84Link))" />
+						</mx:VBox>
+					</mx:FormItem>
+				</mx:Form>
+				<mx:LinkButton id="ReleaseNotes" label="Click here for Version History..." click="onReleaseNotesClick()" />
+			</mx:VBox>
+		</mx:VBox>
+		<mx:Button id="btnOK" label="OK" click="ok()" />
+	</mx:VBox>
+</comUI:PopupWindow>

@@ -1,0 +1,115 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<mx:Box xmlns:mx="http://www.adobe.com/2006/mxml" creationComplete="init()">
+  <mx:Script>
+   <![CDATA[
+		private var _data:BitmapData;
+
+		import flash.display.Bitmap;
+		import flash.display.BitmapData;
+		import flash.display.DisplayObject;
+		import flash.geom.Point;
+		import mx.core.UIComponent;
+		import mx.controls.Alert;
+		
+		private var startHeight:uint;
+		private var startWidth:uint;
+		
+		private var ref:UIComponent = null;
+		
+		public var bitmapData:BitmapData = null;
+		public var drawnBitmap:Bitmap = null;
+		
+		public var autoScale:Boolean = true;
+
+		override public function set data(value:Object):void
+		{
+			_data = value as BitmapData;
+			//removeAllChildren();
+			
+			//ref = null;
+			
+			//drawnBitmap = null;
+
+			if ( value != null )
+			{
+				if ( !drawnBitmap )
+				{
+					ref = new UIComponent(); // creating a UI component Object
+					addChild( ref ); // add UI component to mxml base container
+					bitmapData = _data.clone();
+					drawnBitmap = new Bitmap( bitmapData );
+					ref.addChild( drawnBitmap );// adding sprite to UIcompoent
+				}
+				else if ( bitmapData.width != _data.width || bitmapData.height != _data.height )
+				{
+					bitmapData = _data.clone();
+					drawnBitmap.bitmapData = bitmapData;
+				}
+				bitmapData.lock();
+				bitmapData.copyPixels(_data, _data.rect, new Point);
+				
+				if ( autoScale )
+				{
+					// Ensure the tile is scaled to fit the row.
+					var xscale:Number = 1;
+					var yscale:Number = 1;
+					
+					if ( drawnBitmap.height > startHeight )
+						yscale = startHeight / drawnBitmap.height;
+					else if ( drawnBitmap.width > startWidth )
+						xscale = startWidth / drawnBitmap.width;
+
+					var scale:Number = Math.min( xscale, yscale );
+					
+					drawnBitmap.height *= scale;
+					drawnBitmap.width *= scale;
+					
+					// Scale up to fit the minimum display area
+					
+					yscale = ( drawnBitmap.height < minHeight ) ? minHeight / drawnBitmap.height : 1;
+					xscale = ( drawnBitmap.width < minWidth ) ? minWidth / drawnBitmap.width : 1;
+					
+					scale = Math.max ( xscale, yscale );
+					
+					drawnBitmap.height *= scale;
+					drawnBitmap.width *= scale;
+					
+					// But scale down again to ensure that nothing goes outside the container.
+					
+					yscale = ( drawnBitmap.height > startHeight ) ? startHeight / drawnBitmap.height : 1;
+					xscale = ( drawnBitmap.width > startWidth ) ? startWidth / drawnBitmap.width : 1;
+
+					scale = Math.min( xscale, yscale );
+					
+					drawnBitmap.height *= scale;
+					drawnBitmap.width *= scale;
+				}
+				
+				// Set the width of the renderer itself
+				width = drawnBitmap.width;
+				
+				bitmapData.unlock();
+			}
+		}
+		
+		public function AddChild( child:DisplayObject ):void
+		{
+			if ( ref)
+			{
+				ref.addChild( child );
+			}
+		}
+		
+		public function init():void
+		{
+			startWidth = width;
+			startHeight = height;
+		}
+
+		override public function get data():Object
+		{
+			return _data;
+		}
+   ]]>
+ </mx:Script>
+</mx:Box>

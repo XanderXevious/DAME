@@ -1,0 +1,2 @@
+If you wish to modify any lua exporters do not modify the ones provided with DAME directly as future updates will overwrite them.
+Instead, copy the relevant .lua and _settings.lua files to either your custom exporter directory (which you can specify in the File menu) or to the .dam project directory and work from those. It is also advisable to rename them to avoid confusion.

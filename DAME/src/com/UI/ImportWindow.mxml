@@ -1,0 +1,110 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<comUI:PopupWindow xmlns:mx="http://www.adobe.com/2006/mxml" xmlns:comUI="com.UI.*"
+    width="100%" height="100%"
+	resizable="false" showGripper="false" showStatusBar="false" maximizable="false" minimizable="false"
+	defaultButton="{btnOK}"
+    title="Import">
+
+    <mx:Script>
+        <![CDATA[
+import com.FileHandling.Serialize;
+import flash.events.Event;
+import flash.filesystem.File;
+import flash.net.FileFilter;
+
+			public static var lastFile:File = null;
+           
+            private function ok():void
+			{
+				ForceClose();
+            }
+			
+			private function importFile():void
+			{
+				var fileChooser:File;
+				if ( lastFile != null )
+				{
+					fileChooser = lastFile;
+				}
+				else
+				{
+					fileChooser = App.getApp().GetCurrentFile();
+					if ( fileChooser )
+					{
+						fileChooser = fileChooser.clone();
+					}
+				}
+				if (!fileChooser)
+				{
+					fileChooser = File.documentsDirectory.resolvePath('NewProject.dam');
+				}
+				var filter:FileFilter = new FileFilter("DAM project files", "*.dam");
+				fileChooser.browseForOpen("Select Project", [filter]);
+				solveFileChooserModality(fileChooser);
+				fileChooser.addEventListener(Event.SELECT, OpenChosenFile);
+			}
+            
+			private function OpenChosenFile(event:Event):void 
+			{
+				lastFile = event.target as File;
+				Serialize.OpenProject(lastFile, null, false, Append.selected, 
+					EntireProject.selected,
+					IncludeSprites.selected,
+					IncludeMatrix.selected,
+					IncludeBrushes.selected,
+					IncludeLayers.selected,
+					IncludeSettings.selected,
+					ImagePathRelative.selected);
+				lastFile.removeEventListener(Event.SELECT, OpenChosenFile);
+			}
+           
+            override protected function init():void
+			{
+				width = container.width + 20;
+				height = container.height + titleBar.height + 20;
+				
+				ShowTitleBarIcons = false;
+				
+				super.init();
+            }
+			
+			private function ChangeProjectScope():void
+			{
+				IncludeSprites.enabled = !EntireProject.selected;
+				IncludeMatrix.enabled = !EntireProject.selected;
+				IncludeSettings.enabled = !EntireProject.selected;
+				IncludeLayers.enabled = !EntireProject.selected;
+				IncludeBrushes.enabled = !EntireProject.selected;
+			}
+           
+        ]]>
+    </mx:Script>
+
+	
+	<mx:VBox id="container" horizontalAlign="center" width="100%" >
+		<mx:Form>
+			<mx:Label text="Choose import options..."/>
+			<mx:CheckBox id="EntireProject" label="Entire Project" change="ChangeProjectScope();" />
+			<mx:CheckBox id="IncludeSprites" label="Include Sprites"/>
+			<mx:CheckBox id="IncludeMatrix" label="Include Matrix"/>
+			<mx:CheckBox id="IncludeBrushes" label="Include Brushes"/>
+			<mx:CheckBox id="IncludeSettings" label="Include Settings"/>
+			<mx:CheckBox id="IncludeLayers" label="Include Layers"/>
+			<mx:HBox>
+				<mx:RadioButtonGroup id="appendGroup" />
+				<mx:RadioButton id="Append" label="Append" selected="true" group="{appendGroup}" />
+				<mx:RadioButton id="Replace" label="Replace" group="{appendGroup}"/>
+			</mx:HBox>
+			<mx:Label text="Load images..."/>
+			<mx:HBox>
+				<mx:RadioButtonGroup id="ImagePathGroup" />
+				<mx:RadioButton id="ImagePathExact" label="from specified locations." selected="true" group="{ImagePathGroup}"/>
+				<mx:RadioButton id="ImagePathRelative" label="as same files within current project folder." group="{ImagePathGroup}" />
+			</mx:HBox>
+		</mx:Form>
+		<mx:HBox>
+			<mx:Button id="btnImport" label="Import..." click="importFile()" />
+			<mx:Button id="btnOK" label="OK" click="ok()" />
+		</mx:HBox>
+	</mx:VBox>
+</comUI:PopupWindow>

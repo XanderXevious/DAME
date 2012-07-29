@@ -1,0 +1,373 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<comUI:PopupWindow xmlns:mx="http://www.adobe.com/2006/mxml" xmlns:comUI="com.UI.*"
+    width="100%" height="100%" creationComplete="init()"
+	resizable="true" showGripper="false" showStatusBar="false" maximizable="false" minimizable="false"
+    defaultButton="{btnOK}" title="Edit Text" horizontalAlign="center" verticalAlign="middle">
+
+    <mx:Script>
+        <![CDATA[
+			import com.Game.TextObject;
+			import com.photonstorm.flixel.FlxBitmapFont;
+			import com.Tiles.ImageBank;
+			import com.Utils.Misc;
+			import flash.display.BitmapData;
+			import flash.events.Event;
+			import flash.filesystem.File;
+			import flash.net.FileFilter;
+			import flash.text.Font;
+			import flash.text.TextField;
+			import com.EditorState;
+			import com.Game.ShapeObject;
+			import com.Utils.Global;
+			import flash.desktop.NativeApplication;
+			import flash.text.TextFormat;
+			import mx.collections.ArrayCollection;
+			import com.Operations.HistoryStack;
+			import com.Operations.OperationModifyText;
+			
+			private var currentFile:File = null;
+			private var bitmap:BitmapData = null;
+			
+			public var textObject:TextObject = null;
+			
+	
+            private function ok():void
+			{
+				if ( textObject )
+				{
+					var alignment:String = alignButtons.dataProvider.getItemAt(alignButtons.selectedIndex).action;
+					if (internalFont.selected )
+					{
+						HistoryStack.BeginOperation( new OperationModifyText( textObject ) );
+						textObject.text.text = Text.text;
+						/*var tf:TextFormat = textObject.text.getTextFormat();
+						tf.bold = boldButton.selected;
+						tf.italic = italicButton.selected;
+						tf.underline = underlineButton.selected;*/
+						
+						textObject.text.setFormat(Family.text, uint(Size.text), Color.selectedColor, alignment);
+						textObject.text.Regen();
+						if ( textObject.bmpText )
+						{
+							if ( textObject.bmpText.bmpFile )
+							{
+								ImageBank.RemoveImageRef( textObject.bmpText.bmpFile );
+								textObject.bmpText.bmpFile = null;
+							}
+							textObject.bmpText = null;
+						}
+					}
+					else if ( currentFile && bitmap )
+					{
+						textObject.bmpText = new FlxBitmapFont(bitmap, CharWidth.value, CharHeight.value, FontSet.text, 0 );
+						textObject.bmpText.width = textObject.width;
+						textObject.bmpText.height = textObject.height;
+						if ( alignment == "justify" )
+							alignment = "left";
+						textObject.bmpText.scaler = Scale.value;
+						textObject.bmpText.autoTrim = AutoTrim.selected;
+						textObject.bmpText.setText( Text.text, true, CharSpaceX.value, CharSpaceY.value, alignment, false);
+						textObject.bmpText.bmpFile = currentFile;
+						textObject.bmpText.characterSetType = FontSetCombo.selectedLabel;
+						if ( FlxBitmapFont.fontSets[ FontSetCombo.selectedIndex ] != FontSet.text )
+						{
+							textObject.bmpText.characterSetType = "Other";
+						}
+						textObject.bmpText.characterSet = FontSet.text;
+					}
+				}
+				
+				ForceClose();
+
+            }
+			
+			private function Cancel():void
+			{
+				if ( currentFile )
+				{
+					ImageBank.RemoveImageRef( currentFile );
+				}
+				ForceClose();
+			}
+           
+            override protected function init():void
+			{
+                ShowTitleBarIcons = false;
+				
+				changeFontSet();
+				
+				if ( textObject )
+				{
+					if ( textObject.bmpText )
+					{
+						fontType.selectedValue = "bitmapFont";
+						Text.setStyle("fontFamily", "Arial");
+						Text.setStyle("fontSize", 14 );
+						FontTypeStack.selectedChild = bitmapFonts;
+						Text.text = textObject.bmpText.text;
+						
+						AutoTrim.selected = textObject.bmpText.autoTrim;
+						CharWidth.value = textObject.bmpText.characterWidth;
+						CharHeight.value = textObject.bmpText.characterHeight;
+						CharSpaceX.value = textObject.bmpText.customSpacingX;
+						CharSpaceY.value = textObject.bmpText.customSpacingY;
+						FontSetCombo.selectedValue = textObject.bmpText.characterSetType;
+						FontSet.text = textObject.bmpText.characterSet;
+						if ( textObject.bmpText.characterSetType != "Other" )
+						{
+							var typeIndex:int = FlxBitmapFont.fontCharactersArray.indexOf(textObject.bmpText.characterSetType);
+							if( typeIndex != -1 )
+								FontSet.text = FlxBitmapFont.fontSets[ typeIndex ];
+						}
+						
+						if ( textObject.bmpText.align == "left")
+							alignButtons.selectedIndex = 0;
+						else if (textObject.bmpText.align == "center")
+							alignButtons.selectedIndex = 1;
+						else if (textObject.bmpText.align == "right")
+							alignButtons.selectedIndex = 2;
+
+						currentFile = textObject.bmpText.bmpFile;
+						BitmapPath.text = currentFile.nativePath;
+						bitmap = textObject.bmpText.fontSet;
+						Scale.value = textObject.bmpText.scaler;
+					}
+					else
+					{
+						var list:Array = Font.enumerateFonts(true);
+						fontFamilyArray.length = 0;
+						for ( var i:int = 0; i < list.length; i++ )
+						{
+							fontFamilyArray.push(list[i].fontName);
+						}
+						fontFamilyArray.sort();
+						
+						Text.text = textObject.text.text;
+						Color.selectedColor = textObject.text.color;
+						Size.selectedValue = String(textObject.text.size);
+						Family.selectedValue = textObject.text.font;
+						
+						var tf:TextFormat = textObject.text.getTextFormat();
+						if ( tf.align == "left")
+							alignButtons.selectedIndex = 0;
+						else if (tf.align == "center")
+							alignButtons.selectedIndex = 1;
+						else if (tf.align == "right")
+							alignButtons.selectedIndex = 2;
+						else if (tf.align == "justify")
+							alignButtons.selectedIndex = 3;
+							
+						/*underlineButton.selected = tf.underline;
+						boldButton.selected = tf.bold;
+						italicButton.selected = tf.italic;*/
+						Text.setStyle("fontFamily", tf.font);
+						Text.setStyle("fontSize", Math.min(40, Math.max(12, uint(textObject.text.size) ) ) );
+					}
+				}
+				
+				width = 550;
+				height = 350;
+				
+				super.init();
+            }
+			
+			private function changeFamily():void
+			{
+				Text.setStyle("fontFamily", Family.text);
+			}
+			
+			private function changeSize():void
+			{
+				Text.setStyle("fontSize", Math.min(40,Math.max(12, uint(Size.text)) ) );
+			}
+			
+			private function browseBitmap():void
+			{
+				var fileChooser:File = new File(Global.CurrentImageFile.url);
+				
+				var imageFilter:FileFilter = new FileFilter("Images", "*.bmp;*.jpg;*.jpeg;*.png");
+
+				fileChooser.browseForOpen("Load Image", [imageFilter] );
+				solveFileChooserModality(fileChooser);
+				fileChooser.addEventListener(Event.SELECT, loadFileSelected,false,0,true);
+				
+			}
+			
+			private function loadFileSelected(event:Event):void
+			{
+				var newFile:File = event.target as File;
+				if ( Misc.FilesMatch(currentFile, newFile) )
+				{
+					return;	// Same file so do nothing.
+				}
+				
+				newFile.removeEventListener(Event.SELECT, loadFileSelected);
+				ImageBank.LoadImage( event.target as File, imageLoaded );
+			}
+			
+			private function imageLoaded( data:Bitmap, file:File ):void
+			{
+				if ( !Misc.FilesMatch(file, currentFile ) )
+				{
+					ImageBank.RemoveImageRef( currentFile );
+				}
+				currentFile = file;
+				BitmapPath.text = currentFile.nativePath;
+				
+				bitmap = data.bitmapData;
+				
+				Global.CurrentImageFile = new File(currentFile.url);
+			}
+			
+			private function changeFontType(event:Event):void
+			{
+				if (event.currentTarget.selectedValue == "internalFont")
+				{
+					FontTypeStack.selectedChild = systemFonts;
+					changeFamily();
+					changeSize();
+				}
+				else
+				{
+					Text.setStyle("fontFamily", "Arial");
+					Text.setStyle("fontSize", 14 );
+					FontTypeStack.selectedChild = bitmapFonts;
+				}
+			}
+			
+			private function changeFontSet():void
+			{
+				FontSet.text = FlxBitmapFont.fontSets[ FontSetCombo.selectedIndex ];
+			}
+           
+        ]]>
+    </mx:Script>
+	
+	<mx:Array id="fontFamilyArray"> 
+		<mx:String>_sans</mx:String>
+		<mx:String>_serif</mx:String>
+		<mx:String>_typewriter</mx:String>
+		<mx:String>Arial</mx:String>
+		<mx:String>Courier</mx:String>
+		<mx:String>Courier New</mx:String>
+		<mx:String>Geneva</mx:String>
+		<mx:String>Georgia</mx:String>
+		<mx:String>Helvetica</mx:String>
+		<mx:String>system</mx:String>
+		<mx:String>Times New Roman</mx:String>
+		<mx:String>Times</mx:String>
+		<mx:String>Verdana</mx:String>
+	</mx:Array>
+
+	<mx:Array id="fontSizeArray"> 
+		<mx:String>8</mx:String>
+		<mx:String>9</mx:String>
+		<mx:String>10</mx:String>
+		<mx:String>11</mx:String>
+		<mx:String>12</mx:String>
+		<mx:String>14</mx:String>
+		<mx:String>16</mx:String>
+		<mx:String>18</mx:String>
+		<mx:String>20</mx:String>
+		<mx:String>22</mx:String>
+		<mx:String>24</mx:String>
+		<mx:String>26</mx:String>
+		<mx:String>28</mx:String>
+		<mx:String>36</mx:String>
+		<mx:String>48</mx:String>
+		<mx:String>72</mx:String>
+	</mx:Array>
+	
+	<!--<mx:Array id="fontCharactersArray">
+		<mx:String id="TextSet1">Full Set</mx:String>
+		<mx:String id="TextSet2">Half Set</mx:String>
+		<mx:String id="TextSet3">Alpha Num 1</mx:String>
+		<mx:String id="TextSet4">Alpha Num 2</mx:String>
+		<mx:String id="TextSet5">Alpha Symbol Num 1</mx:String>
+		<mx:String id="TextSet6">Alpha Symbol Num 2</mx:String>
+		<mx:String id="TextSet9">Alpha Symbol Num 3</mx:String>
+		<mx:String id="TextSet11">Alpha Symbol Num 4</mx:String>
+		<mx:String id="TextSet7">AGMSY</mx:String>
+		<mx:String id="TextSet8">Num Alpha</mx:String>
+		<mx:String id="TextSet10">Alpha</mx:String>
+		<mx:String id="Other">Other</mx:String>
+	</mx:Array>-->
+
+	<mx:VBox id="container" width="100%" height="100%">
+		<mx:HBox width="100%">
+			<mx:Label text="Font Type" width="100" />
+			<mx:RadioButtonGroup id="fontType" itemClick="changeFontType(event);"/>
+			<mx:RadioButton groupName="fontType" 
+				id="internalFont" 
+				value="internalFont" 
+				label="Internal Font"
+				selected="true"
+				/>
+			<mx:RadioButton groupName="fontType" 
+				id="bitmapFont" 
+				value="bitmapFont" 
+				label="Bitmap Font" />
+
+			<!--<comUI:MyComboBox id="Types" dataProvider="{fontTypeArray}" editable="false" change="changeFontType()" />-->
+		</mx:HBox>
+		<mx:ViewStack id="FontTypeStack" width="100%" height="100%" creationPolicy="all">
+			<mx:HBox id="systemFonts" width="100%" height="100%">
+				<comUI:MyComboBox id="Family" dataProvider="{fontFamilyArray}" editable="false" change="changeFamily()" />
+				<comUI:MyComboBox id="Size" dataProvider="{fontSizeArray}" editable="true" change="changeSize()" />
+				<mx:ColorPicker id="Color" selectedColor="0x000000" swatchPanelStyleName="colorsPopupSwatchPanelStyle" />
+				<!--<mx:HBox id="toolBar2" horizontalGap="0">
+					<mx:Button id="boldButton" width="20" toggle="true"
+							   icon="@Embed('../../../assets/icon_style_bold.png')" /> 
+					<mx:Button id="italicButton" width="20" toggle="true"
+							   icon="@Embed('../../../assets/icon_style_italic.png')" /> 
+					<mx:Button id="underlineButton" width="20" toggle="true"
+							   icon="@Embed('../../../assets/icon_style_underline.png')" />
+				</mx:HBox>-->
+			</mx:HBox>
+			<mx:VBox id="bitmapFonts" width="100%" height="100%">
+				<mx:HBox width="100%">
+					<mx:Label text="Bitmap" textAlign="right" />
+					<mx:TextInput id="BitmapPath" width="250" toolTip="Location of image containing the bitmap font." />
+					<mx:Button id="LoadBitmapButton" label="..." click="browseBitmap()" />
+				</mx:HBox>
+				<mx:HBox width="100%">
+					<mx:Label text="Character Width" textAlign="right" />
+					<mx:NumericStepper id="CharWidth" stepSize="1" value="32" minimum="4" maximum="999" toolTip="Width of each character in pixels." />
+					<mx:Label text="Character Height" textAlign="right"/>
+					<mx:NumericStepper id="CharHeight" stepSize="1" value="32" minimum="4" maximum="999" toolTip="Height of each character in pixels." />
+					<mx:Label text="Scale" />
+					<mx:NumericStepper id="Scale" stepSize="0.01" value="1" minimum="0.01" maximum="100" toolTip="Scale of the bitmap font." />
+				</mx:HBox>
+				<mx:HBox width="100%">
+					<mx:Label text="Character Space:" textAlign="right" />
+					<mx:Label text="X:" textAlign="right" />
+					<mx:NumericStepper id="CharSpaceX" stepSize="1" value="0" minimum="-50" maximum="99" toolTip="Horizontal space between each character." />
+					<mx:Label text="Y" textAlign="right"/>
+					<mx:NumericStepper id="CharSpaceY" stepSize="1" value="0" minimum="-50" maximum="99" toolTip="Vertical space between each line." />
+					<mx:CheckBox id="AutoTrim" label="Trim Words To Lines" selected="true" toolTip="Keeps words inside the textbox as much as possible and trying not to split words.." />
+				</mx:HBox>
+				<mx:HBox>
+					<mx:Label text="Font Characters" textAlign="right" width="100" />
+					<comUI:MyComboBox id="FontSetCombo" dataProvider="{FlxBitmapFont.fontCharactersArray}" editable="false" change="changeFontSet()" />
+					<mx:TextInput id="FontSet" width="250" toolTip="The list of characters in order of their use in the bitmap." />
+				</mx:HBox>
+			</mx:VBox>
+		</mx:ViewStack>
+		<mx:ToggleButtonBar id="alignButtons" buttonWidth="20" >
+			<mx:dataProvider>
+				<mx:Array>
+					<mx:Object icon="@Embed('../../../assets/icon_align_left.png')" action="left"/>
+					<mx:Object icon="@Embed('../../../assets/icon_align_center.png')" action="center"/>
+					<mx:Object icon="@Embed('../../../assets/icon_align_right.png')" action="right"/>
+					<mx:Object icon="@Embed('../../../assets/icon_align_justify.png')" action="justify"/>
+				</mx:Array>
+			</mx:dataProvider>
+		</mx:ToggleButtonBar>
+		<mx:TextArea id="Text" width="100%" height="100%" minHeight="100" />
+		
+		<mx:HBox horizontalAlign="center" width="100%">
+			<mx:Button id="btnOK" label="OK" click="ok()" />
+			<mx:Button id="btnCancel" label="Cancel" click="Cancel()" />
+		</mx:HBox>
+	</mx:VBox>
+</comUI:PopupWindow>

@@ -1,0 +1,121 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<comUI:PopupWindow xmlns:mx="http://www.adobe.com/2006/mxml" xmlns:comUI="com.UI.*"
+    width="100%" height="100%"
+	resizable="false" showGripper="false" showStatusBar="false" maximizable="false" minimizable="false"
+    defaultButton="{btnOK}" title="Keyboard shortcuts">
+    <mx:Script>
+        <![CDATA[
+
+			
+            private function ok():void
+			{
+				ForceClose();
+            }
+
+            override protected function init():void
+			{
+				width = container.width + 20;
+				height = container.height + titleBar.height + 20;
+				super.init();
+            }
+			
+           
+        ]]>
+    </mx:Script>
+
+
+	<mx:VBox id="container" width="100%" horizontalAlign="center">
+		<mx:Form width="420" height="300" horizontalScrollPolicy="off">
+			<mx:FormItem label="CTRL + Arrow keys">
+				<mx:Text width="250" text="Move around map."/>
+			</mx:FormItem>
+			<mx:FormItem label="Middle Mouse">
+				<mx:Text width="250" text="Move around map."/>
+			</mx:FormItem>
+			<mx:FormItem label="Middle Mouse + D">
+				<mx:Text width="250" text="Drag map."/>
+			</mx:FormItem>
+			<mx:FormItem label="Mouse wheel">
+				<mx:Text width="250" text="Zoom."/>
+			</mx:FormItem>
+			<mx:FormItem label="CTRL +(PLUS)">
+				<mx:Text width="250" text="Zoom In."/>
+			</mx:FormItem>
+			<mx:FormItem label="CTRL -(MINUS)">
+				<mx:Text width="250" text="Zoom Out."/>
+			</mx:FormItem>
+			<mx:FormItem label="Mouse wheel">
+				<mx:Text width="250" text="Zoom."/>
+			</mx:FormItem>
+			<mx:FormItem label="R+Left Mouse">
+				<mx:Text width="250" text="Rotate selected objects"/>
+			</mx:FormItem>
+			<mx:FormItem label="Alt+Left Mouse">
+				<mx:Text width="250" text="Scale selected objects"/>
+			</mx:FormItem>
+			<mx:FormItem label="Delete">
+				<mx:Text width="250" text="Delete selected objects/tiles"/>
+			</mx:FormItem>
+			<mx:FormItem label="X">
+				<mx:Text width="250" text="Only move the cursor horizontally."/>
+			</mx:FormItem>
+			<mx:FormItem label="Y">
+				<mx:Text width="250" text="Only move the cursor vertically."/>
+			</mx:FormItem>
+			<mx:FormItem label="Z">
+				<mx:Text width="250" text="Move selected objects vertically (2.5d)."/>
+			</mx:FormItem>
+			<mx:FormItem label="Z">
+				<mx:Text width="250" text="Paint/Erase top of tile stack/ Move tile stack location in infinite stack mode"/>
+			</mx:FormItem>
+			<mx:FormItem label="Z">
+				<mx:Text width="250" text="Paint/Erase top of tile stack/ Move tile stack location in infinite stack mode"/>
+			</mx:FormItem>
+			<mx:FormItem label="T">
+				<mx:Text width="250" text="For spritesheets - transform the region used. When dragging handles, scales the region."/>
+			</mx:FormItem>
+			<mx:FormItem label="[">
+				<mx:Text width="250" text="Move tile stack location down when NOT in infinite stack mode."/>
+			</mx:FormItem>
+			<mx:FormItem label="]">
+				<mx:Text width="250" text="Move tile stack location up when NOT in infinite stack mode."/>
+				</mx:FormItem>
+			<mx:FormItem label="S">
+				<mx:Text width="250" text="When scaling scales uniformly."/>
+			</mx:FormItem>
+			<mx:FormItem label="+">
+				<mx:Text width="250" text="Send the object to the front of the layer."/>
+			</mx:FormItem>
+			<mx:FormItem label="-">
+				<mx:Text width="250" text="Send the object to the back of the layer."/>
+			</mx:FormItem>
+			<mx:FormItem label="SHIFT + Arrow keys">
+				<mx:Text width="250" text="Navigate Layers/Sprites list."/>
+			</mx:FormItem>
+			<mx:FormItem label="SPACE">
+				<mx:Text width="250" text="Set current tile to one under cursor."/>
+			</mx:FormItem>
+			<mx:FormItem label=",(COMMA)">
+				<mx:Text width="250" text="Use Previous tile in tile palette."/>
+			</mx:FormItem>
+			<mx:FormItem label=".(PERIOD)">
+				<mx:Text width="250" text="Use next tile in tile palette."/>
+			</mx:FormItem>
+			<mx:FormItem label="Arrow keys">
+				<mx:Text width="250" text="Move selected objects by 1px in the direction."/>
+			</mx:FormItem>
+			<mx:FormItem label="B">
+				<mx:Text width="250" text="Switch to paint brush mode."/>
+			</mx:FormItem>
+			<mx:FormItem label="V">
+				<mx:Text width="250" text="Switch to selection mode."/>
+			</mx:FormItem>
+			<mx:FormItem label="L">
+				<mx:Text width="250" text="In Draw on tiles mode: Lock current tile to tile under cursor."/>
+			</mx:FormItem>
+		</mx:Form>
+		<mx:HBox horizontalAlign="center" width="100%">
+			<mx:Button id="btnOK" label="OK" click="ok()" />
+		</mx:HBox>
+	</mx:VBox>
+</comUI:PopupWindow>

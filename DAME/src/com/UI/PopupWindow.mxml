@@ -1,0 +1,418 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<mx:Window xmlns:mx="http://www.adobe.com/2006/mxml" 
+    width="100%" height="100%" creationComplete="init()"
+	showStatusBar="false" close="closing=true;" titleAlignment="right"
+    type="utility" closeEffect="closeEffect" transparent="true" alwaysInFront="true" >
+    <mx:Script>
+        <![CDATA[
+			import com.MainGame;
+			import com.Utils.CustomEvent;
+			import com.UI.PopupWindowManager;
+			import com.Utils.Global;
+			import flash.display.NativeWindow;
+			import flash.display.Screen;
+			import flash.events.Event;
+			import flash.events.KeyboardEvent;
+			import flash.events.MouseEvent;
+			import flash.events.NativeWindowBoundsEvent;
+			import flash.events.NativeWindowDisplayStateEvent;
+			import flash.filesystem.File;
+
+			public var Owner:Object;
+			
+			private var closedFromButton:Boolean = false;
+			private var closing:Boolean = false;
+			public function get Closing():Boolean { return closing; }
+			private var applyCenter:Boolean = false;
+			private var isModal:Boolean = false;
+			
+			public var AlwaysInFront:Boolean = true;
+			
+			protected var canClose:Boolean = true;
+			
+			protected var savedHeight:uint = 0;
+			
+			private var isShrunk:Boolean = false;
+			protected function get IsShrunk():Boolean { return isShrunk; }
+			
+			protected var doubleClickTitleBarShrinks:Boolean = false;
+			
+			protected var tempDisableModalCounter:uint = 0;
+			
+			protected var wasMinimized:Boolean = false;
+			protected var minimizedToStatusBar:Boolean = false;
+			public function get Minimized():Boolean { return minimizedToStatusBar; }
+			protected var active:Boolean = true;
+			
+			// Store title separately as the title can change on some windows to include extra info like tile ids.
+			protected var titleName:String = "";
+			
+			protected var minimizedTitle:String = "";
+			
+			protected function AllowMinimizeToStatusBar():void
+			{
+				// Little hack to get the minimize button to show up where the close button normally is!
+				setStyle("closeButtonSkin", getStyle("minimizeButtonSkin"));
+				addEventListener(Event.CLOSING, onMinimize);
+			}
+			
+			protected function onMinimize(event:Event):void
+			{
+				event.preventDefault();
+				MakeMinimized();
+			}
+			
+			public function MakeMinimized():void
+			{
+				minimizedTitle = titleName != "" ? titleName : title;
+				Global.windowedApp.MyStatusBar.AddMinimizedWindow(minimizedTitle, onRestore);
+				visible = false;
+				minimizedToStatusBar = true;
+			}
+			
+			protected function onRestore(event:Event):void
+			{
+				Global.windowedApp.MyStatusBar.RemoveMinimizedWindow(minimizedTitle);
+				minimizedToStatusBar = false;
+				if ( active )
+				{
+					visible = true;
+				}
+			}
+			
+			public function set Active( isActive:Boolean):void
+			{
+				active = isActive;
+				if ( !minimizedToStatusBar )
+				{
+					visible = isActive;
+				}
+			}
+			
+			public function hide():void
+			{
+				ChangeVisibility(false);
+				App.getApp().showSpriteTrailSettingsMenuItem.checked = false;
+			}
+			
+			public function ChangeVisibility( show:Boolean):void
+			{
+				if ( wasMinimized && !active && !visible && show )
+				{
+					Global.MyStatusBar.AddMinimizedWindow(titleName, onRestore);
+					minimizedToStatusBar = true;
+					visible = false;
+				}
+				Active = show;
+				
+				if ( visible )
+				{
+				}
+				else if (!active )
+				{
+					if ( minimizedToStatusBar )
+					{
+						wasMinimized = true;
+						Global.MyStatusBar.RemoveMinimizedWindow(titleName);
+						minimizedToStatusBar = false;
+						visible = false;
+					}
+					else
+					{
+						wasMinimized = false;
+					}
+				}
+			}
+			
+			public function get Active():Boolean { return active; }
+			
+			public function set ShowTitleBarIcons( value:Boolean):void
+			{
+				// This does a simple job of removing all the close and minimize buttons.
+				setStyle("closeButtonSkin", hiddenIcon);
+				setStyle("minimizeButtonSkin", hiddenIcon);
+				setStyle("maximizeButtonSkin", hiddenIcon);
+				canClose = false;
+			}
+			
+			public function SetModal():void
+			{
+				if ( !isModal )
+				{
+					AlwaysInFront = false;
+					isModal = true;
+					if ( nativeWindow )
+					{
+						makeModal();
+					}
+				}
+			}
+			
+			private function makeModal():void
+			{
+				nativeWindow.activate();
+				//nativeWindow.addEventListener('displayStateChanging',function(e:Event):void {e.preventDefault()});
+				//nativeWindow.addEventListener('closing',function(e:Event):void {e.preventDefault()});
+			}
+			
+			public function ReenforceModality():void
+			{
+				restoreModalFocus();
+			}
+			
+			private function updateDisplayState(event:NativeWindowDisplayStateEvent):void
+			{
+				if (event.afterDisplayState == "minimized" )
+				{
+					visible = false;
+				}
+				else
+				{
+					visible = active && !minimizedToStatusBar;
+				}
+			}
+			
+			public function CenterWindow():void
+			{
+				if ( !stage )
+				{
+					applyCenter = true;
+					return;
+				}
+				var screens:Array = Screen.getScreensForRectangle(stage.nativeWindow.bounds);
+				var current:Screen = (screens.length > 0) ? screens[0] : Screen.mainScreen;
+				
+				// Center this window in front of the parent App window
+				var parentWindow:NativeWindow = App.getApp().stage.nativeWindow;
+				nativeWindow.x = parentWindow.x + ( Owner.width / 2 ) - (width / 2) ;
+				nativeWindow.y = parentWindow.y + ( Owner.height / 2 ) - (height / 2) ;
+				if ( parentWindow != Owner )
+				{
+					nativeWindow.x += Owner.x;
+					nativeWindow.y += Owner.y;
+				}
+				
+				// If this window is outside of the current screen bounds then push it back in.
+				if ( nativeWindow.x < current.bounds.x )
+				{
+					nativeWindow.x = current.bounds.x;
+				}
+				else if ( nativeWindow.x + width > current.bounds.right )
+				{
+					nativeWindow.x = current.bounds.right - width;
+				}
+				
+				if ( nativeWindow.y < current.bounds.y )
+				{
+					nativeWindow.y = current.bounds.y;
+				}
+				else if ( nativeWindow.y + height > current.bounds.bottom )
+				{
+					nativeWindow.y = current.bounds.bottom - height;
+				}
+				updatePos();
+				applyCenter = false;
+			}
+           
+           
+            protected function ForceClose():void
+			{
+				PopupWindowManager.UnregisterPopup(this);	// In case it doesn't get the close event.
+				closedFromButton = true;
+				closing = true;
+				closeEffect.play( [this] );
+            }
+			
+			public function CloseWindow():void
+			{
+				ForceClose();
+			}
+			
+
+            protected function init():void
+			{
+				// Solve a problem caused by releasing keys when over a different window but not getting the key up event.
+				nativeWindow.stage.addEventListener(KeyboardEvent.KEY_UP, MainGame.flxGame.onKeyUp);
+				App.getApp().stage.nativeWindow.addEventListener(NativeWindowDisplayStateEvent.DISPLAY_STATE_CHANGE, updateDisplayState );
+					
+				nativeWindow.addEventListener(NativeWindowBoundsEvent.MOVE, updatePos);
+				nativeWindow.addEventListener(NativeWindowBoundsEvent.RESIZE, updatePos);
+				
+				if ( applyCenter )
+				{
+					CenterWindow();
+				}
+				if ( isModal )
+				{
+					makeModal();
+				}
+				addEventListener(Event.DEACTIVATE, onAppDeactivate);
+				App.getApp().stage.nativeWindow.addEventListener(Event.ACTIVATE, onAppActivate);
+				App.getApp().stage.nativeWindow.addEventListener("EnforeWindowOrder", onAppWindowOrderChanged);
+				nativeWindow.addEventListener('deactivate', restoreModalFocus);
+				updatePos();
+				
+				if ( !minimizable )
+				{
+					setStyle("minimizeButtonSkin", hiddenIcon);
+				}
+				if ( !maximizable )
+				{
+					setStyle("maximizeButtonSkin", hiddenIcon);
+				}
+				if ( !canClose )
+				{
+					setStyle("closeButtonSkin", hiddenIcon);
+				}
+				if ( AlwaysInFront )
+				{
+					onAppActivate();
+				}
+				
+				titleBar.addEventListener(MouseEvent.DOUBLE_CLICK, titleBarDoubleClickHandler,false,0,true);
+            }
+			
+			protected function titleBarDoubleClickHandler(event:MouseEvent):void
+			{
+				if ( doubleClickTitleBarShrinks )
+				{
+					if ( isShrunk )
+					{
+						height = savedHeight;
+						isShrunk = false;
+					}
+					else
+					{
+						savedHeight = height;
+						height = 0;
+						isShrunk = true;
+					}
+				}
+			}
+			
+			protected function updatePos(event:NativeWindowBoundsEvent=null):void
+			{
+				CloseMoveEffect.xFrom = nativeWindow.x;
+				CloseMoveEffect.xTo = nativeWindow.x;
+				CloseMoveEffect.yFrom = nativeWindow.y;
+				
+				//trace( ( nativeWindow.x + nativeWindow.stage.mouseX ) + "," + ( nativeWindow.y + nativeWindow.stage.mouseY ) );
+			}
+			
+			// Keep the window in front of the main app but not others. alwaysInFront actually keeps it in front of
+			// every window. To make it only stay in front of the app we turn it off when the app loses focus.
+			private function onAppDeactivate(event:Event):void 
+			{
+				if ( tempDisableModalCounter == 0 )
+				{
+					alwaysInFront = false;
+					
+					nativeWindow.orderInBackOf( App.getApp().stage.nativeWindow );
+				}
+			}
+
+			private function onAppActivate(event:Event = null):void 
+			{
+				if ( AlwaysInFront || ( isModal && tempDisableModalCounter ) )
+				{
+					nativeWindow.orderInFrontOf( App.getApp().stage.nativeWindow );
+					alwaysInFront = true;
+				}
+			}
+			
+			private function onAppWindowOrderChanged(event:Event = null):void 
+			{
+				// When the app is gone from out of focus to focus but a modal window got priority, the
+				// modal would activate and prevent this window from being visible. This enforces the visibility.
+				if ( AlwaysInFront )
+				{
+					nativeWindow.orderInFrontOf( App.getApp().stage.nativeWindow );
+				}
+			}
+			
+			protected function solveFileChooserModality(fileChooser:File):void
+			{
+				fileChooser.addEventListener(Event.ACTIVATE, browserOpen,false,0,true);
+				fileChooser.addEventListener(Event.CANCEL, fileChooserClosed,false,0,true);
+				fileChooser.addEventListener(Event.SELECT, fileChooserClosed, false, 0, true);
+			}
+			
+			private function browserOpen(event:Event):void
+			{
+				if ( !tempDisableModalCounter)
+				{
+					tempDisableModalCounter = 1;
+				}
+			}
+			
+			private function fileChooserClosed(event:Event):void
+			{
+				tempDisableModalCounter = 0;
+				restoreModalFocus(event);
+			}
+			
+			// Ensure modal windows always steal focus from all other windows in the app.
+			protected function restoreModalFocus(event:Event = null):void
+			{
+				if ( closing )
+				{
+					return;
+				}
+				if ( tempDisableModalCounter )
+				{
+					tempDisableModalCounter++;
+				}
+
+				if ( isModal && tempDisableModalCounter<3)
+				{
+					if ( PopupWindowManager.GetTopModalWindow() == this )
+					{
+						nativeWindow.activate();
+						showFocusWarning(event);
+						App.getApp().stage.nativeWindow.dispatchEvent(new CustomEvent("EnforeWindowOrder"));
+					}
+				}
+			}
+			
+			private function showFocusWarning(event:Event=null):void
+			{
+				if( !closing )
+				{					
+					focusEffect.end();
+					var children:Array = getChildren();
+					focusEffect.play(children);
+				}
+			}
+			
+			private function endCloseEffect(event:Event=null):void
+			{
+				if ( closedFromButton )
+				{
+					stage.nativeWindow.close();
+				}
+				App.getApp().stage.nativeWindow.removeEventListener(Event.ACTIVATE, onAppActivate);
+				App.getApp().stage.nativeWindow.removeEventListener("EnforeWindowOrder", onAppWindowOrderChanged);
+			}
+			
+			[Bindable]
+			[Embed('../../../assets/hiddenIcon.png')]
+			protected var hiddenIcon:Class;
+           
+        ]]>
+			
+
+    </mx:Script>
+	
+	
+
+	
+	<mx:Parallel id="closeEffect" effectEnd="endCloseEffect()">
+        <mx:Fade duration="300" alphaFrom="{alpha}" alphaTo="0" />
+        <mx:Move id="CloseMoveEffect" yTo="500" duration="300" />
+    </mx:Parallel>
+	
+	<mx:Parallel id="focusEffect">
+        <mx:Glow duration="300" alphaFrom="0.5" alphaTo="0.0" blurXFrom="0.0" blurXTo="5.0" blurYFrom="0.0" blurYTo="5.0" color="0x009933" />
+    </mx:Parallel>
+
+</mx:Window>
