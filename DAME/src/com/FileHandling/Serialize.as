@@ -85,7 +85,7 @@
 		static private var finishedLoadingSprites:Boolean = true;
 		//{ region Saving
 		
-		static public function SaveProject( file:File, spritesFile:File = null ):void
+		static public function SaveProject( file:File, settingsFile:File = null ):void
 		{
 			var date:Date = new Date;
 			//LogWindow.LogWriteLine("");
@@ -105,12 +105,12 @@
 					//LogWindow.LogWriteLine("<font color=\"#FF0000\">Error when writing to file:" + error.message + "</font>");
 				}
 			}
-			if ( spritesFile && spritesFile.exists )
+			if ( settingsFile && settingsFile.exists )
 			{
 				try
 				{
-					backupFile = new File( spritesFile.url + ".bak" );
-					spritesFile.copyTo( backupFile, true);
+					backupFile = new File( settingsFile.url + ".bak" );
+					settingsFile.copyTo( backupFile, true);
 				}
 				catch(error:Error)
 				{
@@ -139,20 +139,22 @@
 			xml.appendChild( < firstLayersTop > { Global.DisplayLayersFirstOnTop } </firstLayersTop > );
 			
 			var spritesXml:XML = < spriteEntries />;
-			if ( spritesFile )
+			var settingsXmlData:XML = <project></project>;
+			if ( settingsFile )
 			{
-				Global.CurrentSpriteEntriesFile = spritesFile;
-				Global.SaveSpritesSeparetely = true;
-				var spritesXmlData:XML = <project></project>;
-				spritesXmlData.appendChild( spritesXml );
-				
-				var spritesFileName:String = ResolvePath( Global.CurrentProjectFile.parent, spritesFile );
-				xml.appendChild( < spriteEntriesFile >{ spritesFileName }</spriteEntriesFile> );			
-				Global.CurrentProjectFile = spritesFile;
+				var settingsFileName:String = ResolvePath( Global.CurrentProjectFile.parent, settingsFile );
+				xml.appendChild( < settingsFile >{ settingsFileName }</settingsFile> );
+			}
+			
+			if ( settingsFile && Global.SaveSpritesSeparately )
+			{
+				Global.CurrentSettingsFile = settingsFile;
+				settingsXmlData.appendChild( spritesXml );
+				Global.CurrentProjectFile = settingsFile;
 			}
 			else
 			{
-				Global.SaveSpritesSeparetely = false;
+				//Global.SaveSpritesSeparetely = false;
 				xml.appendChild( spritesXml );
 			}
 			OutputSpriteEntries( spritesXml, app.spriteData[0], true );
@@ -164,11 +166,40 @@
 			
 			OutputGroups( xml, app, instances );
 			
+			if ( settingsFile && Global.SaveLayerTemplatesSeparately )
+			{
+				Global.CurrentProjectFile = settingsFile;
+				OutputLayerTemplates(settingsXmlData, app, instances);
+				Global.CurrentProjectFile = file;
+			}
+			else
+			{
+				OutputLayerTemplates(xml, app, instances );
+			}
+			
 			OutputInstances( xml, instances );
 			
-			OutputTileMatrix( xml, app );
+			if ( settingsFile && Global.SaveTileMatrixSeparately )
+			{
+				Global.CurrentProjectFile = settingsFile;
+				OutputTileMatrix( settingsXmlData, app );
+				Global.CurrentProjectFile = file;
+			}
+			else
+			{
+				OutputTileMatrix( xml, app );
+			}
 			
-			OutputTileBrushes( xml );
+			if ( settingsFile && Global.SaveTileBrushesSeparately )
+			{
+				Global.CurrentProjectFile = settingsFile;
+				OutputTileBrushes( settingsXmlData );
+				Global.CurrentProjectFile = file;
+			}
+			else
+			{
+				OutputTileBrushes( xml );
+			}
 			
 			var swatchesXml:XML = < colorSwatches />
 			
@@ -181,12 +212,31 @@
 			OutputBookmarks( xml, app );
 			
 			Global.SaveColorGrid( xml );
+			Global.SaveOptions( xml );
 			
 			OutputExporterSettings( xml );
 			
-			CustomPropertyType.SaveAll( xml );
+			if ( settingsFile && Global.SavePropertyTypesSeparately )
+			{
+				Global.CurrentProjectFile = settingsFile;
+				CustomPropertyType.SaveAll( settingsXmlData );
+				Global.CurrentProjectFile = file;
+			}
+			else
+			{
+				CustomPropertyType.SaveAll( xml );
+			}
 			
-			Global.SaveGridSettings( xml );
+			if ( settingsFile && Global.SaveGuidesSeparately )
+			{
+				Global.CurrentProjectFile = settingsFile;
+				Global.SaveGridSettings( settingsXmlData );
+				Global.CurrentProjectFile = file;
+			}
+			else
+			{
+				Global.SaveGridSettings( xml );
+			}
 			
 			var outputString:String = '<?xml version="1.0" encoding="utf-8"?>\n';
 			outputString += xml.toString();
@@ -201,14 +251,14 @@
 			stream.writeUTFBytes(outputString);
 			stream.close();
 			
-			if ( spritesFile )
+			if ( settingsFile )
 			{
 				outputString = '<?xml version="1.0" encoding="utf-8"?>\n';
-				outputString += spritesXmlData.toString();
+				outputString += settingsXmlData.toString();
 				outputString = outputString.replace(/\n/g, File.lineEnding);
 			
 				stream = new FileStream();
-				stream.open(spritesFile, FileMode.WRITE);	// Not async as that could cause issues.
+				stream.open(settingsFile, FileMode.WRITE);	// Not async as that could cause issues.
 				stream.addEventListener(IOErrorEvent.IO_ERROR, writeIOErrorHandler);
 				
 				stream.writeUTFBytes(outputString);
@@ -300,6 +350,7 @@
 								canScale = { data.CanScale }
 								canRotate = { data.CanRotate }
 								surfaceObject = { data.IsSurfaceObject }
+								lockRotation = { data.LockRotationTo90Degrees }
 								/> ;
 				}
 				else
@@ -325,6 +376,8 @@
 								canRotate = { data.CanRotate }
 								surfaceObject = { data.IsSurfaceObject }
 								tileIndex = { data.tilePreviewIndex }
+								canEditFrames = { data.CanEditFrames }
+								lockRotation = { data.LockRotationTo90Degrees }
 								/> ;
 								
 					var tileAnims:Vector.<TileAnim> = data.anims;
@@ -347,6 +400,13 @@
 			{
 				entryXml[ "@selected" ] = true;
 			}
+		}
+		
+		static private function OutputLayerTemplates( xml:XML, app:App, instances:Vector.<PathInstanceData> ):void
+		{
+			var templatesXml:XML = < layerTemplates/>;
+			xml.appendChild( templatesXml );
+			OutputLayers(templatesXml, app.layerTemplates, instances );
 		}
 		
 		static private function OutputGroups( xml:XML, app:App, instances:Vector.<PathInstanceData> ):void
@@ -372,15 +432,15 @@
 				}
 				layersXml.appendChild( groupXml );
 				OutputProperties(groupXml, group.properties );
-				OutputLayers(groupXml, group, instances );
+				OutputLayers(groupXml, group.children, instances );
 			}
 		}
 		
-		static private function OutputLayers( xml:XML, group:LayerGroup, instances:Vector.<PathInstanceData> ):void
+		static private function OutputLayers( xml:XML, layerCollection:ArrayCollection, instances:Vector.<PathInstanceData> ):void
 		{
-			for ( var i:uint = 0; i < group.children.length; i++ )
+			for ( var i:uint = 0; i < layerCollection.length; i++ )
 			{
-				var layer:LayerEntry = group.children[i] as LayerEntry;
+				var layer:LayerEntry = layerCollection[i] as LayerEntry;
 				var mapLayer:LayerMap = layer as LayerMap;
 				var spriteLayer:LayerSprites = layer as LayerSprites;
 				var pathLayer:LayerPaths = layer as LayerPaths;
@@ -1313,8 +1373,11 @@
 					
 					finishedLoadingSprites = false;
 					numLoadingSprites = 0;
+					var waitForSettings:Boolean = false;
 					
 					spriteIdxRemapDictionary = null;
+					
+					var settingsXml:XML = null;
 					
 					if ( entireProject || includeSprites || includeLayers )
 					{
@@ -1326,23 +1389,37 @@
 						{
 							spriteIdxRemapDictionary = new Dictionary;
 						}
-						var spriteData:SpriteEntry = app.spriteData[0];// new SpriteEntry("sprites", new ArrayCollection() );
+						var spriteData:SpriteEntry = app.spriteData[0];
 
-						if ( xml.hasOwnProperty("spriteEntriesFile") )
+						if ( xml.hasOwnProperty("spriteEntriesFile") ) // legacy
 						{
-							Global.CurrentSpriteEntriesFile = currentLoadingFile.parent.resolvePath(xml.spriteEntriesFile);
+							Global.CurrentSettingsFile = currentLoadingFile.parent.resolvePath(xml.spriteEntriesFile);
 							if ( entireProject )
 							{
-								Global.SaveSpritesSeparetely = true;
-								//currentLoadingFile = Global.CurrentSpriteEntriesFile;
+								Global.SaveSpritesSeparately = true;
 							}
-							LoadXml(Global.CurrentSpriteEntriesFile, spritesXmlLoaded);
+							LoadXml(Global.CurrentSettingsFile, spritesXmlLoaded);
+						}
+						else if( xml.hasOwnProperty("settingsFile") )
+						{
+							Global.CurrentSettingsFile = currentLoadingFile.parent.resolvePath(xml.settingsFile);
+							waitForSettings = true;
+							LoadXml(Global.CurrentSettingsFile, loadedSettings);
 						}
 						else
 						{
-							Global.CurrentSpriteEntriesFile = null;
-							Global.SaveSpritesSeparetely = false;
+							Global.CurrentSettingsFile = null;
+							Global.SaveSpritesSeparately = false;
 							spritesXmlLoaded(xml);
+						}
+						
+						function loadedSettings(settingsXmlData:XML):void
+						{
+							settingsXml = settingsXmlData;
+							CustomPropertyType.LoadAll(settingsXml);
+							spritesXmlLoaded(xml);
+							waitForSettings = false;
+							spritesXmlLoaded(settingsXmlData);
 						}
 						
 						function spritesXmlLoaded(spriteXml:XML ):void
@@ -1359,11 +1436,12 @@
 								}
 							}
 							//currentLoadingFile = Global.CurrentProjectFile;
-							if ( entireProject && Global.SaveSpritesSeparetely )
+							if ( entireProject && Global.SaveSpritesSeparately )
 							{
 								SpriteEntry.ResetSpriteEntryIds(spriteEntriesXml.@currentId);
 							}
-							finishedLoadingSprites = true;
+							if( !waitForSettings)
+								finishedLoadingSprites = true;
 						}
 					}
 					
@@ -1376,7 +1454,7 @@
 					function continueLoading( ):void
 					{
 						//trace("num sprites remaining = " + numLoadingSprites);
-						if ( numLoadingSprites != 0 || !finishedLoadingSprites )
+						if ( numLoadingSprites != 0 || !finishedLoadingSprites || waitForSettings )
 						{
 							return;
 						}
@@ -1396,11 +1474,23 @@
 						{
 							GenerateLinksDictionary(xml.links.link, linkDictionary );
 							var instances:Vector.<PathInstanceData> = new Vector.<PathInstanceData>();
-							var layerGroups:ArrayCollection = app.layerGroups;// new ArrayCollection();
+							var layerGroups:ArrayCollection = app.layerGroups;
+							layerGroups.removeAll();
 							var layersXml:XMLList = xml.layers;
 							if ( layersXml )
 							{
 								ReadLayerGroups( layersXml.group, layerGroups, spriteData, instances, linkDictionary );
+							}
+							var templatesXml:XMLList = xml.layerTemplates;
+							if ( templatesXml && templatesXml.length() > 0 )
+							{
+								app.layerTemplates.removeAll();
+								ReadLayers( templatesXml.*, null, app.layerTemplates, null, null, instances, linkDictionary );
+							}
+							if ( settingsXml && settingsXml.layerTemplates && settingsXml.layerTemplates.length() > 0 )
+							{
+								app.layerTemplates.removeAll();
+								ReadLayers( settingsXml.layerTemplates.*, null, app.layerTemplates, null, null, instances, linkDictionary );
 							}
 							
 							UpdateInstances( xml.instanceLists.path, instances );
@@ -1416,6 +1506,10 @@
 								TileConnectionList.tileConnectionLists.removeAll();
 								app.tileMatrixWindow.SpecialTilesRows.removeAllChildren();
 							}
+							if ( settingsXml )
+							{
+								ReadTileMatrix( settingsXml, app, append);
+							}
 							ReadTileMatrix( xml, app, append );
 						}
 						
@@ -1424,6 +1518,10 @@
 							if ( !append )
 							{
 								TileBrushesWindow.brushes.removeAll();
+							}
+							if ( settingsXml )
+							{
+								ReadTileBrushes( settingsXml.tileBrushes );
 							}
 							ReadTileBrushes( xml.tileBrushes );
 						}
@@ -1465,6 +1563,7 @@
 							ReadBookmarks(xml, app);
 							
 							Global.LoadColorGrid( xml );
+							Global.LoadOptions( xml.options, true );
 						}
 						
 						if ( entireProject || includeSprites || includeLayers )
@@ -1489,6 +1588,8 @@
 							
 						if ( xml.hasOwnProperty("guides") )
 							Global.LoadGridSettings( xml.guides );
+						if ( settingsXml != null && settingsXml.hasOwnProperty("guides") )
+							Global.LoadGridSettings( settingsXml.guides );
 						
 						//LogWindow.LogWriteLine("Load almost complete.");
 						
@@ -1514,7 +1615,7 @@
 							}
 						}
 						
-						if ( !Global.SaveSpritesSeparetely )
+						if ( !Global.SaveSpritesSeparately )
 						{
 							if ( entireProject )
 							{
@@ -1610,6 +1711,10 @@
 					spriteEntry.Anchor.y = entryXml.@anchorY;
 					if( entryXml.hasOwnProperty("@centerAnchor") )
 						spriteEntry.CenterAnchor = entryXml.@centerAnchor == true;
+					if ( entryXml.hasOwnProperty("@canEditFrames") )
+						spriteEntry.CanEditFrames = entryXml.@canEditFrames == true;
+					if ( entryXml.hasOwnProperty("@lockRotation") )
+						spriteEntry.LockRotationTo90Degrees = entryXml.@lockRotation == true;
 					
 					if ( entryXml.name() == "tileEntry" )
 					{
@@ -1890,7 +1995,7 @@
 					group.id = uint(xml.@id);
 				
 				ReadProperties( xml.properties.*, group );
-				ReadLayers( xml.*, group, layerGroups, spriteEntries, instances, linkDictionary );
+				ReadLayers( xml.*, group, group.children, layerGroups, spriteEntries, instances, linkDictionary );
 				
 				group.UpdateVisibility();
 				
@@ -1925,7 +2030,7 @@
 			app.layerChangedCallback();
 		}
 		
-		static private function ReadLayers( xmlList:XMLList, group:LayerGroup, layerGroups:ArrayCollection, spriteEntries:SpriteEntry, instances:Vector.<PathInstanceData>, linkDictionary:Dictionary ):void
+		static private function ReadLayers( xmlList:XMLList, group:LayerGroup, layerCollection:ArrayCollection, layerGroups:ArrayCollection, spriteEntries:SpriteEntry, instances:Vector.<PathInstanceData>, linkDictionary:Dictionary ):void
 		{
 			if ( xmlList == null )
 			{
@@ -2058,7 +2163,7 @@
 							mapLayer.SetSharesTileProperties(true);
 						}
 					}
-					group.children.addItem( mapLayer );
+					layerCollection.addItem( mapLayer );
 					ReadProperties( xml.properties.*, mapLayer );
 				}
 				else if ( xml.name() == "imagelayer" )
@@ -2076,7 +2181,7 @@
 					imageLayer.UpdateVisibility();
 					imageLayer.SetOpacity( xml.@opacity );
 					ReadProperties( xml.properties.*, imageLayer );
-					group.children.addItem( imageLayer );
+					layerCollection.addItem( imageLayer );
 					if( xml.hasOwnProperty("@selected") )
 						SelectLayer(imageLayer);
 					if ( xml.hasOwnProperty("@id") == true )
@@ -2173,7 +2278,7 @@
 						}
 					}
 					ReadProperties( xml.properties.*, spriteLayer );
-					group.children.addItem( spriteLayer );
+					layerCollection.addItem( spriteLayer );
 					if( xml.hasOwnProperty("@selected") )
 						SelectLayer(spriteLayer);
 				}
@@ -2269,7 +2374,7 @@
 						}
 					}
 					ReadProperties( xml.properties.*, shapeLayer );
-					group.children.addItem( shapeLayer );
+					layerCollection.addItem( shapeLayer );
 					if( xml.hasOwnProperty("@selected") )
 						SelectLayer(shapeLayer);
 				}
@@ -2338,7 +2443,7 @@
 						}
 					}
 					ReadProperties( xml.properties.*, pathLayer );
-					group.children.addItem( pathLayer );
+					layerCollection.addItem( pathLayer );
 					if( xml.hasOwnProperty("@selected") )
 						SelectLayer(pathLayer);
 				}

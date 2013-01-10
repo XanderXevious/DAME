@@ -152,7 +152,8 @@
 						{
 							editor.UpdateCurrentTileList(app.CurrentLayer as LayerMap);
 							
-							if ( app.brushesWindow && app.brushesWindow.visible )
+							var brushesPopup:PopupWindow = app.brushesWindow as PopupWindow;
+							if ( brushesPopup && brushesPopup.visible )
 							{
 								app.brushesWindow.recalcPreview();
 							}

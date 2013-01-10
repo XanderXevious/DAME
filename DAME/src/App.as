@@ -87,6 +87,7 @@ public class App extends Canvas
 {	
 	public var layerTree:Tree;
 	public var spriteList:Tree;
+	public var layerTemplates:ArrayCollection;
 	public var layerGroups:ArrayCollection;
 	private var game:MainGame;
 	private var divider:VBox;
@@ -207,7 +208,7 @@ public class App extends Canvas
 		
 
 		layerGroups = new ArrayCollection();
-		
+		layerTemplates = new ArrayCollection();
 	}
 	
 	public function App()
@@ -348,6 +349,7 @@ public class App extends Canvas
 		drawCurrentTileAboveMenuItem = addNewMenuItem(viewMenu, "Draw Highlighted Tile In Front", 'D', menuViewItemSelected );
 		onionSkinMenuItem = addNewMenuItem(viewMenu, "Onion Skin", '', menuViewItemSelected );
 		firstLayersTopMenuItem = addNewMenuItem(viewMenu, "Show Top Layers First", '', menuViewItemSelected );
+		addNewMenuItem(viewMenu, "Show Layer Templates", '', menuViewItemSelected );
 		firstLayersTopMenuItem.checked = Global.DisplayLayersFirstOnTop;
 		marqueesMenuItem = addNewMenuItem(viewMenu, "Rotation/Scaling Marquees", 'm', menuViewItemSelected);
 		marqueesMenuItem.checked = Global.MarqueesVisible;
@@ -381,6 +383,7 @@ public class App extends Canvas
 		tileBrushesMenuItem = addNewMenuItem(toolsMenu, "Tile Brushes", "b", menuToolsItemSelected);
 		regionOverlayMenuItem = addNewMenuItem(toolsMenu, "Show Game Region Overlay", "y", menuToolsItemSelected );
 		addNewMenuItem(toolsMenu, "Color Settings...", '', menuToolsItemSelected);
+		addNewMenuItem(toolsMenu, "Options", '', menuToolsItemSelected);
 		addNewMenuItem(toolsMenu, "Highlight Collidable Tiles", 'h', menuToolsItemSelected);
 		showSpriteTrailSettingsMenuItem = addNewMenuItem(toolsMenu, "Show Sprite Trail Settings", '', menuToolsItemSelected );
 		addSeparator(toolsMenu);
@@ -631,6 +634,8 @@ public class App extends Canvas
 
 					layerGroups.removeAll();
 					layerGroups = new ArrayCollection();
+					layerTemplates.removeAll();
+					layerTemplates = new ArrayCollection();
 					layerTree.dataProvider = layerGroups;
 					layerGroups.itemUpdated( layerGroups );
 					var currentState:EditorState = FlxG.state as EditorState;
@@ -651,8 +656,8 @@ public class App extends Canvas
 						bookmark.gotoMenu.enabled = false;
 						bookmark.location = null;
 					}
-					Global.CurrentSpriteEntriesFile = null;
-					Global.SaveSpritesSeparetely = false;
+					Global.CurrentSettingsFile = null;
+					Global.SaveSpritesSeparately = false;
 					FlxTilemapExt.ResetSharedData();
 					HistoryStack.Clear();
 					ExporterData.useProjectExporterOnly = false;
@@ -878,6 +883,10 @@ public class App extends Canvas
 				spriteTrailWindow.ChangeVisibility( false );
 			}
 		}
+		else if ( event.target.label == "Options" )
+		{
+			CreatePopupWindow( OptionsPopup, true );
+		}
 
 	}
 	
@@ -970,6 +979,10 @@ public class App extends Canvas
 		else if ( event.target.label == "Restore Lost Tool Windows" )
 		{
 			PopupWindowManager.RecenterAllWindows();
+		}
+		else if ( event.target.label == "Show Layer Templates" )
+		{
+			var templatesPopup:LayerTemplateViewer = App.CreatePopupWindow(LayerTemplateViewer, true) as LayerTemplateViewer;
 		}
 	}
 	
@@ -1102,25 +1115,25 @@ public class App extends Canvas
 	private function Save():void
 	{
 		doingSaveAs = false;
-		if ( Global.SaveSpritesSeparetely )
+		if ( Global.SaveSpritesSeparately )
 		{
-			if ( Global.CurrentSpriteEntriesFile == null )
+			if ( Global.CurrentSettingsFile == null )
 			{
 				SaveSpriteEntriesAs();
 			}
 			else
 			{
-				SaveSpritesAsChosenFile(Global.CurrentSpriteEntriesFile);
+				SaveSpritesAsChosenFile(Global.CurrentSettingsFile);
 			}
 		}
 		else if ( currentFile == null )
 		{
-			Global.CurrentSpriteEntriesFile = null;
+			Global.CurrentSettingsFile = null;
 			SaveAs();
 		}
 		else
 		{
-			Global.CurrentSpriteEntriesFile = null;
+			Global.CurrentSettingsFile = null;
 			SaveAsChosenFile(currentFile);
 		}
 	}
@@ -1129,7 +1142,7 @@ public class App extends Canvas
 	private function SaveAs():void
 	{
 		doingSaveAs = true;
-		if ( Global.SaveSpritesSeparetely )
+		if ( Global.SaveSpritesSeparately )
 		{
 			SaveSpriteEntriesAs();
 		}
@@ -1189,15 +1202,15 @@ public class App extends Canvas
 	private function SaveAsChosenFile(file:File):void 
 	{
 		currentFile = file;
-		if ( Global.SaveSpritesSeparetely )
+		if ( Global.SaveSpritesSeparately )
 		{
-			if ( !Global.CurrentSpriteEntriesFile )
+			if ( !Global.CurrentSettingsFile )
 			{
 				AlertBox.Show("No valid location found to save sprite entries to", "Save Warning.", AlertBox.OK);
 			}
 			else
 			{
-				Serialize.SaveProject(currentFile, Global.CurrentSpriteEntriesFile);
+				Serialize.SaveProject(currentFile, Global.CurrentSettingsFile);
 			}
 		}
 		else
@@ -1212,9 +1225,9 @@ public class App extends Canvas
 	private function SaveSpriteEntriesAs():void
 	{
 		var fileChooser:File;
-		if (Global.CurrentSpriteEntriesFile)
+		if (Global.CurrentSettingsFile)
 		{
-			fileChooser = Global.CurrentSpriteEntriesFile;
+			fileChooser = Global.CurrentSettingsFile;
 		}
 		else if ( currentFile )
 		{
@@ -1259,8 +1272,8 @@ public class App extends Canvas
 	
 	private function SaveSpritesAsChosenFile(file:File ):void 
 	{
-		Global.CurrentSpriteEntriesFile = file;
-		Global.CurrentSpriteEntriesFile.removeEventListener(Event.SELECT, SaveSpritesAsChosenFile);
+		Global.CurrentSettingsFile = file;
+		Global.CurrentSettingsFile.removeEventListener(Event.SELECT, SaveSpritesAsChosenFile);
 		if ( doingSaveAs || !currentFile )
 		{
 			SaveMainProjectAs();

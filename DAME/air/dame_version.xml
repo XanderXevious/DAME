@@ -1,10 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
 <update xmlns="http://ns.adobe.com/air/framework/update/description/1.0">
-<version>3.0.4</version>
+<version>3.1.1</version>
 <url>http://dambots.com/games/dame/DAME.air</url>
 <description><![CDATA[
-DAME 3.0.5
+DAME 3.1.1
+- Duplicated sprite entries now copy all relevant data.
+- Fix bug where loading a file with layer templates added duplicate entries.
+- Added more options to control what can go in the settings file.
+- Save sprites separately option has been moved to the Tools->Options window.
+- Prevent the map height options from showing up on new map layers.
+- Options will be reset upon loading a project saved before versions 3.1.0 and 3.1.1
+- Can now add layer group templates.
+
+DAME 3.1.0
+- Added layer templates (for maps only).
+- Added options in Tools->Options to impose restrictions on what can be done in a project (editing sprites/tilesets/only allow adding maps from templates...)
+- Added option to enable frame editing of sprites (enabled by default as this was a pre-existing behaviour).
+- Added option in sprites to lock rotation to 90 degree angles.
+- Fix bug where links could be generated from an object to itself.
 - Updated License for open source.
+- Added some extra info to documentation.
 
 DAME 3.0.4
 - Fix crash when using image layers.

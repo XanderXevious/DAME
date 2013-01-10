@@ -35,6 +35,13 @@
 			[Bindable]
             private var spritesContextMenu:ContextMenu;
 			private var editSpriteMenuItem:ContextMenuItem;
+			private var renameSpriteMenuItem:ContextMenuItem;
+			private var addFolderMenuItem:ContextMenuItem;
+			private var addAnimSpriteMenuItem:ContextMenuItem;
+			private var addMultipleAnimSpritesMenuItem:ContextMenuItem;
+			private var addSpritesheetMenuItem:ContextMenuItem;
+			private var duplicateSpriteMenuItem:ContextMenuItem;
+			private var deleteSpriteMenuItem:ContextMenuItem;
 			
 			private var _draggedSprite:SpriteEntry = null;
 			private var highlightedSpriteTreeItem:SpriteEntry = null;
@@ -124,6 +131,14 @@
 					}
                 }
 				
+				editSpriteMenuItem.enabled = !Global.PreventEditingSprites;
+				renameSpriteMenuItem.enabled = !Global.PreventEditingSprites;
+				addFolderMenuItem.enabled = !Global.PreventEditingSprites;
+				addAnimSpriteMenuItem.enabled = !Global.PreventEditingSprites;
+				addMultipleAnimSpritesMenuItem.enabled = !Global.PreventEditingSprites;
+				addSpritesheetMenuItem.enabled = !Global.PreventEditingSprites;
+				duplicateSpriteMenuItem.enabled = !Global.PreventEditingSprites;
+				deleteSpriteMenuItem.enabled = !Global.PreventEditingSprites;
             }
 
 			
@@ -279,33 +294,7 @@
 					var sprite:SpriteEntry = SpriteListTree.selectedItem as SpriteEntry;
 					var group:SpriteEntry = findParentEntry( App.getApp().spriteData[0], sprite );
 					
-					var newsprite:SpriteEntry = new SpriteEntry( sprite.name + "_2_" );
-					
-					if ( sprite.IsTileSprite )
-					{
-						newsprite.TileOrigin.x = sprite.TileOrigin.x;
-						newsprite.TileOrigin.y = sprite.TileOrigin.y;
-						newsprite.IsTileSprite = true;
-					}
-					else
-					{
-						newsprite.previewIndex = sprite.previewIndex;
-					}
-					newsprite.SetImageFile( sprite.imageFile );
-					newsprite.SetClassName( sprite.className );
-					newsprite.SetConstructorText( sprite.constructorText );
-					newsprite.Bounds.x = sprite.Bounds.x;
-					newsprite.Bounds.y = sprite.Bounds.y;
-					newsprite.Bounds.width = sprite.Bounds.width;
-					newsprite.Bounds.height = sprite.Bounds.height;
-					newsprite.Anchor.x = sprite.Anchor.x;
-					newsprite.Anchor.y = sprite.Anchor.y;
-					newsprite.previewBitmap = new Bitmap( sprite.previewBitmap.bitmapData.clone() );
-					
-					for each( var prop:PropertyType in sprite.properties )
-					{
-						newsprite.properties.addItem(new PropertyType(prop.Type,prop.Name,prop.Value));
-					}
+					var newsprite:SpriteEntry = sprite.Clone(sprite.name + "_2_");
 					
 					group.children.addItem( newsprite );
 					HistoryStack.BeginOperation( new OperationAddSpriteEntry( newsprite, group ) );
@@ -352,7 +341,7 @@
 			
 			public function init():void
 			{
-				var cmi:ContextMenuItem = new ContextMenuItem("Rename");
+				var cmi:ContextMenuItem = renameSpriteMenuItem = new ContextMenuItem("Rename");
 				cmi.addEventListener(ContextMenuEvent.MENU_ITEM_SELECT, contextMenuItem_renameSelect);
 
 				spritesContextMenu = new ContextMenu();
@@ -363,23 +352,23 @@
 				cmi.addEventListener(ContextMenuEvent.MENU_ITEM_SELECT, contextMenuItem_editSprite);
 				spritesContextMenu.customItems.push(cmi);
 				
-				cmi = new ContextMenuItem("Add Folder");
+				addFolderMenuItem = cmi = new ContextMenuItem("Add Folder");
 				cmi.addEventListener(ContextMenuEvent.MENU_ITEM_SELECT, contextMenuItem_addFolder);
 				spritesContextMenu.customItems.push(cmi);
 				
-				cmi = new ContextMenuItem("Add Anim Sprite");
+				addAnimSpriteMenuItem = cmi = new ContextMenuItem("Add Anim Sprite");
 				cmi.addEventListener(ContextMenuEvent.MENU_ITEM_SELECT, contextMenuItem_addAnimSprite);
 				spritesContextMenu.customItems.push(cmi);
 				
-				cmi = new ContextMenuItem("Add Multiple Anim Sprites");
+				addMultipleAnimSpritesMenuItem = cmi = new ContextMenuItem("Add Multiple Anim Sprites");
 				cmi.addEventListener(ContextMenuEvent.MENU_ITEM_SELECT, contextMenuItem_addMultipleAnimSprites);
 				spritesContextMenu.customItems.push(cmi);
 				
-				cmi = new ContextMenuItem("Add Spritesheet");
+				addSpritesheetMenuItem = cmi = new ContextMenuItem("Add Spritesheet");
 				cmi.addEventListener(ContextMenuEvent.MENU_ITEM_SELECT, contextMenuItem_addTileSprite);
 				spritesContextMenu.customItems.push(cmi);
 				
-				cmi = new ContextMenuItem("Duplicate Sprite");
+				duplicateSpriteMenuItem = cmi = new ContextMenuItem("Duplicate Sprite");
 				cmi.addEventListener(ContextMenuEvent.MENU_ITEM_SELECT, contextMenuItem_duplicate);
 				spritesContextMenu.customItems.push(cmi);
 				
@@ -387,7 +376,7 @@
 				cmi.addEventListener(ContextMenuEvent.MENU_ITEM_SELECT, contextMenuItem_changeSprites);
 				spritesContextMenu.customItems.push(cmi);
 				
-				cmi = new ContextMenuItem("Delete");
+				deleteSpriteMenuItem = cmi = new ContextMenuItem("Delete");
 				cmi.addEventListener(ContextMenuEvent.MENU_ITEM_SELECT, contextMenuItem_delete);
 				spritesContextMenu.customItems.push(cmi);
 				
@@ -397,13 +386,16 @@
 				spritesContextMenu.addEventListener(ContextMenuEvent.MENU_SELECT, contextMenu_menuSelect);
 				SpriteListTree.contextMenu = spritesContextMenu;
 				
-				SaveSeparately.selected = Global.SaveSpritesSeparetely;
+				//SaveSeparately.selected = Global.SaveSpritesSeparately;
 				
 			}
 			
 			private function treeDoubleClick(event:ListEvent):void
 			{
-				contextMenuItem_editSprite(null);
+				if ( !Global.PreventEditingSprites )
+				{
+					contextMenuItem_editSprite(null);
+				}
 			}
 			
 		]]>
@@ -416,7 +408,7 @@
 			itemRenderer="com.UI.SpriteTreeItemRenderer" labelField="DisplayName" itemRollOver="lastSpriteRollOverIndex = event.rowIndex" 
 			dragEnabled="true" dropEnabled="true" dragMoveEnabled="true" doubleClickEnabled="true" itemDoubleClick="treeDoubleClick(event)"
 			dragOver="onDragOver(event)" dragEnter="onDragEnter(event)" dragComplete="onSpriteDragComplete(event)" />
-		<mx:CheckBox id="SaveSeparately" label="Save sprites separately" change="Global.SaveSpritesSeparetely=SaveSeparately.selected" />
+		<!--<mx:CheckBox id="SaveSeparately" label="Save sprites separately" change="Global.SaveSpritesSeparetely=SaveSeparately.selected" />-->
 	</mx:VBox>
 
 </mx:VBox>

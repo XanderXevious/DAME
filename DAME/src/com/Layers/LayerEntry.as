@@ -36,7 +36,7 @@
 		public static var entryCount:uint = 0;
 		public var id:uint = 0;
 		
-		//public var isTemplateSource:Boolean = false;
+		public var isTemplateSource:Boolean = false;
 		//public var templatedBy:LayerEntry = null;
 		
 		protected var _exports:Boolean = true;

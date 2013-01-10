@@ -216,6 +216,7 @@
 					Entry.CanScale = Scales.selected;
 					Entry.CanRotate = Rotates.selected;
 					Entry.IsSurfaceObject = SurfaceObject.selected;
+					Entry.LockRotationTo90Degrees = LockRotation.selected;
 					
 					Entry.IsTileSprite = true;
 					Entry.TileOrigin.x = XOffset.value;
@@ -318,6 +319,7 @@
 					Rotates.selected = Entry.CanRotate;
 					Scales.selected = Entry.CanScale;
 					SurfaceObject.selected = Entry.IsSurfaceObject;
+					LockRotation.selected = Entry.LockRotationTo90Degrees;
 					
 					for each ( var prop:PropertyType in Entry.properties )
 					{
@@ -418,6 +420,7 @@
 				<mx:CheckBox label="Exports" id="Exports" selected="true" toolTip="Select to allow this sprite to be exported. Deselect and it will be ignored during exporting." />
 				<mx:CheckBox label="Can Rotate" id="Rotates" selected="true" toolTip="If selected then it is possible to rotate this sprite." />
 				<mx:CheckBox label="Can Scale" id="Scales" selected="true" toolTip="If selected then it is possible to scale this sprite." />
+				<mx:CheckBox label="Lock Rotation" id="LockRotation" selected="false" toolTip="Lock rotation to 90 degree angles. If unchecked then the sprite can be freely rotated to any angle." />
 				<mx:CheckBox label="Is Surface Object" id="SurfaceObject" selected="false" toolTip="A Surface Object will align with an isometric tile as though it was a tile itself. If unchecked then it is more likely a character or non isometric object." />
 			</mx:HBox>
 			<mx:HBox width="100%">

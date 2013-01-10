@@ -1,6 +1,7 @@
 ﻿package com.Utils
 {
 	import com.Editor.EditorTypeDraw;
+	import com.Editor.EditorTypeSprites;
 	import com.Editor.EditorTypeTiles;
 	import com.Editor.GuideLayer;
 	import com.FileHandling.ExporterSetting;
@@ -88,7 +89,7 @@
 		
 		public static var CurrentMapDataFile:File = File.documentsDirectory;
 		public static var CurrentProjectFile:File = File.documentsDirectory;
-		public static var CurrentSpriteEntriesFile:File = null;
+		public static var CurrentSettingsFile:File = null;
 		public static var CurrentImageFile:File = File.documentsDirectory;
 		public static var StatusBarVisible:Boolean = true;
 		public static var MarqueesVisible:Boolean = true;
@@ -134,14 +135,24 @@
 		public static var currentTheme:String = "";
 		
 		// AS3 bitmap limits.
-		static public var MaxImageSize:int = 7000;
-		
-		public static var SaveSpritesSeparetely:Boolean = false;
+		static public var MaxImageSize:int = 7000;		
 		
 		public static var ShowOverwritingImageAlert:Boolean = true;
 		public static var KeepTileMatrixOnExitAnswer:uint = 0;
 		public static var UseCheckeredTilePalette:Boolean = true;
 		public static var TilePaletteBackgroundColour:uint = 0xffffff;
+		
+		public static var AllowEditingTemplateLayerList:Boolean = true;
+		public static var ForceAddingTemplatedMapsOnly:Boolean = false;
+		public static var ForceAddingTemplatedLayersOnly:Boolean = false;
+		public static var PreventEditingMapTileset:Boolean = false;
+		public static var PreventEditingSprites:Boolean = false;
+		public static var SaveSpritesSeparately:Boolean = false;
+		public static var SavePropertyTypesSeparately:Boolean = false;
+		public static var SaveLayerTemplatesSeparately:Boolean = false;
+		public static var SaveTileMatrixSeparately:Boolean = false;
+		public static var SaveTileBrushesSeparately:Boolean = false;
+		public static var SaveGuidesSeparately:Boolean = false;
 		
 		//public static var RememberedAlerts:Dictionary = new Dictionary;	// e.g. RememberedAlerts[alertId] = AlertBox.YES
 		
@@ -341,6 +352,8 @@
 				SaveLayout( xml, window );
 				
 				SaveColorGrid( xml );
+				
+				SaveOptions( xml );
 					
 				var outputString:String = '<?xml version="1.0" encoding="utf-8"?>\n';
 				outputString += xml.toString();
@@ -483,6 +496,24 @@
 					SaveLayoutForContainer( xml, child);
 				}
 			}
+		}
+		
+		static public function SaveOptions(xml:XML):void
+		{
+			var optionsXml:XML = < options />;
+			optionsXml.appendChild(<AllowEditingTemplateLayerList> { AllowEditingTemplateLayerList } </AllowEditingTemplateLayerList> );
+			optionsXml.appendChild( < ForceAddingTemplatedMapsOnly > { ForceAddingTemplatedMapsOnly } </ForceAddingTemplatedMapsOnly> );
+			optionsXml.appendChild( < ForceAddingTemplatedLayersOnly > { ForceAddingTemplatedLayersOnly } </ForceAddingTemplatedLayersOnly> );
+			optionsXml.appendChild(<PreventEditingMapTileset> { PreventEditingMapTileset } </PreventEditingMapTileset> );
+			optionsXml.appendChild( < PreventEditingSprites > { PreventEditingSprites } </PreventEditingSprites> );
+			optionsXml.appendChild( < SaveSpritesSeparately > { SaveSpritesSeparately } </SaveSpritesSeparately> );
+			optionsXml.appendChild( < SavePropertyTypesSeparately > { SavePropertyTypesSeparately } </SavePropertyTypesSeparately> );
+			optionsXml.appendChild( < SaveLayerTemplatesSeparately > { SaveLayerTemplatesSeparately } </SaveLayerTemplatesSeparately> );
+			optionsXml.appendChild( < SaveTileMatrixSeparately > { SaveTileMatrixSeparately } </SaveTileMatrixSeparately> );
+			optionsXml.appendChild( < SaveTileBrushesSeparately > { SaveTileBrushesSeparately } </SaveTileBrushesSeparately> );
+			optionsXml.appendChild( < SaveGuidesSeparately > { SaveGuidesSeparately } </SaveGuidesSeparately> );
+			
+			xml.appendChild(optionsXml);
 		}
 		
 		static public function SaveColorGrid(xml:XML):void
@@ -801,6 +832,8 @@
 					
 					LoadColorGrid( xml );
 					
+					LoadOptions(xml.options);
+					
 					if ( doMaximize )
 					{
 						// Must be done after the layout has been loaded so the divider proportions scale correctly.
@@ -1017,6 +1050,101 @@
 					LoadPane( child, container, dividerData );
 				}
 			}
+		}
+		
+		static public function ResetOptions():void
+		{
+			AllowEditingTemplateLayerList = true;
+			ForceAddingTemplatedMapsOnly = false;
+			ForceAddingTemplatedLayersOnly = false;
+			PreventEditingMapTileset = false;
+			PreventEditingSprites = false;
+			SaveSpritesSeparately = false;
+			SavePropertyTypesSeparately = false;
+			SaveLayerTemplatesSeparately = false;
+			SaveTileMatrixSeparately = false;
+			SaveTileBrushesSeparately = false;
+			SaveGuidesSeparately = false;
+		}
+		
+		static public function LoadOptions(options:XMLList, resetIfNotExist:Boolean = false):void
+		{
+			if ( options.hasOwnProperty("AllowEditingTemplateLayerList") )
+			{
+				AllowEditingTemplateLayerList = options.AllowEditingTemplateLayerList == true;
+			}
+			else if( resetIfNotExist )
+				AllowEditingTemplateLayerList = true;
+				
+			if ( options.hasOwnProperty("ForceAddingTemplatedMapsOnly") )
+			{
+				ForceAddingTemplatedMapsOnly = options.ForceAddingTemplatedMapsOnly == true;
+			}
+			else if( resetIfNotExist )
+				ForceAddingTemplatedMapsOnly = false;
+				
+			if ( options.hasOwnProperty("ForceAddingTemplatedLayersOnly") )
+			{
+				ForceAddingTemplatedLayersOnly = options.ForceAddingTemplatedLayersOnly == true;
+			}
+			else if( resetIfNotExist )
+				ForceAddingTemplatedLayersOnly = false;
+				
+			if ( options.hasOwnProperty("PreventEditingMapTileset") )
+			{
+				PreventEditingMapTileset = options.PreventEditingMapTileset == true;
+			}
+			else if( resetIfNotExist )
+				PreventEditingMapTileset = false;
+				
+			if ( options.hasOwnProperty("PreventEditingSprites") )
+			{
+				PreventEditingSprites = options.PreventEditingSprites == true;
+			}
+			else if( resetIfNotExist )
+				PreventEditingSprites = false;
+				
+			if ( options.hasOwnProperty("SaveSpritesSeparately") )
+			{
+				SaveSpritesSeparately = options.SaveSpritesSeparately == true;
+			}
+			else if( resetIfNotExist )
+				SaveSpritesSeparately = false;
+				
+			if ( options.hasOwnProperty("SavePropertyTypesSeparately") )
+			{
+				SavePropertyTypesSeparately = options.SavePropertyTypesSeparately == true;
+			}
+			else if( resetIfNotExist )
+				SavePropertyTypesSeparately = false;
+				
+			if ( options.hasOwnProperty("SaveLayerTemplatesSeparately") )
+			{
+				SaveLayerTemplatesSeparately = options.SaveLayerTemplatesSeparately == true;
+			}
+			else if( resetIfNotExist )
+				SaveLayerTemplatesSeparately = false;
+				
+			if ( options.hasOwnProperty("SaveTileMatrixSeparately") )
+			{
+				SaveTileMatrixSeparately = options.SaveTileMatrixSeparately == true;
+			}
+			else if( resetIfNotExist )
+				SaveTileMatrixSeparately = false;
+				
+			if ( options.hasOwnProperty("SaveTileBrushesSeparately") )
+			{
+				SaveTileBrushesSeparately = options.SaveTileBrushesSeparately == true;
+			}
+			else if( resetIfNotExist )
+				SaveTileBrushesSeparately = false;
+				
+			if ( options.hasOwnProperty("SaveGuidesSeparately") )
+			{
+				SaveGuidesSeparately = options.SaveGuidesSeparately == true;
+			}
+			else
+				SaveGuidesSeparately = false;
 		}
 		
 		static public function LoadColorGrid(xml:XML):void

@@ -835,6 +835,11 @@
 		{
 			var app:App = App.getApp();
 			app.myTileList.clearTiles();
+			if ( sprite && !sprite.CanEditFrames )
+			{
+				sprite.tilePreviewIndex = -1;
+				return false;
+			}
 			var updateSelectTile:Boolean = true;
 			if ( sprite && app.myTileList.CustomData == sprite )
 			{

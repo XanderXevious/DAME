@@ -662,7 +662,7 @@
 								{
 									selectedSprites.push( avatar );
 									selectionChanged = true;
-									if ( AvatarToLinkFrom && !AvatarToLinkFrom.markForDeletion )
+									if ( AvatarToLinkFrom && AvatarToLinkFrom != avatar && !AvatarToLinkFrom.markForDeletion )
 									{
 										var newLink:AvatarLink = AvatarLink.GenerateLink(AvatarToLinkFrom, avatar);
 										HistoryStack.BeginOperation(new OperationAddLink(newLink));
@@ -728,7 +728,7 @@
 								originalAngleFromSelectedSprite = GetAngleOfPointFromAvatar(modifiedMousePos, avatar, avatar, avatar.angle);
 							}
 							isOnItem = SELECTED_ITEM;
-							if ( AvatarToLinkFrom && !AvatarToLinkFrom.markForDeletion )
+							if ( AvatarToLinkFrom && AvatarToLinkFrom != avatar && !AvatarToLinkFrom.markForDeletion )
 							{
 								var newLink:AvatarLink = AvatarLink.GenerateLink(AvatarToLinkFrom, avatar);
 								HistoryStack.BeginOperation(new OperationAddLink(newLink));
@@ -835,7 +835,7 @@
 								}
 								selectedSprites.push( avatar );
 								// Only select the first one.
-								if ( AvatarToLinkFrom && !AvatarToLinkFrom.markForDeletion)
+								if ( AvatarToLinkFrom && AvatarToLinkFrom != avatar && !AvatarToLinkFrom.markForDeletion)
 								{
 									var newLink:AvatarLink = AvatarLink.GenerateLink(AvatarToLinkFrom, avatar);
 									HistoryStack.BeginOperation(new OperationAddLink(newLink));

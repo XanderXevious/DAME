@@ -298,6 +298,23 @@ horizontalScrollPolicy="off" creationComplete="init()" label="Layers">
                 }
             }
 			
+			private function addGroupTemplateMenus(templateMenu:NativeMenu):void
+			{
+				var layerTemplates:ArrayCollection = App.getApp().layerTemplates;
+				for ( var ti:uint = 0; ti < layerTemplates.length; ti++ )
+				{
+					var templateLayer:LayerGroup = layerTemplates[ti] as LayerGroup;
+					if( templateLayer )
+					{
+						var item:NativeMenuItem = new NativeMenuItem(templateLayer.name, false);
+						item.data = templateLayer;
+						templateMenu.addItem(item);
+						item.addEventListener(Event.SELECT, groupTemplateMenuItemSelectHandler);
+					}
+				}
+				addNewNativeContextMenuItem(templateMenu, "View Template List..." );
+			}
+			
 			private function contextMenuActivated(event:ContextMenuEvent):void
 			{
 				contextMenu_menuSelect(event);
@@ -310,25 +327,71 @@ horizontalScrollPolicy="off" creationComplete="init()" label="Layers">
 				{
 					currentItem = highlightedTreeItem;
 				}
+				
+				var templateMenu:NativeMenu;
 
 				if ( currentItem == null )
 				{
 					// It's a layer group.
-					addNewContextMenuItem(contextMenu, "Add New Group");
+					if ( !Global.ForceAddingTemplatedLayersOnly )
+					{
+						addNewContextMenuItem(contextMenu, "Add New Group");
+					}
+
+					templateMenu = new NativeMenu();
+					contextMenu.addSubmenu(templateMenu, "Add New Group From Template...");
+					addGroupTemplateMenus(templateMenu);
 				}
 				else 
 				{
 					if ( currentItem.IsGroup() )
 					{
 						var submenu:NativeMenu = new NativeMenu();
-						contextMenu.addSubmenu(submenu, "Add");
-						addNewNativeContextMenuItem(submenu, "New Group");
-						addNewNativeContextMenuItem(submenu, "New Map Layer");
-						addNewNativeContextMenuItem(submenu, "Rip Tilemap");
-						addNewNativeContextMenuItem(submenu, "New Sprite Layer");
-						addNewNativeContextMenuItem(submenu, "New Path Layer");
-						addNewNativeContextMenuItem(submenu, "New Shape Layer");
-						addNewNativeContextMenuItem(submenu, "New Image Layer");
+						contextMenu.addSubmenu(submenu, "Add...");
+						if ( !Global.ForceAddingTemplatedLayersOnly )
+						{
+							addNewNativeContextMenuItem(submenu, "New Group");
+						}
+
+						templateMenu = new NativeMenu();
+						submenu.addSubmenu(templateMenu, "New Group From Template...");
+						addGroupTemplateMenus(templateMenu);
+
+						if ( !Global.ForceAddingTemplatedMapsOnly && !Global.ForceAddingTemplatedLayersOnly)
+						{
+							addNewNativeContextMenuItem(submenu, "New Map Layer");
+							addNewNativeContextMenuItem(submenu, "Rip Tilemap");
+						}
+						if ( !Global.ForceAddingTemplatedLayersOnly )
+						{
+							addNewNativeContextMenuItem(submenu, "New Sprite Layer");
+							addNewNativeContextMenuItem(submenu, "New Path Layer");
+							addNewNativeContextMenuItem(submenu, "New Shape Layer");
+							addNewNativeContextMenuItem(submenu, "New Image Layer");
+						}
+						
+						if ( Global.AllowEditingTemplateLayerList )
+						{
+							addNewNativeContextMenuItem(contextMenu, "Create Template From This Group" );
+						}
+						
+						templateMenu = new NativeMenu();
+						submenu.addSubmenu(templateMenu, "New Layer From Template...");
+						
+						for ( var ti:uint = 0; ti < App.getApp().layerTemplates.length; ti++ )
+						{
+							var templateLayer:LayerEntry = App.getApp().layerTemplates[ti] as LayerEntry;
+							if( templateLayer )
+							{
+								var item:NativeMenuItem = new NativeMenuItem(templateLayer.name, false);
+								item.data = templateLayer;
+								templateMenu.addItem(item);
+								item.addEventListener(Event.SELECT, templateMenuItemSelectHandler);
+							}
+						}
+						addNewNativeContextMenuItem(templateMenu, "View Template List..." );
+						
+						
 						var hasMaps:Boolean = false;
 						for ( var i:uint = 0; !hasMaps && i < currentItem.children.length; i++ )
 						{
@@ -347,7 +410,6 @@ horizontalScrollPolicy="off" creationComplete="init()" label="Layers">
 					addNewContextMenuItem(contextMenu, "Edit Layer Info");
 					addNewContextMenuItem(contextMenu, "Rename");
 					
-					//addNewCheckedContextMenuItem(contextMenu, "Template From This Layer", currentItem.isTemplateSource, true  );
 					addNewContextMenuItem(contextMenu, "Duplicate");
 					addNewContextMenuItem(contextMenu, "Duplicate Empty");
 					
@@ -361,9 +423,16 @@ horizontalScrollPolicy="off" creationComplete="init()" label="Layers">
 					if ( mapLayer )
 					{
 						addNewContextMenuItem(contextMenu, "Import Map Data");
-						addNewNativeContextMenuItem(contextMenu, "Rip Tilemap Using Existing Tileset");
+						if( !Global.ForceAddingTemplatedMapsOnly && !Global.ForceAddingTemplatedLayersOnly)
+						{
+							addNewNativeContextMenuItem(contextMenu, "Rip Tilemap Using Existing Tileset");
+						}
 						addNewContextMenuItem(contextMenu, "Clear Map");
 						addNewCheckedContextMenuItem(contextMenu, "Make Master Layer", mapLayer.IsMasterLayer(), true  );
+						if ( !mapLayer.isTemplateSource && Global.AllowEditingTemplateLayerList )
+						{
+							addNewContextMenuItem(contextMenu, "Create Template From This Layer" );
+						}
 					}
 					else if ( avatarLayer )
 					{
@@ -666,43 +735,85 @@ horizontalScrollPolicy="off" creationComplete="init()" label="Layers">
 					}
 					break;
 					
-				/*case "Template From This Layer":
-					if ( App.CurrentTemplateLayer )
-					{
-						var newLayer:LayerEntry = !(event.target as ContextMenuItem).checked ? currentItem : null;
-						AlertBox.Show("Removing a template will remove any properties on templated layers. Continue?", "Warning", AlertBox.YES| AlertBox.NO, null, switchLayerTemplateListener, AlertBox.NO, false, newLayer);
-						break;
-					}
-					if (!(event.target as ContextMenuItem).checked)
-					{
-						currentItem.isTemplateSource = true;
-						App.CurrentTemplateLayer = currentItem;
-					}
-					else
-					{
-						currentItem.isTemplateSource = false;
-					}
-					App.getApp().layerGroups.itemUpdated(currentItem);
-					break;*/
+				case "Create Template From This Layer":
+					var currentLayer:LayerEntry = currentItem as LayerEntry;
+					var newLayer:LayerEntry = currentLayer.Clone(null, currentItem.name, false);
+					InsertLayerInCorrectOrder( App.getApp().layerTemplates, newLayer );
+					newLayer.isTemplateSource = true;
+					break;
+					
+				case "Create Template From This Group":
+					var currentGroup:LayerGroup = currentItem as LayerGroup;
+					var newGroup:LayerGroup = currentGroup.Clone(null, currentItem.name, false) as LayerGroup;
+					InsertLayerInCorrectOrder( App.getApp().layerTemplates, newGroup );
+					newGroup.isTemplateSource = true;
+					break;
+					
+				case "View Template List...":
+					App.CreatePopupWindow(LayerTemplateViewer, true);
+					break;
 				}
 			}
 			
-			/*private function switchLayerTemplateListener(eventObj:CloseEvent, newLayer:LayerEntry = null):void
+			private function groupTemplateMenuItemSelectHandler(event:Event):void
 			{
-				if (eventObj.detail == AlertBox.YES)
+				var layer:LayerEntry;
+				
+				var currentItem:LayerEntry = layerTree.selectedItem as LayerEntry;
+				if ( currentItem == null )
 				{
-					if ( App.CurrentTemplateLayer )
-					{
-						App.CurrentTemplateLayer.isTemplateSource = false;
-					}
-					if ( newLayer )
-					{
-						newLayer.isTemplateSource = true;
-					}
-					App.CurrentTemplateLayer = newLayer;
-					App.getApp().layerGroups.itemUpdated(newLayer);
+					currentItem = highlightedTreeItem;
 				}
-			}*/
+				
+				if ( !currentItem )
+					return;
+				
+				MainGame.flxGame.restoreFocus();	// Just in case focus was lost.
+				
+				var menuItem:NativeMenuItem = event.target as NativeMenuItem;
+				if ( menuItem  )
+				{
+					var templateLayer:LayerGroup = menuItem.data as LayerGroup;
+					if ( templateLayer )
+					{
+						var newGroup:LayerGroup = templateLayer.Clone(currentItem as LayerGroup, templateLayer.name + "(2)", false) as LayerGroup;
+						InsertLayerInCorrectOrder( layerTree.dataProvider, newGroup );
+						
+						HistoryStack.BeginOperation( new OperationAddLayer( newGroup ) );
+						setTreeItemToSelect( newGroup );
+					}
+				}
+			}
+			
+			private function templateMenuItemSelectHandler(event:Event):void
+			{
+				var layer:LayerEntry;
+				
+				var currentItem:LayerEntry = layerTree.selectedItem as LayerEntry;
+				if ( currentItem == null )
+				{
+					currentItem = highlightedTreeItem;
+				}
+				
+				if ( !currentItem )
+					return;
+				
+				MainGame.flxGame.restoreFocus();	// Just in case focus was lost.
+				
+				var menuItem:NativeMenuItem = event.target as NativeMenuItem;
+				if ( menuItem  )
+				{
+					var templateLayer:LayerEntry = menuItem.data as LayerEntry;
+					if ( templateLayer )
+					{
+						var newLayer:LayerEntry = templateLayer.Clone(null, templateLayer.name + "(2)", false);
+						InsertLayerInCorrectOrder( layerTree.dataProvider, newLayer );
+						
+						HistoryStack.BeginOperation( new OperationAddLayer( newLayer ) );
+						setTreeItemToSelect( newLayer );
+					}
+				}
+			}
 			
 			private function MoveLayerToScreenPos(layer:LayerEntry, diff:FlxPoint = null):FlxPoint
 			{
@@ -843,7 +954,7 @@ horizontalScrollPolicy="off" creationComplete="init()" label="Layers">
 				}
 			}
 			
-			private function DuplicateLayer(layer:LayerEntry, copyContents:Boolean):void
+			private function DuplicateLayer(layer:LayerEntry, copyContents:Boolean):LayerEntry
 			{
 				var newLayer:LayerEntry = layer.Clone(layer.parent as LayerGroup, layer.name + "(2)", copyContents);
 				var parent:Object = layer.parent ? layer.parent.children : layerTree.dataProvider; 
@@ -851,6 +962,7 @@ horizontalScrollPolicy="off" creationComplete="init()" label="Layers">
 				
 				HistoryStack.BeginOperation( new OperationAddLayer( newLayer ) );
 				setTreeItemToSelect( newLayer );
+				return newLayer;
 			}
 			
 			private function newGroupCreated(popup:NewGroupPopup):void

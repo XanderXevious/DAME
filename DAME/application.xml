@@ -36,14 +36,14 @@
 	<name>DAME</name>
 
 	<!-- An application version designator (such as "v1", "2.5", or "Alpha 1"). Required. -->
-	<version>3.0.5</version>
+	<version>3.1.1</version>
 
 	<!-- Description, displayed in the AIR application installer.
 	     May have multiple values for each language. See samples or xsd schema file. Optional. -->
 	<description>DAME - Deadly Alien Map Editor for 2D games.</description>
 
 	<!-- Copyright information. Optional -->
-	<copyright>Copyright 2012 - Charles Goatley</copyright>
+	<copyright>Copyright 2010-2013 - Charles Goatley</copyright>
 
 	<!-- Settings for the application's initial window. Required. -->
 	<initialWindow>

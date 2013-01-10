@@ -7,6 +7,7 @@
     
 	import com.EditorState;
 	import com.Game.SpriteFrames.SpriteFrameShapes;
+	import com.Properties.PropertyType;
 	import com.Utils.Misc;
 	import flash.display.Bitmap;
 	import flash.display.BitmapData;
@@ -37,6 +38,9 @@
 		public var CanScale:Boolean = true;
 		public var CanRotate:Boolean = true;
 		public var IsSurfaceObject:Boolean = false;	// used for Iso aligned sprites only.
+		
+		public var CanEditFrames:Boolean = true;
+		public var LockRotationTo90Degrees:Boolean = false;
 		
 		public var numFrames:uint = 1;	// Only ever a guess as we don't know if a frame is empty or not.
 		
@@ -269,6 +273,55 @@
 		public function get DisplayName():String
 		{
 			return ( name && name.length ) ? name : className; 
+		}
+		
+		public function Clone(_name:String ):SpriteEntry
+		{
+			var newsprite:SpriteEntry = new SpriteEntry( _name );
+					
+			if ( IsTileSprite )
+			{
+				newsprite.TileOrigin.x = TileOrigin.x;
+				newsprite.TileOrigin.y = TileOrigin.y;
+				newsprite.IsTileSprite = true;
+			}
+			else
+			{
+				newsprite.previewIndex = previewIndex;
+			}
+			newsprite.SetImageFile( imageFile );
+			newsprite.SetClassName( className );
+			newsprite.SetConstructorText( constructorText );
+			newsprite.SetCreationText( creationText );
+			newsprite.Bounds.x = Bounds.x;
+			newsprite.Bounds.y = Bounds.y;
+			newsprite.Bounds.width = Bounds.width;
+			newsprite.Bounds.height = Bounds.height;
+			newsprite.Anchor.x = Anchor.x;
+			newsprite.Anchor.y = Anchor.y;
+			newsprite.CanEditFrames = CanEditFrames;
+			newsprite.CanRotate = CanRotate;
+			newsprite.CenterAnchor = CenterAnchor;
+			newsprite.LockRotationTo90Degrees = LockRotationTo90Degrees;
+			newsprite.Exports = Exports;
+			newsprite.IsSurfaceObject = IsSurfaceObject;
+			newsprite.previewBitmap = new Bitmap( previewBitmap.bitmapData.clone() );
+			
+			for each( var prop:PropertyType in properties )
+			{
+				newsprite.properties.addItem(new PropertyType(prop.Type, prop.Name, prop.Value));
+			}
+			
+			for each( var anim:TileAnim in anims )
+			{
+				var newAnim:TileAnim = new TileAnim;
+				newAnim.CopyFrom(anim);
+				newsprite.anims.push(newAnim);
+			}
+			
+			newsprite.shapes.CopyFrom(shapes);
+			
+			return newsprite;
 		}
 
     }

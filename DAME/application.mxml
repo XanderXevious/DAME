@@ -575,10 +575,10 @@
 					}
 				}
 				
-				if ( SpritesTab.SaveSeparately.selected != Global.SaveSpritesSeparetely )
+				/*if ( SpritesTab.SaveSeparately.selected != Global.SaveSpritesSeparately )
 				{
-					SpritesTab.SaveSeparately.selected = Global.SaveSpritesSeparetely;
-				}
+					SpritesTab.SaveSeparately.selected = Global.SaveSpritesSeparately;
+				}*/
 				
 			}
 			

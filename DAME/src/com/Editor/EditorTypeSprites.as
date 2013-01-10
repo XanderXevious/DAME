@@ -47,7 +47,8 @@
 		protected var detachMenuItem:NativeMenuItem = null;
 		protected var attachMenuItem:NativeMenuItem = null;
 		protected var setSpritePreviewMenuItem:NativeMenuItem = null;
-		protected var resetSpriteMenuItem:NativeMenuItem = null
+		protected var resetSpriteMenuItem:NativeMenuItem = null;
+		protected var editSpriteMenuItem:NativeMenuItem = null;
 		
 		protected var dontDrawSprites:Boolean = false;
 		
@@ -78,7 +79,7 @@
 			addNewContextMenuItem(contextMenu, "Set Position...", contextMenuHandler );
 			setSpritePreviewMenuItem = addNewContextMenuItem(contextMenu, "Set image from tile list", contextMenuHandler );
 			resetSpriteMenuItem = addNewContextMenuItem(contextMenu, "Reset Sprite Image", contextMenuHandler );
-			addNewContextMenuItem( contextMenu, "Edit Sprite Entry...", contextMenuHandler );
+			editSpriteMenuItem = addNewContextMenuItem( contextMenu, "Edit Sprite Entry...", contextMenuHandler );
 		}
 		
 		override protected function HideDisplay():void
@@ -222,7 +223,7 @@
 						if ( spriteCursor.spriteEntry != sprite )
 						{
 							spriteChanged = true;
-							if ( !sprite.IsTileSprite )
+							if ( !sprite.IsTileSprite && sprite.CanEditFrames)
 								spriteCursor.animIndex = sprite.tilePreviewIndex;
 							spriteCursor.SetFromSpriteEntry( sprite, true, true );
 						}
@@ -242,7 +243,7 @@
 		private function SpriteIndexChanged():void
 		{
 			var state:EditorState = FlxG.state as EditorState;
-			if ( spriteCursor.spriteEntry && !spriteCursor.spriteEntry.IsTileSprite )
+			if ( spriteCursor.spriteEntry && !spriteCursor.spriteEntry.IsTileSprite && spriteCursor.spriteEntry.CanEditFrames )
 			{
 				spriteCursor.spriteEntry.tilePreviewIndex = App.getApp().myTileList.selectedIndex - 1;
 				spriteCursor.SetAnimIndex( spriteCursor.spriteEntry.tilePreviewIndex);
@@ -298,7 +299,7 @@
 					return;
 				}
 				var newSprite:EditorAvatar = new EditorAvatar( modifiedMousePos.x - sprite.Anchor.x, modifiedMousePos.y - sprite.Anchor.y, spriteLayer );
-				if ( !sprite.IsTileSprite )
+				if ( !sprite.IsTileSprite && sprite.CanEditFrames )
 					newSprite.animIndex = sprite.tilePreviewIndex;
 				newSprite.SetFromSpriteEntry( sprite, true, true );
 				if ( spriteCursor.Flipped )
@@ -355,7 +356,7 @@
 			}
 			tempPos.create_from_points(x, y);
 			var newSprite:EditorAvatar = new EditorAvatar( tempPos.x - sprite.Anchor.x, tempPos.y - sprite.Anchor.y, spriteLayer );
-			if ( !sprite.IsTileSprite )
+			if ( !sprite.IsTileSprite && sprite.CanEditFrames)
 				newSprite.animIndex = sprite.tilePreviewIndex;
 			newSprite.SetFromSpriteEntry( sprite, true, true );
 			if ( spriteCursor.Flipped )
@@ -503,7 +504,11 @@
 					{
 						avatar.angle += 360;
 					}
-					if ( FlxG.keys.pressed("A") )
+					if ( avatar.spriteEntry && avatar.spriteEntry.LockRotationTo90Degrees )
+					{
+						avatar.angle = Math.round(avatar.angle / 90) * 90;
+					}
+					else if ( FlxG.keys.pressed("A") )
 					{
 						avatar.angle = Math.round(avatar.angle/45) * 45;
 					}
@@ -960,9 +965,9 @@
 						detachMenuItem.enabled = false;
 					}
 					
-					setSpritePreviewMenuItem.enabled = !bestAvatar.isTileSprite;
+					setSpritePreviewMenuItem.enabled = !bestAvatar.isTileSprite && bestAvatar.spriteEntry.CanEditFrames;
 					resetSpriteMenuItem.enabled = ( bestAvatar.isTileSprite && ( bestAvatar.TileDims || bestAvatar.TileOrigin) ) || ( !bestAvatar.isTileSprite && bestAvatar.animIndex != -1 )
-					
+					editSpriteMenuItem.enabled = !Global.PreventEditingSprites;
 					contextMenu.display( FlxG.stage, FlxG.stage.mouseX, FlxG.stage.mouseY );
 					// Only select the first one.
 					return;
@@ -1096,7 +1101,7 @@
 				HistoryStack.BeginOperation(new OperationChangeSpritesToSpriteEntry(selectedSprites));
 				while ( i-- )
 				{
-					if ( !sprite.IsTileSprite )
+					if ( !sprite.IsTileSprite && sprite.CanEditFrames )
 						selectedSprites[i].animIndex = sprite.tilePreviewIndex;
 					selectedSprites[i].SetFromSpriteEntry(sprite);
 				}

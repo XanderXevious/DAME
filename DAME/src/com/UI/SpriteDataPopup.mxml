@@ -311,6 +311,8 @@
 					Entry.CanScale = Scales.selected;
 					Entry.CanRotate = Rotates.selected;
 					Entry.IsSurfaceObject = SurfaceObject.selected;
+					Entry.CanEditFrames = CanEditFrames.selected;
+					Entry.LockRotationTo90Degrees = LockRotation.selected;
 					var numRows:uint = Math.ceil( Entry.bitmap.height / previewBitmap.height );
 					var numColumns:uint = Math.ceil( Entry.bitmap.width / previewBitmap.width );
 					Entry.numFrames = numColumns * numRows;
@@ -451,6 +453,8 @@
 						newEntry.CanScale = Scales.selected;
 						newEntry.CanRotate = Rotates.selected;
 						newEntry.IsSurfaceObject = SurfaceObject.selected;
+						newEntry.CanEditFrames = CanEditFrames.selected;
+						newEntry.LockRotationTo90Degrees = LockRotation.selected;
 						var numRows:uint = Math.ceil(newEntry.bitmap.height / previewBitmap.height );
 						var numColumns:uint = Math.ceil( newEntry.bitmap.width / previewBitmap.width );
 						newEntry.numFrames = numColumns * numRows;
@@ -555,7 +559,8 @@
 					Rotates.selected = Entry.CanRotate;
 					Scales.selected = Entry.CanScale;
 					SurfaceObject.selected = Entry.IsSurfaceObject;
-					
+					CanEditFrames.selected = Entry.CanEditFrames;
+					LockRotation.selected = Entry.LockRotationTo90Degrees;
 					
 					for each ( var prop:PropertyType in Entry.properties )
 					{
@@ -1242,6 +1247,8 @@
 						<mx:CheckBox label="Can Rotate" id="Rotates" selected="true" toolTip="If selected then it is possible to rotate this sprite." />
 						<mx:CheckBox label="Can Scale" id="Scales" selected="true" toolTip="If selected then it is possible to scale this sprite." />
 						<mx:CheckBox label="Is Surface Object" id="SurfaceObject" selected="false" toolTip="A Surface Object will align with an isometric tile as though it was a tile itself. If unchecked then it is more likely a character or non isometric object." />
+						<mx:CheckBox label="Lock Rotation" id="LockRotation" selected="false" toolTip="Lock rotation to 90 degree angles. If unchecked then the sprite can be freely rotated to any angle." />
+						<mx:CheckBox label="Can Edit Frames" id="CanEditFrames" selected="true" toolTip="If selected then you can edit the frames of a sprite of this type." />
 					</mx:HBox>
 					<mx:HBox width="100%">
 						<mx:VBox>

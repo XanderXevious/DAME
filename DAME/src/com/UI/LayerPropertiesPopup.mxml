@@ -129,6 +129,8 @@
 					tiles.ContainerObject = TilePreview;
 					
 					currentState = "2d";	// Change the default for maps.
+					
+					UpdateHasHeight();
 				}
 
 				if ( Layer == null )
@@ -267,6 +269,18 @@
 				if ( !isMap )
 				{
 					mainView.height = 100;
+				}
+				else if( Global.PreventEditingMapTileset )
+				{
+					TilesetPath.enabled = false;
+					TilesetButton.enabled = false;
+					TilemapTypeGroup.enabled = false;
+					BaseDimGroup.enabled = false;
+					PlacementGroup.enabled = false;
+					RepeatGroup.enabled = false;
+					TileDimsGroup.enabled = false;
+					DrawCollideGroup.enabled = false;
+					ScrollGroup.enabled = false;
 				}
 				
 				validateNow();
@@ -1075,14 +1089,14 @@
 							minScrollPosition="0" maxScrollPosition="1000" lineScrollSize="50" pageScrollSize="100"/>
 					</mx:Box>
 					
-					<mx:HBox width="100%">
+					<mx:HBox width="100%" id="TileDimsGroup">
 						<mx:Label text="Tile Width" textAlign="right" width="100" />
 						<mx:NumericStepper id="TileWidth" stepSize="1" value="50" minimum="1" maximum="4000" width="100" change="UpdateTilePreview()" toolTip="Width of each tile in pixels." />
 						<mx:Label text="Tile Height" textAlign="right" width="100"/>
 						<mx:NumericStepper id="TileHeight" stepSize="1" value="50" minimum="1" maximum="4000" width="100" change="UpdateTilePreview()" toolTip="Height of each tile in pixels." />
 					</mx:HBox>
 					
-					<mx:HBox width="100%">
+					<mx:HBox width="100%" id="TilemapTypeGroup">
 						<mx:Label text="Tilemap Type" textAlign="right" width="100" />
 						<comUI:MyComboBox id="TileTypeBox" dataProvider="{tileType}" change="TileTypeChanged()" iconFunction="getComboTileIcon"
 							toolTip="Specify the type of tilemap: 2D or isometric."/>
@@ -1142,7 +1156,7 @@
 						<mx:NumericStepper id="LayerHeight" stepSize="1" value="10" minimum="1" maximum="99999" width="100" change="ChangeDims()" toolTip="Height of the tilemap in tiles." />
 					</mx:HBox>
 					
-					<mx:HBox width="100%">
+					<mx:HBox width="100%" id="PlacementGroup">
 						<mx:Label text="Placement X" textAlign="right" width="100"/>
 						<mx:ComboBox id="PlacementX" width="100" enabled="false" >
 							<mx:dataProvider>
@@ -1171,14 +1185,14 @@
 						<mx:CheckBox id="PreserveTilePositions" label="Preserve Tile Positions" enabled="false" />
 					</mx:HBox>
 					
-					<mx:HBox width="100%">
+					<mx:HBox width="100%" id="DrawCollideGroup">
 						<mx:Label text="Draw Index" textAlign="right" width="100" />
 						<mx:NumericStepper id="DrawIdx" stepSize="1" value="1" minimum="0" maximum="9999" width="100" toolTip="Index of first tile that will be drawn." />
 						<mx:Label text="Collide Index" textAlign="right" width="100"/>
 						<mx:NumericStepper id="CollideIdx" stepSize="1" value="1" minimum="0" maximum="9999" width="100" toolTip="Index of first collidable tile." />
 					</mx:HBox>
 					
-					<mx:HBox width="100%">
+					<mx:HBox width="100%" id="RepeatGroup">
 						<mx:Spacer width="20"/>
 						<mx:CheckBox id="RepeatingX" label="Repeat X" selected="false" toolTip="Does this tilemap repeat horizontally?" />
 						<mx:CheckBox id="RepeatingY" label="Repeat Y" selected="false" toolTip="Does this tilemap repeat vertically?" />
@@ -1200,7 +1214,7 @@
 					</mx:HBox>
 				</mx:Box>
 					
-				<mx:HBox width="100%">
+				<mx:HBox width="100%" id="ScrollGroup">
 					<mx:Label text="Scroll Factor X" textAlign="right" width="100"/>
 					<mx:NumericStepper id="LayerXScroll" stepSize="0.01" value="1.00" minimum="-20" maximum="20.00" width="100" toolTip="The rate that this layer will scroll horizontally." />
 					<mx:Label text="Scroll Factor Y" textAlign="right" width="100"/>
