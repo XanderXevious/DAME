@@ -1,0 +1,100 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<comUI:PopupWindow xmlns:mx="http://www.adobe.com/2006/mxml" xmlns:comUI="com.UI.*"
+    width="100%" height="100%"
+	resizable="false" showGripper="false" showStatusBar="false" maximizable="false" minimizable="false"
+    defaultButton="{btnOK}" title="Options">
+
+    <mx:Script>
+        <![CDATA[
+			import com.Editor.EditorTypeSprites;
+			import com.Utils.Global;
+			import mx.collections.ArrayCollection;
+            import mx.managers.FocusManager;
+            import mx.managers.PopUpManager;
+			
+			public var okPressedCallback:Function;
+           
+            private function ok():void
+			{
+				Global.AllowEditingTemplateLayerList = AllowEditingTemplateLayerList.selected; 
+				Global.ForceAddingTemplatedMapsOnly = ForceAddingTemplatedMapsOnly.selected;
+				Global.ForceAddingTemplatedLayersOnly = ForceAddingTemplatedLayersOnly.selected;
+				Global.PreventEditingMapTileset = PreventEditingMapTileset.selected;
+				Global.PreventEditingSprites = PreventEditingSprites.selected;
+				Global.SaveSpritesSeparately = SaveSpriteEntriesInDSF.selected;
+				Global.SavePropertyTypesSeparately = SavePropertyTypesInDSF.selected;
+				Global.SaveLayerTemplatesSeparately = SaveLayerTemplatesInDSF.selected;
+				Global.SaveTileMatrixSeparately = SaveTileMatrixSeparately.selected;
+				Global.SaveTileBrushesSeparately = SaveTileBrushesSeparately.selected;
+				Global.SaveGuidesSeparately = SaveGuidesSeparately.selected;
+				ForceClose();
+            }
+           
+            override protected function init():void
+			{
+				AllowEditingTemplateLayerList.selected = Global.AllowEditingTemplateLayerList; 
+				ForceAddingTemplatedMapsOnly.selected = Global.ForceAddingTemplatedMapsOnly;
+				ForceAddingTemplatedLayersOnly.selected = Global.ForceAddingTemplatedLayersOnly;
+				PreventEditingMapTileset.selected = Global.PreventEditingMapTileset;
+				PreventEditingSprites.selected = Global.PreventEditingSprites;
+				SaveSpriteEntriesInDSF.selected = Global.SaveSpritesSeparately;
+				SaveLayerTemplatesInDSF.selected = Global.SaveLayerTemplatesSeparately;
+				SavePropertyTypesInDSF.selected = Global.SavePropertyTypesSeparately;
+				SaveTileMatrixSeparately.selected = Global.SaveTileMatrixSeparately;
+				SaveTileBrushesSeparately.selected = Global.SaveTileBrushesSeparately;
+				SaveGuidesSeparately.selected = Global.SaveGuidesSeparately;
+				
+				width = container.width + 20;
+				height = container.height + titleBar.height + 20;
+				
+				ShowTitleBarIcons = false;
+				
+				super.init();
+            }
+           
+        ]]>
+    </mx:Script>
+
+	<mx:Box id="container">
+		<mx:Form width="100%">
+			<mx:FormItem label="Allow Editing Template Layer List">
+				<mx:CheckBox id="AllowEditingTemplateLayerList" toolTip="Allows adding/renaming/deletion of layers in template layer list."/>
+			</mx:FormItem>
+			<mx:FormItem label="Force Adding Templated Maps Only">
+				<mx:CheckBox id="ForceAddingTemplatedMapsOnly" toolTip="Only allow map layers to be added from templates."/>
+			</mx:FormItem>
+			<mx:FormItem label="Force Adding Templated Layers Only">
+				<mx:CheckBox id="ForceAddingTemplatedLayersOnly" toolTip="All layers and groups must be added from templates."/>
+			</mx:FormItem>
+			<mx:FormItem label="Prevent Editing Map Tileset">
+				<mx:CheckBox id="PreventEditingMapTileset" toolTip="Prevents editing the raw map tileset data (images, tile size etc)." />
+			</mx:FormItem>
+			<mx:FormItem label="Prevent Editing Sprites">
+				<mx:CheckBox id="PreventEditingSprites" toolTip="Prevents editing of sprite entries." />
+			</mx:FormItem>
+			<mx:FormItem label="Save Sprite Entries in settings file">
+				<mx:CheckBox id="SaveSpriteEntriesInDSF" toolTip="Saves sprite entries in .dsf settings file" />
+			</mx:FormItem>
+			<mx:FormItem label="Save Property Types in settings file">
+				<mx:CheckBox id="SavePropertyTypesInDSF" toolTip="Saves property types in .dsf settings file" />
+			</mx:FormItem>
+			<mx:FormItem label="Save Layer Templates in settings file">
+				<mx:CheckBox id="SaveLayerTemplatesInDSF" toolTip="Saves layer templates in .dsf settings file" />
+			</mx:FormItem>
+			<mx:FormItem label="Save Tile Matrix in settings file">
+				<mx:CheckBox id="SaveTileMatrixSeparately" toolTip="Saves tile matrices in .dsf settings file" />
+			</mx:FormItem>
+			<mx:FormItem label="Save Tile Brushes in settings file">
+				<mx:CheckBox id="SaveTileBrushesSeparately" toolTip="Saves tile brushes in .dsf settings file" />
+			</mx:FormItem>
+			<mx:FormItem label="Save Guide/Grid settings in settings file">
+				<mx:CheckBox id="SaveGuidesSeparately" toolTip="Saves Guide and grid settings in .dsf settings file" />
+			</mx:FormItem>
+		</mx:Form>
+		
+		<mx:HBox horizontalAlign="center" width="100%">
+			<mx:Button id="btnOK" label="OK" click="ok()" />
+			<mx:Button id="btnCancel" label="Cancel" click="ForceClose()" />
+		</mx:HBox>
+	</mx:Box>
+</comUI:PopupWindow>
