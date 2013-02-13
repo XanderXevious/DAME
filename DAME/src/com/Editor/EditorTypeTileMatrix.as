@@ -557,7 +557,7 @@
 							gridX = 0;
 							calculateGridX = false;
 						}
-						if ( line.length == 2 )
+						else if ( line.length == 2 )
 						{
 							calculateGridX = false;
 							gridX = Math.max( 0, tileMatrix.ColumnCount - 2 );
