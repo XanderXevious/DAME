@@ -383,7 +383,8 @@ public class App extends Canvas
 		tileBrushesMenuItem = addNewMenuItem(toolsMenu, "Tile Brushes", "b", menuToolsItemSelected);
 		regionOverlayMenuItem = addNewMenuItem(toolsMenu, "Show Game Region Overlay", "y", menuToolsItemSelected );
 		addNewMenuItem(toolsMenu, "Color Settings...", '', menuToolsItemSelected);
-		addNewMenuItem(toolsMenu, "Options", '', menuToolsItemSelected);
+		addNewMenuItem(toolsMenu, "Options...", '', menuToolsItemSelected);
+		addNewMenuItem(toolsMenu, "Reset To Default Settings", '', menuToolsItemSelected);
 		addNewMenuItem(toolsMenu, "Highlight Collidable Tiles", 'h', menuToolsItemSelected);
 		showSpriteTrailSettingsMenuItem = addNewMenuItem(toolsMenu, "Show Sprite Trail Settings", '', menuToolsItemSelected );
 		addSeparator(toolsMenu);
@@ -397,6 +398,7 @@ public class App extends Canvas
 		//addNewMenuItem(helpMenu, "Online Wiki", '', menuHelpItemSelected );
 		addNewMenuItem(helpMenu, "Keyboard Shortcuts", '', menuHelpItemSelected );
 		addNewMenuItem(helpMenu, "Check For Updates", '', menuHelpItemSelected );
+		addNewMenuItem(helpMenu, "Open settings folder", '', menuHelpItemSelected );
 		DisableAutoUpdates = addNewMenuItem(helpMenu, "Disable Auto Updates", '', menuHelpItemSelected );
 		/*var samplesMenu:NativeMenu = addSubMenu(helpMenu, "Samples");
 		addNewMenuItem(samplesMenu, "Load Sample 1 (Flixel simple)", '', menuHelpItemSelected );
@@ -883,11 +885,22 @@ public class App extends Canvas
 				spriteTrailWindow.ChangeVisibility( false );
 			}
 		}
-		else if ( event.target.label == "Options" )
+		else if ( event.target.label == "Options..." )
 		{
 			CreatePopupWindow( OptionsPopup, true );
 		}
-
+		else if ( event.target.label == "Reset To Default Settings" )
+		{
+			AlertBox.Show("Are you sure you with to reset all options to default?", "Caution:Resetting options cannot be undone.", AlertBox.YES | AlertBox.NO, null, resetOptions, AlertBox.NO);
+		}
+	}
+	
+	private function resetOptions(event:CloseEvent):void
+	{
+		if (event.detail == AlertBox.YES)
+		{
+			Global.ResetOptions();
+		}
 	}
 	
 	private function menuViewItemSelected(event:Event):void
@@ -1034,6 +1047,11 @@ public class App extends Canvas
 		else if ( event.target.label == "Check For Updates" )
 		{
 			Global.windowedApp.checkForUpdate();
+		}
+		else if ( event.target.label == "Open settings file..." )
+		{
+			var file:File = File.applicationStorageDirectory.resolvePath("settings.xml");
+			file.openWithDefaultApplication();
 		}
 		/*else if ( event.target.label == "Load Sample 1 (Flixel simple)" )
 		{

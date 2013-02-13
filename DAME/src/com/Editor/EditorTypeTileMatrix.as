@@ -159,7 +159,7 @@
 				return;
 			}
 			
-			DebugDraw.DrawBox( mapLayer.map.x, mapLayer.map.y, mapLayer.map.x + mapLayer.map.width, mapLayer.map.y + mapLayer.map.height, 0, mapLayer.map.scrollFactor, false, 0xffffffff, true);
+			DebugDraw.DrawBox( mapLayer.map.x>>FlxG.zoomBitShifter, mapLayer.map.y>>FlxG.zoomBitShifter, (mapLayer.map.x + mapLayer.map.width)>>FlxG.zoomBitShifter, (mapLayer.map.y + mapLayer.map.height)>>FlxG.zoomBitShifter, 0, mapLayer.map.scrollFactor, false, Global.MapBoundsColour, true);
 			
 			if( currentTileValid )
 				DrawBoxAroundTile( mapLayer.map, currentTileWorldPos.x, currentTileWorldPos.y, Global.TileUnderCursorColour, 0, true );

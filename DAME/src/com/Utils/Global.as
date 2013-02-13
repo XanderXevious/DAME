@@ -153,6 +153,7 @@
 		public static var SaveTileMatrixSeparately:Boolean = false;
 		public static var SaveTileBrushesSeparately:Boolean = false;
 		public static var SaveGuidesSeparately:Boolean = false;
+		public static var ForceTilemapPositionChangesInUnits:Boolean = false;
 		
 		//public static var RememberedAlerts:Dictionary = new Dictionary;	// e.g. RememberedAlerts[alertId] = AlertBox.YES
 		
@@ -512,6 +513,7 @@
 			optionsXml.appendChild( < SaveTileMatrixSeparately > { SaveTileMatrixSeparately } </SaveTileMatrixSeparately> );
 			optionsXml.appendChild( < SaveTileBrushesSeparately > { SaveTileBrushesSeparately } </SaveTileBrushesSeparately> );
 			optionsXml.appendChild( < SaveGuidesSeparately > { SaveGuidesSeparately } </SaveGuidesSeparately> );
+			optionsXml.appendChild( < ForceTilemapPositionChangesInUnits > { ForceTilemapPositionChangesInUnits } </ForceTilemapPositionChangesInUnits> );
 			
 			xml.appendChild(optionsXml);
 		}
@@ -1054,6 +1056,70 @@
 		
 		static public function ResetOptions():void
 		{
+			SelectionColour = 0xffffffff;
+			SelectionColourOtherLayer = 0x55ffffff;
+			
+			PathColour = 0xffffffff;
+			PathNodeColourSelected1 = 0xff00ff00;
+			PathTangentColour = 0xffff0000;
+			PathTangentColourSelected1 = 0xffffff00;
+			PathTangentColourSelected2 = 0xffff0000;
+			PathColourInstanced = 0xff00ffff;
+			PathNodeColourInstancedSelected1 = 0xff00ff00;
+			
+			MapBoundsColour = 0xff000000;
+			TileUnderCursorColour = 0x99ffffff;
+			TileUnderCursorColourStackBase = 0x77ffffff;
+			
+			TileDrawnColour1 = 0x66ffffff;
+			TileDrawnColour2 = 0x11000000;
+			
+			GridLineColour = 0x77ff0000;
+			RegionGridLineColour = 0xccffffff;
+			ShapeColour = 0xffff9966;	// Orange
+			ShapeOutlineColour = 0xffffff00;
+			ShapeAlpha = 0.5;
+			
+			PathEventOutlineColour = 0xff0000ff;
+			PathEventColour = 0xffeeeeff;
+			
+			TileTintColour = 0xffff66;
+			TileTintAlpha = 0.6;
+			
+			StatusBarVisible = true;
+			MarqueesVisible = true;
+			AllowZoomOut = false;
+			SaveExporterWithProject = true;
+			
+			
+			SelectFromCurrentLayerOnly = true;
+			
+			DisableAutoUpdates = false;
+			
+			ExporterSettings = new ExporterData;
+			ProjectExporterSettings = new ExporterData;
+			CustomExporterPath = File.documentsDirectory;
+			
+			OnionSkinEnabled = false;
+			OnionSkinAlpha = 0.5;
+			SameGroupOnionSkinAlpha = 0.5;
+			UseFlashShapeRenderer = true;
+			DisplayLayersFirstOnTop = false;
+			
+			DrawTilesWithoutHeight = false;
+			DrawCurrentTileWithHeight = true;
+			
+			DrawCurrentTileAbove = false;
+			
+			PlayAnims = true;
+		
+			ResetColorGrid();
+			
+			ShowOverwritingImageAlert = true;
+			KeepTileMatrixOnExitAnswer = 0;
+			UseCheckeredTilePalette = true;
+			TilePaletteBackgroundColour = 0xffffff;
+		
 			AllowEditingTemplateLayerList = true;
 			ForceAddingTemplatedMapsOnly = false;
 			ForceAddingTemplatedLayersOnly = false;
@@ -1065,6 +1131,7 @@
 			SaveTileMatrixSeparately = false;
 			SaveTileBrushesSeparately = false;
 			SaveGuidesSeparately = false;
+			ForceTilemapPositionChangesInUnits = false;
 		}
 		
 		static public function LoadOptions(options:XMLList, resetIfNotExist:Boolean = false):void
@@ -1145,6 +1212,13 @@
 			}
 			else
 				SaveGuidesSeparately = false;
+				
+			if ( options.hasOwnProperty("ForceTilemapPositionChangesInUnits") )
+			{
+				ForceTilemapPositionChangesInUnits = options.ForceTilemapPositionChangesInUnits == true;
+			}
+			else
+				ForceTilemapPositionChangesInUnits = false;
 		}
 		
 		static public function LoadColorGrid(xml:XML):void

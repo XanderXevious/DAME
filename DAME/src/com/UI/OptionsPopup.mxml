@@ -27,6 +27,7 @@
 				Global.SaveTileMatrixSeparately = SaveTileMatrixSeparately.selected;
 				Global.SaveTileBrushesSeparately = SaveTileBrushesSeparately.selected;
 				Global.SaveGuidesSeparately = SaveGuidesSeparately.selected;
+				Global.ForceTilemapPositionChangesInUnits = ForceTilemapPositionChangesInUnits.selected;
 				ForceClose();
             }
            
@@ -43,6 +44,7 @@
 				SaveTileMatrixSeparately.selected = Global.SaveTileMatrixSeparately;
 				SaveTileBrushesSeparately.selected = Global.SaveTileBrushesSeparately;
 				SaveGuidesSeparately.selected = Global.SaveGuidesSeparately;
+				ForceTilemapPositionChangesInUnits.selected = Global.ForceTilemapPositionChangesInUnits;
 				
 				width = container.width + 20;
 				height = container.height + titleBar.height + 20;
@@ -89,6 +91,9 @@
 			</mx:FormItem>
 			<mx:FormItem label="Save Guide/Grid settings in settings file">
 				<mx:CheckBox id="SaveGuidesSeparately" toolTip="Saves Guide and grid settings in .dsf settings file" />
+			</mx:FormItem>
+			<mx:FormItem label="Force tilemap position changes in units only.">
+				<mx:CheckBox id="ForceTilemapPositionChangesInUnits" toolTip="Whenever you move a tilemap it can only be done in units and not in pixels." />
 			</mx:FormItem>
 		</mx:Form>
 		

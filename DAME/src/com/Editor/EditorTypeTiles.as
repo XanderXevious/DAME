@@ -1451,7 +1451,8 @@
 			
 			selectedTiles.length = 0;
 			selectedTiles.push( layerData );
-			layerData.layer.map.selectedTiles = new Vector.<Boolean>(layerData.layer.map.totalTiles);
+			layerData.layer.map.selectedTiles = null;
+			mapLayer.map.selectedTiles = new Vector.<Boolean>(layerData.layer.map.totalTiles);
 			
 			layerData.layer = mapLayer;
 			

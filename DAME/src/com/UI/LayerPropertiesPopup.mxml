@@ -282,6 +282,10 @@
 					DrawCollideGroup.enabled = false;
 					ScrollGroup.enabled = false;
 				}
+				if ( Global.ForceTilemapPositionChangesInUnits )
+				{
+					RealPosGroup.enabled = false;
+				}
 				
 				validateNow();
 				
@@ -1135,7 +1139,7 @@
 						</mx:HBox>
 					</mx:Box>
 				
-					<mx:HBox width="100%">
+					<mx:HBox width="100%" id="RealPosGroup">
 						<mx:Label text="X" textAlign="right" width="100" />
 						<mx:NumericStepper id="LayerXPos" stepSize="1" value="0" minimum="-99999" maximum="99999" width="100" change="ChangeXPos()" toolTip="x coordinate of the start(left) of the tilemap."/>
 						<mx:Label text="Y" textAlign="right" width="100" />
