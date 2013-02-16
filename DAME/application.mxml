@@ -250,6 +250,11 @@
 						colorPickObj.setStyle("backgroundColor", color);
 						if ( colorPickObj == ShapeFillColorPick )
 							EditorTypeDraw.ShapeFillColor = color;
+						else if ( colorPickObj == PathFillColorPick )
+						{
+							EditorTypePaths.ShapeFillColor = color;
+							EditorTypePaths.RefreshSelectedObjectFillColours();
+						}
 						else
 							EditorTypeDraw.DrawColor = color;
 					}
@@ -893,6 +898,8 @@
 				DrawNewTiles.selected = EditorTypeDraw.DrawNewTiles;
 				ShapeFillColorPick.setStyle("backgroundColor", EditorTypeDraw.ShapeFillColor );
 				FillAlpha.value = EditorTypeDraw.ShapeFillAlpha;
+				PathFillColorPick.setStyle("backgroundColor", EditorTypePaths.ShapeFillColor );
+				PathFillAlpha.value = EditorTypePaths.ShapeFillAlpha;
 				
 				changeDrawNewTiles();
 				updateDrawStyle();
@@ -1067,6 +1074,11 @@
 					<mx:Spacer width="5" />
 					<comUI:ButtonExt id="SetCurveMode" defaultSkin="@Embed(source='assets/curveIcon_off.png')" highlightSkin="@Embed(source='assets/curveIcon.png')" width="24" height="24" toolTip="Edit Curves" toggle="true"
 						click="EditorTypePaths.CurveMode = SetCurveMode.selected;" />
+					<mx:Spacer width="5" />
+					<mx:Label text="Fill alpha:" fontSize="9" fontFamily="Tahoma" fontWeight="normal" letterSpacing="1" fontAntiAliasType="normal" />
+					<mx:NumericStepper id="PathFillAlpha" y="14" width="45" height="18" borderStyle="solid" minimum="0" maximum="1" stepSize="0.05" change="EditorTypePaths.ShapeFillAlpha = PathFillAlpha.value;EditorTypePaths.RefreshSelectedObjectFillColours();" value="0" toolTip="Opacity of fill for shapes." />
+					<mx:Label text="color:" x="52" fontSize="9" fontFamily="Tahoma" fontWeight="normal" letterSpacing="1" fontAntiAliasType="normal" />
+					<mx:Canvas id="PathFillColorPick" x="57" y="17" borderStyle="solid" borderColor="black" cornerRadius="0" backgroundColor="0xffffff" width="14" height="14" mouseDown="doColorPicker(EditorTypePaths.ShapeFillColor,PathFillColorPick)" toolTip="choose fill colour" />
 					<mx:Spacer width="5" />
 					<comUI:ButtonExt id="SetPathEventMode" defaultSkin="@Embed(source='assets/eventIcon_off.png')" highlightSkin="@Embed(source='assets/eventIcon.png')" width="24" height="24" toolTip="Edit Path Events" toggle="true"
 						click="EditorTypePaths.EventsMode = SetPathEventMode.selected; if( SetPathEventMode.selected ){ EditorTypePaths.StopEditingShape = true; }" />

@@ -53,6 +53,10 @@
 		public static var CurveMode:Boolean = false;
 		public static var EventsMode:Boolean = false;
 		
+		public static var ShapeFillAlpha:Number = 0.0;
+		public static var ShapeFillColor:uint = 0;
+		
+		
 		protected static var _isActive:Boolean = false;
 		public static function IsActiveEditor():Boolean { return _isActive; };
 		
@@ -63,8 +67,11 @@
 		
 		private var pathEventCursor:PathEvent = new PathEvent(0, 0, null, null);
 		
+		private static var Instance:EditorTypePaths;
+		
 		public function EditorTypePaths( editor:EditorState ) 
 		{
+			Instance = this;
 			super( editor );
 			layerClassType = LayerPaths;
 			SpriteDeletedCallback = ShapeRemoved;
@@ -255,6 +262,8 @@
 				currentPath.IsSelected = true;
 				pathLayer.sprites.add( currentPath, true );
 				currentPath.IsClosedPoly = ClosedPoly;
+				currentPath.ShapeFillAlpha = ShapeFillAlpha;
+				currentPath.ShapeFillColor = ShapeFillColor;
 				currentPath.SelectedNodeIndex = selectedNodeIndex = 0;
 				movingNodes = true;
 				selectionChanged = true;
@@ -1079,6 +1088,7 @@
 				if ( selectedObj != null )
 				{
 					closeOpenShapeMenuItem.label = selectedObj.IsClosedPoly ? "Open Shape" : "Close Shape";
+					
 					selectedSprites.push( selectedObj );
 					selectionChanged = true;
 					contextMenu.display( FlxG.stage, FlxG.stage.mouseX, FlxG.stage.mouseY );
@@ -1160,7 +1170,16 @@
 			}
 		}
 		
-		
+		public static function RefreshSelectedObjectFillColours():void
+		{
+			for (var i:int = 0; i < Instance.selectedSprites.length; i++ )
+			{
+				var pathObj:PathObject = Instance.selectedSprites[i] as PathObject;
+				pathObj.ShapeFillColor = ShapeFillColor;
+				pathObj.ShapeFillAlpha = ShapeFillAlpha;
+				pathObj.Invalidate();
+			}
+		}
 	}
 
 }

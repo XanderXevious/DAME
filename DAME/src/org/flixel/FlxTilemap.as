@@ -364,8 +364,8 @@ package org.flixel
 			}
 			else
 			{
-				renderX = Math.floor( -screenPos.x / (tileSpacingX>>FlxG.zoomBitShifter));
-				renderY = Math.floor( ( -screenPos.y - ((_tileHeight - tileSpacingY)>>FlxG.zoomBitShifter)) ) / (tileSpacingY>>FlxG.zoomBitShifter);
+				renderX = Math.floor( -screenPos.x / (tileSpacingX * FlxG.extraZoom));
+				renderY = Math.floor( ( -screenPos.y - ((_tileHeight - tileSpacingY) * FlxG.extraZoom)) ) / (tileSpacingY * FlxG.extraZoom);
 				if ( xStagger )
 				{
 					renderX--;
@@ -428,6 +428,7 @@ package org.flixel
 				staggerX = staggerX * FlxG.extraZoom;
 				startX = startX * FlxG.extraZoom;
 				startY = startY * FlxG.extraZoom;
+				//renderX *= FlxG.extraZoom;
 			}
 			
 			_flashPoint.y = startY + _point.y + renderY * spacingY + renderX * offsetY;

@@ -1248,6 +1248,9 @@
 				}
 				newText = ReplaceKeyword(newText, "%nodecount%", pathobj.nodes.length.toString() );  
 				newText = ReplaceKeyword(newText, "%isclosed%", pathobj.IsClosedPoly.toString() );
+				newText = ReplaceKeyword(newText, "%fillColor%", Misc.uintToHexStr6Digits( pathobj.ShapeFillColor,"") );
+				newText = ReplaceKeyword(newText, "%fillAlpha%", pathobj.ShapeFillAlpha.toFixed(floatPrecision));
+				
 				
 				// Path Events.
 				newText = ParseIfBlock( newText, IfPathEventsStr, EndIfPathEventsStr, pathobj.pathEvents.length > 0 );

@@ -1,14 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <update xmlns="http://ns.adobe.com/air/framework/update/description/1.0">
-<version>3.1.2</version>
+<version>3.1.3</version>
 <url>http://dambots.com/games/dame/DAME.air</url>
 <description><![CDATA[
+DAME 3.1.3
+- Paths can now be as large as you want.
+- Paths can be filled in with a custom colour and alpha.
+- Fix very large paths from crashing.
+- Fix extremely large tilemaps zoomed out from being clipped incorrectly.
+
 DAME 3.1.2
 - Fix DAME crashing when you try to move tiles pasted in another group than the one they were copied from.
 - Fix tilemap border being draw incorrectly when the map is zoomed out far in tile matrix mode.
 - Option to force snapping of tilemap positions to units.
 - Added help menu option to open settings file.
 - Added Tool menu option to reset to default settings.
+- Fix for crash when ignore map edges is ticked on a tile matrix with special connections.
 
 DAME 3.1.1
 - Duplicated sprite entries now copy all relevant data.

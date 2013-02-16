@@ -323,6 +323,8 @@ package org.flixel
 			resetHelpers();
 		}
 		
+		protected var canCreateBmp:Boolean = true;
+		
 		/**
 		 * Resets some important variables for sprite optimization and rendering.
 		 */
@@ -337,21 +339,29 @@ package org.flixel
 			_flashRect2.y = 0;
 			_flashRect2.width = _pixels.width;
 			_flashRect2.height = _pixels.height;
-			if((_framePixels == null) || (_framePixels.width != width) || (_framePixels.height != height))
-				_framePixels = new BitmapData(width,height);
-			if((_bbb == null) || (_bbb.width != width) || (_bbb.height != height))
-				_bbb = new BitmapData(width,height);
+			if ( canCreateBmp )
+			{
+				if( (_framePixels == null) || (_framePixels.width != width) || (_framePixels.height != height))
+					_framePixels = new BitmapData(width,height);
+				if( (_bbb == null) || (_bbb.width != width) || (_bbb.height != height))
+					_bbb = new BitmapData(width, height);
+			}
 			origin.x = frameWidth*0.5;
-			origin.y = frameHeight*0.5;
-			_framePixels.copyPixels(_pixels,_flashRect,_flashPointZero);
+			origin.y = frameHeight * 0.5;
 			frames = (_flashRect2.width / _flashRect.width) * (_flashRect2.height / _flashRect.height);
-			if(_ct != null) _framePixels.colorTransform(_flashRect,_ct);
 			if(FlxG.showBounds)
 				drawBounds();
 			_caf = 0;
 			refreshHulls();
 			
-			redrawScaledBitmaps(_framePixels);
+			if ( _framePixels )
+			{
+				_framePixels.copyPixels(_pixels,_flashRect,_flashPointZero);
+			
+				if (_ct != null)
+					_framePixels.colorTransform(_flashRect, _ct);
+				redrawScaledBitmaps(_framePixels);
+			}
 		}
 		
 		/**

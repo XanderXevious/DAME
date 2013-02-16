@@ -810,6 +810,8 @@
 							closed = { avatar.IsClosedPoly }
 							curved = { avatar.IsCurved }
 							instanced = { avatar.IsInstanced }
+							fillColor = { Misc.uintToHexStr6Digits(avatar.ShapeFillColor) }
+							fillAlpha = { avatar.ShapeFillAlpha.toFixed(2) }
 							/> ;
 							
 			if ( childAvatar )
@@ -2390,6 +2392,14 @@
 						path.SetGUID( pathXml.@guid );
 						if( pathXml.hasOwnProperty("@Z") == true )
 							path.z = -pathXml.@Z;
+						if ( pathXml.hasOwnProperty("@fillColor") == true )
+						{
+							path.ShapeFillColor = (uint)(pathXml.@fillColor) | 0xff000000;
+						}
+						if ( pathXml.hasOwnProperty("@fillAlpha") )
+						{
+							path.ShapeFillAlpha = pathXml.@fillAlpha;
+						}
 						path.IsClosedPoly = (pathXml.@closed == "true" );
 						var nodeList:XMLList = pathXml.node;
 						if ( pathXml.@instanced == "false" )

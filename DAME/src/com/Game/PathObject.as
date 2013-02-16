@@ -7,6 +7,7 @@
 	import flash.display.Bitmap;
 	import flash.display.BitmapData;
 	import flash.display.Shape;
+	import flash.geom.ColorTransform;
 	import flash.geom.Matrix;
 	import flash.geom.Point;
 	import org.flixel.FlxPoint;
@@ -50,6 +51,11 @@
 		
 		private var oldLineThickness:int = 0;
 		
+		private var cachedMinExtent:FlxPoint = new FlxPoint();
+		
+		public var ShapeFillAlpha:Number = 0.0;
+		public var ShapeFillColor:uint = 0;
+		
 		public override function set markForDeletion( mark:Boolean ):void
 		{
 			super.markForDeletion = mark;
@@ -75,12 +81,27 @@
 			shape = new Shape();
 			SetFromBitmap(new Bitmap(new BitmapData(1, 1)),1,1);
 			Invalidate();
+			
+			canCreateBmp = false;
 		}
 	
 		
 		override public function render():void
 		{
 			super.render();
+			
+			if ( wasDrawn )
+			{
+				var matrix:Matrix = new Matrix;
+				var pos:FlxPoint = this.copy();
+				getScreenXY(pos);
+				if ( FlxG.zoomScale < 0.5 )
+				{
+					matrix.scale( FlxG.zoomScale, FlxG.zoomScale);
+				}
+				matrix.translate( -cachedMinExtent.x + pos.x, -cachedMinExtent.y + pos.y);
+				FlxG.buffer.draw(shape, matrix, new ColorTransform(1,1,1,alpha));
+			}
 			
 			if (!wasDrawn )
 			{
@@ -301,12 +322,17 @@
 			var curvePos:FlxPoint = new FlxPoint();
 			var lastNode:PathNode = null;
 			
+			if( IsClosedPoly && ShapeFillAlpha > 0 )
+				shape.graphics.beginFill( ShapeFillColor, ShapeFillAlpha);
+			
 			for ( nodeIndex = 0; nodeIndex < nodes.length; nodeIndex++ )
 			{			
 				node = nodes[nodeIndex];
+				if ( lastNode == null )
+					shape.graphics.moveTo(node.x, node.y);
 				if ( lastNode != null )
 				{
-					shape.graphics.moveTo(lastNode.x, lastNode.y);
+					//shape.graphics.moveTo(lastNode.x, lastNode.y);
 					if ( _isCurved )
 					{
 						DrawBezierSegment( lastNode, lastNode.tangent1, node.tangent2, node, minExtent, maxExtent );
@@ -316,12 +342,7 @@
 						shape.graphics.lineTo(node.x, node.y);
 					}
 				}
-				shape.graphics.moveTo(node.x, node.y);
-				shape.graphics.lineStyle(lineThickness, 0xff444444, 1, true);
-				shape.graphics.beginFill(0xffffff, 1);
-				shape.graphics.drawRect(node.x - 2, node.y - 2, 4, 4);
-				shape.graphics.endFill();
-				shape.graphics.lineStyle(lineThickness, pathColour, 1,true);
+				//shape.graphics.moveTo(node.x, node.y);
 				lastNode = node;
 			}
 			
@@ -337,6 +358,19 @@
 				{
 					shape.graphics.lineTo(nodes[0].x, nodes[0].y);
 				}
+			}
+			
+			if( IsClosedPoly && ShapeFillAlpha > 0 )
+				shape.graphics.endFill();
+			
+			for ( nodeIndex = 0; nodeIndex < nodes.length; nodeIndex++ )
+			{			
+				node = nodes[nodeIndex];
+				shape.graphics.lineStyle(lineThickness, 0xff444444, 1, true);
+				shape.graphics.beginFill(0xffffff, 1);
+				shape.graphics.drawRect(node.x - 2, node.y - 2, 4, 4);
+				shape.graphics.endFill();
+				shape.graphics.lineStyle(lineThickness, pathColour, 1,true);
 			}
 			
 			nodeIndex = nodes.length;
@@ -356,10 +390,11 @@
 			height = frameHeight = (maxExtent.y - minExtent.y) + 4;
 			
 			
-			_pixels = new BitmapData( width, height, true, 0x00000000);
+			//_pixels = new BitmapData( width, height, true, 0x00000000);
 			var matrix:Matrix = new Matrix;
-			matrix.translate(-minExtent.x, -minExtent.y);
-			_pixels.draw(shape,matrix);
+			matrix.translate( -minExtent.x, -minExtent.y);
+			cachedMinExtent = minExtent;
+			//_pixels.draw(shape,matrix);
 			resetHelpers();
 			
 			if ( cachedLengths )
@@ -677,6 +712,8 @@
 			newAvatar.scale = FlxPoint.CreateObject(scale);
 			newAvatar.offset = FlxPoint.CreateObject(offset);
 			newAvatar.IsClosedPoly = IsClosedPoly;
+			newAvatar.ShapeFillAlpha = ShapeFillAlpha;
+			newAvatar.ShapeFillColor = ShapeFillColor;
 			newAvatar.nodes = new Vector.<PathNode>;
 			for each( var node:PathNode in nodes )
 			{
