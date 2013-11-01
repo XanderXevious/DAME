@@ -1798,6 +1798,8 @@
 					catch (error:Error){}
 				}
 			}
+			spriteText = ReplaceKeyword(spriteText,"%frame%", (int)(sprite.previewIndex) );
+			
 			spriteText = ReplaceKeyword(spriteText,"%width%", String(sprite.previewBitmap ? sprite.previewBitmap.width : 0));
 			spriteText = ReplaceKeyword(spriteText,"%height%", String(sprite.previewBitmap ? sprite.previewBitmap.height : 0) );
 			spriteText = ReplaceKeyword(spriteText,"%anchorx%", sprite.Anchor.x.toString() );

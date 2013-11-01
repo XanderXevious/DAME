@@ -49,7 +49,7 @@
 		<mx:VBox>
 			<mx:Spacer width="20"/>
 			<mx:VBox horizontalAlign="left">
-				<mx:Label text="©2010-2012 - Charles Goatley" />
+				<mx:Label text="©2010-2013 - Charles Goatley" />
 				<mx:LinkButton id="URL" label="http://dambots.com/dame-editor/" click="navigateToURL(new URLRequest(URL.label))" />
 				<mx:LinkButton id="URLgitHub" label="https://github.com/XanderXevious/DAME" click="navigateToURL(new URLRequest(URLgitHub.label))" />
 				<mx:Form textAlign="left">

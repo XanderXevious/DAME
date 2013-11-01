@@ -3,6 +3,8 @@
 <version>3.1.3</version>
 <url>http://dambots.com/games/dame/DAME.air</url>
 <description><![CDATA[
+DAME 3.1.4
+- Allow %frame% keyword to work in DAME.CreateTextForSpriteClasses to get the sprite previewIndex
 DAME 3.1.3
 - Paths can now be as large as you want.
 - Paths can be filled in with a custom colour and alpha.
