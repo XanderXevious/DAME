@@ -616,7 +616,8 @@
 		
 		public function insertTile( bitmapData:BitmapData, _metadata:Object, index:uint ):void
 		{
-			_data.splice( index, 0, { icon:bitmapData, metadata:_metadata } );
+			var obj:TileListData = new TileListData( bitmapData, _metadata );
+			_data.splice( index, 0, obj );
 			_dirty = true;
 		}
 		

@@ -39,6 +39,7 @@
 		override protected function init():void
 		{
 			tiles = new TileList();
+			tiles.ContainerObject = SpritePreview;
 			tiles.autoRearrange = false;
 			tiles.autoResizeParents = false;
 			tiles.TileHeight = 50;
