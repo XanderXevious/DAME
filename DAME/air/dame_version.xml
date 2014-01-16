@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <update xmlns="http://ns.adobe.com/air/framework/update/description/1.0">
-<version>3.1.5</version>
+<version>3.1.6</version>
 <url>http://dambots.com/games/dame/DAME.air</url>
 <description><![CDATA[
+DAME 3.1.6
+- Added DAME.Log() command for exporters.
 DAME 3.1.5
 - Fixed sprite trails.
 DAME 3.1.4

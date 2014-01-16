@@ -178,6 +178,11 @@
 			currentPropTypes = null;
 		}
 		
+		public static function Log(text:String):void
+		{
+			ExporterPopup.ExporterWindow.LogWriteLine(text);
+		}
+		
 		public static function ResetCounters():void
 		{
 			avatarCounter = 0;
